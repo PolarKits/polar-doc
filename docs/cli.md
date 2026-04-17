@@ -37,6 +37,8 @@ Use the same command shape for both formats.
 
 `info` and `validate` support `--json`.
 
+`extract` emits plain text to stdout; `--json` is not supported.
+
 - use a stable top-level schema per command
 - return machine-readable status and errors
 - do not mix human-readable prose with JSON output
