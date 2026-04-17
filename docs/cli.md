@@ -27,15 +27,15 @@ polardoc info ./testdata/sample.pdf
 polardoc info ./testdata/sample.ofd
 polardoc validate ./testdata/sample.pdf
 polardoc validate ./testdata/sample.ofd
-polardoc extract --text ./testdata/sample.pdf
-polardoc extract --text ./testdata/sample.ofd
+polardoc extract ./testdata/sample.pdf
+polardoc extract ./testdata/sample.ofd
 ```
 
 Use the same command shape for both formats.
 
 ## JSON Output Rules
 
-All commands should support `--json`.
+`info` and `validate` support `--json`.
 
 - use a stable top-level schema per command
 - return machine-readable status and errors
