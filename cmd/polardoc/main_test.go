@@ -17,8 +17,8 @@ func TestRunInfoSuccessReturnsZero(t *testing.T) {
 	path := writeTestPDF(t)
 	resolver := app.NewPhase1Resolver()
 
-	stdout, stderr, code := captureProcessIO(t, func(errWriter io.Writer) int {
-		return run(context.Background(), []string{"info", path}, resolver, errWriter)
+	stdout, stderr, code := captureProcessIO(t, func(outWriter, errWriter io.Writer) int {
+		return run(context.Background(), []string{"info", path}, resolver, outWriter, errWriter)
 	})
 
 	if code != 0 {
@@ -35,8 +35,8 @@ func TestRunInfoSuccessReturnsZero(t *testing.T) {
 func TestRunInfoFailureReturnsNonZeroAndUsesStderr(t *testing.T) {
 	resolver := app.NewPhase1Resolver()
 
-	stdout, stderr, code := captureProcessIO(t, func(errWriter io.Writer) int {
-		return run(context.Background(), []string{"info", "/tmp/missing.pdf"}, resolver, errWriter)
+	stdout, stderr, code := captureProcessIO(t, func(outWriter, errWriter io.Writer) int {
+		return run(context.Background(), []string{"info", "/tmp/missing.pdf"}, resolver, outWriter, errWriter)
 	})
 
 	if code == 0 {
@@ -53,8 +53,8 @@ func TestRunInfoFailureReturnsNonZeroAndUsesStderr(t *testing.T) {
 func TestRunValidateFailureReturnsNonZero(t *testing.T) {
 	resolver := app.NewPhase1Resolver()
 
-	stdout, stderr, code := captureProcessIO(t, func(errWriter io.Writer) int {
-		return run(context.Background(), []string{"validate"}, resolver, errWriter)
+	stdout, stderr, code := captureProcessIO(t, func(outWriter, errWriter io.Writer) int {
+		return run(context.Background(), []string{"validate"}, resolver, outWriter, errWriter)
 	})
 
 	if code == 0 {
@@ -72,8 +72,8 @@ func TestRunValidateInvalidDocumentReturnsNonZeroWithoutStderr(t *testing.T) {
 	path := writeInvalidTestOFD(t)
 	resolver := app.NewPhase1Resolver()
 
-	stdout, stderr, code := captureProcessIO(t, func(errWriter io.Writer) int {
-		return run(context.Background(), []string{"validate", path}, resolver, errWriter)
+	stdout, stderr, code := captureProcessIO(t, func(outWriter, errWriter io.Writer) int {
+		return run(context.Background(), []string{"validate", path}, resolver, outWriter, errWriter)
 	})
 
 	if code == 0 {
@@ -93,8 +93,8 @@ func TestRunValidateInvalidDocumentReturnsNonZeroWithoutStderr(t *testing.T) {
 func TestRunUnknownCommandReturnsNonZero(t *testing.T) {
 	resolver := app.NewPhase1Resolver()
 
-	stdout, stderr, code := captureProcessIO(t, func(errWriter io.Writer) int {
-		return run(context.Background(), []string{"unknown"}, resolver, errWriter)
+	stdout, stderr, code := captureProcessIO(t, func(outWriter, errWriter io.Writer) int {
+		return run(context.Background(), []string{"unknown"}, resolver, outWriter, errWriter)
 	})
 
 	if code == 0 {
@@ -112,8 +112,8 @@ func TestRunValidateSuccessKeepsStdoutCleanForJSON(t *testing.T) {
 	path := writeTestOFD(t)
 	resolver := app.NewPhase1Resolver()
 
-	stdout, stderr, code := captureProcessIO(t, func(errWriter io.Writer) int {
-		return run(context.Background(), []string{"validate", "--json", path}, resolver, errWriter)
+	stdout, stderr, code := captureProcessIO(t, func(outWriter, errWriter io.Writer) int {
+		return run(context.Background(), []string{"validate", "--json", path}, resolver, outWriter, errWriter)
 	})
 
 	if code != 0 {
@@ -131,8 +131,8 @@ func TestRunValidateInvalidDocumentJSONReturnsNonZeroWithoutStderr(t *testing.T)
 	path := writeInvalidTestOFD(t)
 	resolver := app.NewPhase1Resolver()
 
-	stdout, stderr, code := captureProcessIO(t, func(errWriter io.Writer) int {
-		return run(context.Background(), []string{"validate", "--json", path}, resolver, errWriter)
+	stdout, stderr, code := captureProcessIO(t, func(outWriter, errWriter io.Writer) int {
+		return run(context.Background(), []string{"validate", "--json", path}, resolver, outWriter, errWriter)
 	})
 
 	if code == 0 {
@@ -149,7 +149,61 @@ func TestRunValidateInvalidDocumentJSONReturnsNonZeroWithoutStderr(t *testing.T)
 	}
 }
 
-func captureProcessIO(t *testing.T, runFunc func(io.Writer) int) (string, string, int) {
+func TestRunNoArgsPrintsUsageAndReturnsNonZero(t *testing.T) {
+	resolver := app.NewPhase1Resolver()
+
+	stdout, stderr, code := captureProcessIO(t, func(outWriter, errWriter io.Writer) int {
+		return run(context.Background(), nil, resolver, outWriter, errWriter)
+	})
+
+	if code == 0 {
+		t.Fatalf("exit code = %d, want non-zero", code)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if stdout != usageText+"\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, usageText+"\n")
+	}
+}
+
+func TestRunHelpPrintsUsageAndReturnsZero(t *testing.T) {
+	resolver := app.NewPhase1Resolver()
+
+	stdout, stderr, code := captureProcessIO(t, func(outWriter, errWriter io.Writer) int {
+		return run(context.Background(), []string{"help"}, resolver, outWriter, errWriter)
+	})
+
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0", code)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if stdout != usageText+"\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, usageText+"\n")
+	}
+}
+
+func TestRunFlagHelpPrintsUsageAndReturnsZero(t *testing.T) {
+	resolver := app.NewPhase1Resolver()
+
+	stdout, stderr, code := captureProcessIO(t, func(outWriter, errWriter io.Writer) int {
+		return run(context.Background(), []string{"--help"}, resolver, outWriter, errWriter)
+	})
+
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0", code)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if stdout != usageText+"\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, usageText+"\n")
+	}
+}
+
+func captureProcessIO(t *testing.T, runFunc func(io.Writer, io.Writer) int) (string, string, int) {
 	t.Helper()
 
 	oldStdout := os.Stdout
@@ -167,7 +221,7 @@ func captureProcessIO(t *testing.T, runFunc func(io.Writer) int) (string, string
 	os.Stdout = stdoutWriter
 	os.Stderr = stderrWriter
 
-	code := runFunc(stderrWriter)
+	code := runFunc(stdoutWriter, stderrWriter)
 
 	_ = stdoutWriter.Close()
 	_ = stderrWriter.Close()

@@ -13,11 +13,19 @@ import (
 
 func main() {
 	resolver := app.NewPhase1Resolver()
-	os.Exit(run(context.Background(), os.Args[1:], resolver, os.Stderr))
+	os.Exit(run(context.Background(), os.Args[1:], resolver, os.Stdout, os.Stderr))
 }
 
-func run(ctx context.Context, args []string, resolver app.ServiceResolver, stderr io.Writer) int {
+func run(ctx context.Context, args []string, resolver app.ServiceResolver, stdout, stderr io.Writer) int {
 	if err := Execute(ctx, args, resolver); err != nil {
+		if errors.Is(err, errHelp) {
+			fmt.Fprintln(stdout, usageText)
+			return 0
+		}
+		if errors.Is(err, errUsage) {
+			fmt.Fprintln(stdout, usageText)
+			return 1
+		}
 		if errors.Is(err, commands.ErrValidationFailed) {
 			return 1
 		}

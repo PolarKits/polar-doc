@@ -2,15 +2,19 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/PolarKits/polardoc/cmd/polardoc/commands"
 	"github.com/PolarKits/polardoc/internal/app"
 )
 
+var errUsage = errors.New("usage")
+var errHelp = errors.New("help")
+
 func Execute(ctx context.Context, args []string, resolver app.ServiceResolver) error {
 	if len(args) == 0 {
-		return usageError()
+		return errUsage
 	}
 
 	switch args[0] {
@@ -21,14 +25,10 @@ func Execute(ctx context.Context, args []string, resolver app.ServiceResolver) e
 	case "extract":
 		return commands.RunExtract(ctx, resolver, args[1:])
 	case "help", "-h", "--help":
-		return usageError()
+		return errHelp
 	default:
 		return fmt.Errorf("unknown command %q\n%s", args[0], usageText)
 	}
 }
 
-const usageText = "usage: polardoc <info|validate|extract> [--file|-f] <path>"
-
-func usageError() error {
-	return fmt.Errorf(usageText)
-}
+const usageText = "polardoc\nusage: polardoc <info|validate> [--file|-f] <path>\ncommands: info, validate"
