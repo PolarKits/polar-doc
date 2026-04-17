@@ -23,9 +23,7 @@ It is not a roadmap or design document.
 
 ## Gaps
 
-### G3 — `extract` command semantics are thin
-`docs/cli.md` shows `extract --text` as an example but:
-- `extract.go` does not use `--text` flag; it is positional path only
+### G3 — `extract` command output and exit code not documented
 - `extract` output (plain text to stdout) is not documented
 - exit-code behavior for extract is not specified
 
@@ -44,17 +42,10 @@ If a new format were added, there is no guide for where to register it.
 a full MCP design. It is unclear whether MCP is in-progress, deferred, or
 what subset is currently implemented.
 
-## Contradictions
-
-### C1 — `docs/cli.md` example uses `--text` for extract; code does not
-`docs/cli.md` shows `polardoc extract --text ./testdata/sample.pdf`.
-`extract.go` parses with `parseDocumentRef` which only reads the path
-argument and does not recognize `--text`.
-
 ## Notes
 
-- G3 is a direct doc/code mismatch in the current repository.
+- G3 is a documentation gap about current extract behavior.
 - G7 is descriptive but not urgent without another format in scope.
 - G8 reflects a mismatch between current placeholder code and broader MCP documentation.
-- C1 is a current doc/code contradiction.
 - G1, G2, G5, G6, and G10 have been addressed by subsequent documentation work.
+- C1 was resolved by earlier doc fixes.
