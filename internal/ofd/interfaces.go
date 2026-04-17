@@ -8,6 +8,7 @@ import "github.com/PolarKits/polardoc/internal/doc"
 // It must not depend on the PDF package.
 type Service interface {
 	doc.Opener
+	doc.InfoProvider
 	doc.Validator
 	doc.TextExtractor
 	doc.PreviewRenderer

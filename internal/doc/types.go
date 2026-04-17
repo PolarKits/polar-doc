@@ -19,26 +19,18 @@ type DocumentRef struct {
 	Path   string
 }
 
-// ValidationSeverity classifies validation findings.
-type ValidationSeverity string
-
-const (
-	SeverityInfo  ValidationSeverity = "info"
-	SeverityWarn  ValidationSeverity = "warn"
-	SeverityError ValidationSeverity = "error"
-)
-
-// ValidationFinding describes one validation issue or note.
-type ValidationFinding struct {
-	Code     string
-	Message  string
-	Severity ValidationSeverity
-	Location string
+// InfoResult is minimal document metadata returned by the info command.
+type InfoResult struct {
+	Format          Format
+	Path            string
+	SizeBytes       int64
+	DeclaredVersion string
 }
 
 // ValidationReport is a structured validation output.
 type ValidationReport struct {
-	Findings []ValidationFinding
+	Valid  bool
+	Errors []string
 }
 
 // PreviewRequest describes a requested preview rendering.

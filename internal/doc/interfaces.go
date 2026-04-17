@@ -15,6 +15,11 @@ type Opener interface {
 	Open(ctx context.Context, ref DocumentRef) (Document, error)
 }
 
+// InfoProvider returns minimal metadata for an opened document.
+type InfoProvider interface {
+	Info(ctx context.Context, d Document) (InfoResult, error)
+}
+
 // Validator validates a format-specific document handle.
 type Validator interface {
 	Validate(ctx context.Context, d Document) (ValidationReport, error)

@@ -5,6 +5,7 @@ import "github.com/PolarKits/polardoc/internal/doc"
 // FormatService defines the core capability set expected by the application layer.
 type FormatService interface {
 	doc.Opener
+	doc.InfoProvider
 	doc.Validator
 	doc.TextExtractor
 	doc.PreviewRenderer
