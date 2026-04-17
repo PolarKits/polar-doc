@@ -5,21 +5,22 @@
 - `internal/doc`: shared capability contracts and lightweight cross-format types
 - `internal/pdf`: PDF implementations of doc contracts
 - `internal/ofd`: OFD implementations of doc contracts
-- `internal/app`: application-level routing and service wiring
+- `internal/app`: application-level resolver and service wiring only
 - `internal/mcp`: MCP-facing interfaces and adapters
 - `internal/render`: preview rendering interfaces
 - `internal/security`: signing and security interfaces
 
 ## Dependency Direction
 
-The dependency path is one-way:
+Dependencies are one-way:
 
-- interface entry points (`cmd/polardoc`, `cmd/polardoc-mcp`, `internal/mcp`)
-- `internal/app`
-- `internal/doc` contracts
-- format implementations (`internal/pdf`, `internal/ofd`)
+- `cmd/polardoc` -> `cmd/polardoc/commands` -> `internal/app` -> `internal/doc`
+- `cmd/polardoc-mcp` -> `internal/mcp` -> `internal/app` -> `internal/doc`
+- `internal/pdf` -> `internal/doc`
+- `internal/ofd` -> `internal/doc`
 
 `internal/pdf` and `internal/ofd` must not depend on each other.
+`internal/pdf` and `internal/ofd` now contain the first real `info` service implementations; wiring still belongs in `internal/app`.
 
 ## Why Interfaces Stay Small
 
