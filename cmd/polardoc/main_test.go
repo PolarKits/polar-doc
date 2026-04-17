@@ -68,6 +68,28 @@ func TestRunValidateFailureReturnsNonZero(t *testing.T) {
 	}
 }
 
+func TestRunValidateInvalidDocumentReturnsNonZeroWithoutStderr(t *testing.T) {
+	path := writeInvalidTestOFD(t)
+	resolver := app.NewPhase1Resolver()
+
+	stdout, stderr, code := captureProcessIO(t, func(errWriter io.Writer) int {
+		return run(context.Background(), []string{"validate", path}, resolver, errWriter)
+	})
+
+	if code == 0 {
+		t.Fatalf("exit code = %d, want non-zero", code)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if !strings.Contains(stdout, "valid: false") {
+		t.Fatalf("stdout = %q, want validate output", stdout)
+	}
+	if !strings.Contains(stdout, "error: invalid OFD package: missing Document.xml") {
+		t.Fatalf("stdout = %q, want validation error output", stdout)
+	}
+}
+
 func TestRunUnknownCommandReturnsNonZero(t *testing.T) {
 	resolver := app.NewPhase1Resolver()
 
@@ -102,6 +124,28 @@ func TestRunValidateSuccessKeepsStdoutCleanForJSON(t *testing.T) {
 	}
 	if !strings.Contains(stdout, `"valid": true`) {
 		t.Fatalf("stdout = %q, want validate JSON output", stdout)
+	}
+}
+
+func TestRunValidateInvalidDocumentJSONReturnsNonZeroWithoutStderr(t *testing.T) {
+	path := writeInvalidTestOFD(t)
+	resolver := app.NewPhase1Resolver()
+
+	stdout, stderr, code := captureProcessIO(t, func(errWriter io.Writer) int {
+		return run(context.Background(), []string{"validate", "--json", path}, resolver, errWriter)
+	})
+
+	if code == 0 {
+		t.Fatalf("exit code = %d, want non-zero", code)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if !strings.Contains(stdout, `"valid": false`) {
+		t.Fatalf("stdout = %q, want invalid validate JSON output", stdout)
+	}
+	if !strings.Contains(stdout, `"invalid OFD package: missing Document.xml"`) {
+		t.Fatalf("stdout = %q, want validation error JSON output", stdout)
 	}
 }
 
@@ -162,6 +206,19 @@ func writeTestOFD(t *testing.T) string {
 	})
 	if err := os.WriteFile(path, content, 0o644); err != nil {
 		t.Fatalf("write sample OFD: %v", err)
+	}
+	return path
+}
+
+func writeInvalidTestOFD(t *testing.T) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "bad.ofd")
+	content := buildTestOFDPackage(t, map[string]string{
+		"OFD.xml": "<ofd/>",
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write bad OFD: %v", err)
 	}
 	return path
 }

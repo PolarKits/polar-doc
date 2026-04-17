@@ -2,11 +2,14 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/PolarKits/polardoc/internal/app"
 	"github.com/PolarKits/polardoc/internal/doc"
 )
+
+var ErrValidationFailed = errors.New("validation failed")
 
 func RunValidate(ctx context.Context, resolver app.ServiceResolver, args []string) error {
 	input, err := parseCommandInput("validate", args)
@@ -41,18 +44,29 @@ func RunValidate(ctx context.Context, resolver app.ServiceResolver, args []strin
 	}
 
 	if input.json {
-		return writeJSON(struct {
+		err := writeJSON(struct {
 			Valid  bool     `json:"valid"`
 			Errors []string `json:"errors"`
 		}{
 			Valid:  report.Valid,
 			Errors: report.Errors,
 		})
+		if err != nil {
+			return err
+		}
+		if !report.Valid {
+			return ErrValidationFailed
+		}
+		return nil
 	}
 
 	fmt.Printf("valid: %t\n", report.Valid)
 	for _, errText := range report.Errors {
 		fmt.Printf("error: %s\n", errText)
+	}
+
+	if !report.Valid {
+		return ErrValidationFailed
 	}
 	return nil
 }

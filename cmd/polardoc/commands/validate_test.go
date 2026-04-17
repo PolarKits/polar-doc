@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,22 +29,16 @@ func TestRunValidatePDF(t *testing.T) {
 }
 
 func TestRunValidateInvalidOFD(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "bad.ofd")
-	content := buildOFDPackage(t, map[string]string{
-		"OFD.xml": "<ofd/>",
-	})
-	if err := os.WriteFile(path, content, 0o644); err != nil {
-		t.Fatalf("write bad OFD: %v", err)
-	}
-
+	path := writeInvalidOFD(t)
 	resolver := app.NewPhase1Resolver()
+	var runErr error
 	output := captureStdout(t, func() {
-		if err := RunValidate(context.Background(), resolver, []string{path}); err != nil {
-			t.Fatalf("run validate OFD: %v", err)
-		}
+		runErr = RunValidate(context.Background(), resolver, []string{path})
 	})
 
+	if !errors.Is(runErr, ErrValidationFailed) {
+		t.Fatalf("run validate OFD error = %v, want %v", runErr, ErrValidationFailed)
+	}
 	mustContain(t, output, "valid: false")
 	mustContain(t, output, "error: invalid OFD package: missing Document.xml")
 }
@@ -77,21 +72,16 @@ func TestRunValidateJSONValidPDF(t *testing.T) {
 }
 
 func TestRunValidateJSONInvalidOFD(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "bad.ofd")
-	content := buildOFDPackage(t, map[string]string{
-		"OFD.xml": "<ofd/>",
-	})
-	if err := os.WriteFile(path, content, 0o644); err != nil {
-		t.Fatalf("write bad OFD: %v", err)
-	}
-
+	path := writeInvalidOFD(t)
 	resolver := app.NewPhase1Resolver()
+	var runErr error
 	output := captureStdout(t, func() {
-		if err := RunValidate(context.Background(), resolver, []string{"--json", path}); err != nil {
-			t.Fatalf("run validate OFD JSON: %v", err)
-		}
+		runErr = RunValidate(context.Background(), resolver, []string{"--json", path})
 	})
+
+	if !errors.Is(runErr, ErrValidationFailed) {
+		t.Fatalf("run validate OFD JSON error = %v, want %v", runErr, ErrValidationFailed)
+	}
 
 	var got struct {
 		Valid  bool     `json:"valid"`
@@ -105,6 +95,20 @@ func TestRunValidateJSONInvalidOFD(t *testing.T) {
 	if len(got.Errors) != 1 || got.Errors[0] != "invalid OFD package: missing Document.xml" {
 		t.Fatalf("errors = %v, want missing Document.xml", got.Errors)
 	}
+}
+
+func writeInvalidOFD(t *testing.T) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml": "<ofd/>",
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write bad OFD: %v", err)
+	}
+	return path
 }
 
 func mustUnmarshalValidateJSON(t *testing.T, output string, dst any) {
