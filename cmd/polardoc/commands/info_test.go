@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -60,6 +61,75 @@ func TestRunInfoOFD(t *testing.T) {
 	}
 }
 
+func TestRunInfoJSONPDF(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	content := []byte("%PDF-1.4\n")
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write sample PDF: %v", err)
+	}
+
+	resolver := app.NewPhase1Resolver()
+	output := captureStdout(t, func() {
+		if err := RunInfo(context.Background(), resolver, []string{"--json", path}); err != nil {
+			t.Fatalf("run info PDF JSON: %v", err)
+		}
+	})
+
+	var got struct {
+		Format          string `json:"format"`
+		Path            string `json:"path"`
+		SizeBytes       int64  `json:"size_bytes"`
+		DeclaredVersion string `json:"declared_version"`
+	}
+	mustUnmarshalJSON(t, output, &got)
+
+	if got.Format != "pdf" {
+		t.Fatalf("format = %q, want %q", got.Format, "pdf")
+	}
+	if got.Path != path {
+		t.Fatalf("path = %q, want %q", got.Path, path)
+	}
+	if got.SizeBytes != int64(len(content)) {
+		t.Fatalf("size_bytes = %d, want %d", got.SizeBytes, len(content))
+	}
+	if got.DeclaredVersion != "1.4" {
+		t.Fatalf("declared_version = %q, want %q", got.DeclaredVersion, "1.4")
+	}
+}
+
+func TestRunInfoJSONOFD(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml":            "<ofd/>",
+		"Doc_0/Document.xml": "<document/>",
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write sample OFD: %v", err)
+	}
+
+	resolver := app.NewPhase1Resolver()
+	output := captureStdout(t, func() {
+		if err := RunInfo(context.Background(), resolver, []string{"--json", path}); err != nil {
+			t.Fatalf("run info OFD JSON: %v", err)
+		}
+	})
+
+	var got map[string]any
+	mustUnmarshalJSON(t, output, &got)
+
+	if got["format"] != "ofd" {
+		t.Fatalf("format = %v, want %q", got["format"], "ofd")
+	}
+	if got["path"] != path {
+		t.Fatalf("path = %v, want %q", got["path"], path)
+	}
+	if _, ok := got["declared_version"]; ok {
+		t.Fatalf("unexpected declared_version in output: %q", output)
+	}
+}
+
 func captureStdout(t *testing.T, run func()) string {
 	t.Helper()
 
@@ -85,6 +155,13 @@ func mustContain(t *testing.T, output, expected string) {
 	t.Helper()
 	if !strings.Contains(output, expected) {
 		t.Fatalf("output = %q, want contains %q", output, expected)
+	}
+}
+
+func mustUnmarshalJSON(t *testing.T, output string, dst any) {
+	t.Helper()
+	if err := json.Unmarshal([]byte(output), dst); err != nil {
+		t.Fatalf("unmarshal JSON output %q: %v", output, err)
 	}
 }
 

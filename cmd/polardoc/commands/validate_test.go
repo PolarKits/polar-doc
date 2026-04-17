@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -45,4 +46,70 @@ func TestRunValidateInvalidOFD(t *testing.T) {
 
 	mustContain(t, output, "valid: false")
 	mustContain(t, output, "error: invalid OFD package: missing Document.xml")
+}
+
+func TestRunValidateJSONValidPDF(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	if err := os.WriteFile(path, []byte("%PDF-1.7\n"), 0o644); err != nil {
+		t.Fatalf("write sample PDF: %v", err)
+	}
+
+	resolver := app.NewPhase1Resolver()
+	output := captureStdout(t, func() {
+		if err := RunValidate(context.Background(), resolver, []string{"--json", path}); err != nil {
+			t.Fatalf("run validate PDF JSON: %v", err)
+		}
+	})
+
+	var got struct {
+		Valid  bool     `json:"valid"`
+		Errors []string `json:"errors"`
+	}
+	mustUnmarshalValidateJSON(t, output, &got)
+
+	if !got.Valid {
+		t.Fatalf("valid = %t, want true", got.Valid)
+	}
+	if len(got.Errors) != 0 {
+		t.Fatalf("errors = %v, want empty", got.Errors)
+	}
+}
+
+func TestRunValidateJSONInvalidOFD(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml": "<ofd/>",
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write bad OFD: %v", err)
+	}
+
+	resolver := app.NewPhase1Resolver()
+	output := captureStdout(t, func() {
+		if err := RunValidate(context.Background(), resolver, []string{"--json", path}); err != nil {
+			t.Fatalf("run validate OFD JSON: %v", err)
+		}
+	})
+
+	var got struct {
+		Valid  bool     `json:"valid"`
+		Errors []string `json:"errors"`
+	}
+	mustUnmarshalValidateJSON(t, output, &got)
+
+	if got.Valid {
+		t.Fatalf("valid = %t, want false", got.Valid)
+	}
+	if len(got.Errors) != 1 || got.Errors[0] != "invalid OFD package: missing Document.xml" {
+		t.Fatalf("errors = %v, want missing Document.xml", got.Errors)
+	}
+}
+
+func mustUnmarshalValidateJSON(t *testing.T, output string, dst any) {
+	t.Helper()
+	if err := json.Unmarshal([]byte(output), dst); err != nil {
+		t.Fatalf("unmarshal JSON output %q: %v", output, err)
+	}
 }
