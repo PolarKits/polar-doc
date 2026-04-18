@@ -279,24 +279,31 @@ func readContentStream(f *os.File, ref PDFRef) ([]byte, error) {
 		}
 	}
 
-	streamData := make([]byte, 0, 4096)
+	streamDataFilePos := objOffset + int64(len(dictStr)) + 3
+	_, err = f.Seek(streamDataFilePos, io.SeekStart)
+	if err != nil {
+		return nil, err
+	}
+	rd = bufio.NewReader(f)
+
+	streamBuf := make([]byte, 0, 4096)
 	if length > 0 {
-		streamData = make([]byte, length)
-		n, err := io.ReadFull(rd, streamData)
+		streamBuf = make([]byte, length)
+		n, err := io.ReadFull(rd, streamBuf)
 		if err != nil && err != io.ErrUnexpectedEOF {
 			return nil, fmt.Errorf("read stream data: %w", err)
 		}
-		streamData = streamData[:n]
+		streamBuf = streamBuf[:n]
 	} else {
 		data, err := io.ReadAll(rd)
 		if err != nil {
 			return nil, fmt.Errorf("read stream data: %w", err)
 		}
-		streamData = data
+		streamBuf = data
 	}
 
 	if strings.Contains(dictStr, "/Filter /FlateDecode") || strings.Contains(dictStr, "/Filter/FlateDecode") {
-		r, err := zlib.NewReader(bytes.NewReader(streamData))
+		r, err := zlib.NewReader(bytes.NewReader(streamBuf))
 		if err != nil {
 			return nil, fmt.Errorf("zlib NewReader: %w", err)
 		}
@@ -307,7 +314,7 @@ func readContentStream(f *os.File, ref PDFRef) ([]byte, error) {
 		return decompressed, nil
 	}
 
-	return streamData, nil
+	return streamBuf, nil
 }
 
 func extractLiteralStrings(data []byte) string {

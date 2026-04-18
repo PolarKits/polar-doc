@@ -122,13 +122,27 @@ copied <src> to <dst>
 **Usage:** `polardoc extract <input>`
 
 **Behavior:**
-- PDF: not implemented, returns error `text extraction is not implemented for PDF`
+- PDF: minimal text extraction supported for some PDFs (see compatibility below)
 - OFD: not implemented, returns error `text extraction is not implemented for OFD`
 - `--json` flag is not supported
 
+**PDF Compatibility Matrix (testdata/pdf):**
+
+| Sample | Result | Error |
+|--------|--------|-------|
+| pdf20-utf8-test.pdf | ✓ Non-empty text | - |
+| sample-local-pdf.pdf | ✓ Non-empty text | - |
+| testPDF_Version.5.x.pdf | ✓ Non-empty text | - |
+| Red_Hat_OpenShift_Serverless...pdf | ✗ Error | `zlib: invalid header` |
+| testPDF_Version.8.x.pdf | ✗ Error | `XRef: object N not found in xref` |
+
+**Success conditions:**
+- PDF returns exit code 0 and non-empty text to stdout
+- Error returns exit code 1 and error message to stderr
+
 **Exit codes:**
-- 1: all extract calls (not implemented) or usage error
-- 0: never (extract is not implemented for any format)
+- 0: text extracted successfully (non-empty output)
+- 1: usage error, OFD, or PDF extraction failure
 
 **Note:** testdata/ofd contains no real OFD samples.
 

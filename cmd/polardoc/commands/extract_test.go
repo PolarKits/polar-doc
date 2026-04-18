@@ -138,6 +138,105 @@ func TestRunExtractWithFFlag(t *testing.T) {
 	}
 }
 
+func TestRunExtractRealPDFSuccess(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "testdata", "pdf", "pdf20-utf8-test.pdf")
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Skip("pdf20-utf8-test.pdf not found")
+	}
+
+	resolver := app.NewPhase1Resolver()
+	output := captureStdout(t, func() {
+		_ = RunExtract(context.Background(), resolver, []string{path})
+	})
+
+	if output == "" {
+		t.Fatal("expected non-empty text output")
+	}
+	if !containsString(output, "PDF") && !containsString(output, "Heading") {
+		t.Fatalf("expected text content, got: %q", output)
+	}
+}
+
+func TestRunExtractRealPDFSuccessSampleLocal(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "testdata", "pdf", "sample-local-pdf.pdf")
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Skip("sample-local-pdf.pdf not found")
+	}
+
+	resolver := app.NewPhase1Resolver()
+	output := captureStdout(t, func() {
+		_ = RunExtract(context.Background(), resolver, []string{path})
+	})
+
+	if output == "" {
+		t.Fatal("expected non-empty text output")
+	}
+	if len(output) < 50 {
+		t.Fatalf("expected substantial text content, got only %d chars: %q", len(output), output)
+	}
+}
+
+func TestRunExtractRealPDFError(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "testdata", "pdf", "testPDF_Version.8.x.pdf")
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Skip("testPDF_Version.8.x.pdf not found")
+	}
+
+	resolver := app.NewPhase1Resolver()
+	var runErr error
+	captureStdout(t, func() {
+		runErr = RunExtract(context.Background(), resolver, []string{path})
+	})
+
+	if runErr == nil {
+		t.Fatal("run extract PDF: expected error for corrupted PDF, got nil")
+	}
+	errStr := runErr.Error()
+	if !containsString(errStr, "xref") && !containsString(errStr, "object") {
+		t.Fatalf("error = %q, want contains 'xref' or 'object'", errStr)
+	}
+}
+
+func TestRunExtractRealPDFSuccess5x(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "testdata", "pdf", "testPDF_Version.5.x.pdf")
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Skip("testPDF_Version.5.x.pdf not found")
+	}
+
+	resolver := app.NewPhase1Resolver()
+	output := captureStdout(t, func() {
+		_ = RunExtract(context.Background(), resolver, []string{path})
+	})
+
+	if output == "" {
+		t.Fatal("expected non-empty text output")
+	}
+	if !containsString(output, "PDF") && !containsString(output, "Version") {
+		t.Fatalf("expected text content, got: %q", output)
+	}
+}
+
+func TestRunExtractRealPDFErrorRedHat(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "testdata", "pdf", "Red_Hat_OpenShift_Serverless-1.35-Serverless_Logic-en-US.pdf")
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Skip("Red_Hat_OpenShift_Serverless-1.35-Serverless_Logic-en-US.pdf not found")
+	}
+
+	resolver := app.NewPhase1Resolver()
+	var runErr error
+	captureStdout(t, func() {
+		runErr = RunExtract(context.Background(), resolver, []string{path})
+	})
+
+	if runErr == nil {
+		t.Fatal("run extract PDF: expected error for Red_Hat PDF, got nil")
+	}
+	errStr := runErr.Error()
+	if !containsString(errStr, "zlib") && !containsString(errStr, "invalid header") {
+		t.Fatalf("error = %q, want contains 'zlib' or 'invalid header'", errStr)
+	}
+}
+
 func containsString(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstring(s, substr))
 }

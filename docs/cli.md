@@ -40,7 +40,18 @@ Use the same command shape for both formats.
 
 ## Extract Command Behavior
 
-**PDF:** Not implemented. Returns exit code 1 with error message `text extraction is not implemented for PDF`.
+**PDF:** Minimal text extraction is implemented for some PDFs. Returns non-empty text for PDFs with literal string content or valid FlateDecode streams. Returns an error for PDFs with:
+- Corrupted content streams (e.g., zlib decompression failures)
+- XRef corruption (unable to read document structure)
+
+Current compatibility (testdata/pdf):
+| Sample | Result |
+|--------|--------|
+| pdf20-utf8-test.pdf | ✓ Non-empty text |
+| sample-local-pdf.pdf | ✓ Non-empty text |
+| testPDF_Version.5.x.pdf | ✓ Non-empty text |
+| Red_Hat_OpenShift_Serverless...pdf | ✗ zlib: invalid header |
+| testPDF_Version.8.x.pdf | ✗ XRef: object not found |
 
 **OFD:** Not implemented. Returns exit code 1 with error message `text extraction is not implemented for OFD`.
 
