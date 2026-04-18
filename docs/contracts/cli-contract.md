@@ -7,6 +7,7 @@ This documents the current behavior of the PolarDoc CLI.
 - `info` - print document metadata, optionally with `--page` for first page info
 - `validate` - check document structural validity
 - `extract` - extract text from document
+- `cp` - copy a PDF document to a destination path
 
 ## Path Input
 
@@ -46,6 +47,11 @@ rotate: <integer>   # only if non-zero
 ```
 valid: <true|false>
 error: <string>   # repeated once per error
+```
+
+**cp (PDF only):**
+```
+copied <src> to <dst>
 ```
 
 ### JSON
@@ -91,6 +97,23 @@ error: <string>   # repeated once per error
 | Runtime error (file not found, format error) | 1 |
 | Validation found structural issues | 1 |
 | Help requested (`help`, `-h`, `--help`) | 0 |
+
+## cp Command
+
+`cp` copies a PDF document to a destination path.
+
+**Usage:** `polardoc cp <src.pdf> <dst.pdf>`
+
+**Behavior:**
+- Reads the source PDF and copies its bytes to the destination
+- This is a raw file copy, NOT PDF editing (no version upgrade, no metadata modification)
+- Copied file can be processed through the normal read pipeline (Open, Validate, FirstPageInfo)
+- Only PDF format is supported; OFD returns error
+
+**Error cases:**
+- Missing arguments: `usage: polardoc cp <src> <dst>`
+- Non-PDF source: `save only supported for PDF`
+- Source file not found: standard file system error
 
 ## Help and Usage
 
