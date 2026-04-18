@@ -435,6 +435,42 @@ func TestServiceExtractTextRejectsWrongDocumentType(t *testing.T) {
 	}
 }
 
+func TestServiceExtractTextReturnsEmpty(t *testing.T) {
+	svc := NewService()
+	samples := []struct {
+		name string
+		path string
+	}{
+		{"pdf20-utf8", filepath.Join("..", "..", "testdata", "pdf", "pdf20-utf8-test.pdf")},
+		{"redhat-openshift", filepath.Join("..", "..", "testdata", "pdf", "Red_Hat_OpenShift_Serverless-1.35-Serverless_Logic-en-US.pdf")},
+		{"sample-local-pdf", filepath.Join("..", "..", "testdata", "pdf", "sample-local-pdf.pdf")},
+		{"testPDF-5x", filepath.Join("..", "..", "testdata", "pdf", "testPDF_Version.5.x.pdf")},
+		{"testPDF-8x", filepath.Join("..", "..", "testdata", "pdf", "testPDF_Version.8.x.pdf")},
+	}
+
+	for _, tc := range samples {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := os.Stat(tc.path); os.IsNotExist(err) {
+				t.Skipf("%s not found", tc.name)
+			}
+
+			d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: tc.path})
+			if err != nil {
+				t.Fatalf("open PDF: %v", err)
+			}
+			defer d.Close()
+
+			result, err := svc.ExtractText(context.Background(), d)
+			if err != nil {
+				t.Fatalf("ExtractText should not error, got: %v", err)
+			}
+			if result.Text != "" {
+				t.Fatalf("ExtractText returns non-empty text %q, want empty string (not implemented)", result.Text)
+			}
+		})
+	}
+}
+
 func TestServiceReadTrailerRootAtObject3(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")
