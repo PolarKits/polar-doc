@@ -44,12 +44,16 @@ func RunCopy(ctx context.Context, resolver app.ServiceResolver, args []string) e
 		return err
 	}
 
+	if format != doc.FormatPDF {
+		return fmt.Errorf("save only supported for PDF")
+	}
+
 	svc, ok := resolver.ByFormat(format)
 	if !ok {
 		return fmt.Errorf("no service for format %q", format)
 	}
 
-	saver, ok := svc.(app.Saver)
+	saver, ok := svc.(app.PDFSaver)
 	if !ok {
 		return fmt.Errorf("save not supported for format %q", format)
 	}

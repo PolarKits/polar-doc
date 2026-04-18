@@ -33,7 +33,7 @@ func TestRunCopyOFDUnsupported(t *testing.T) {
 	if err == nil {
 		t.Fatal("RunCopy OFD should fail")
 	}
-	if err.Error() != "save not supported for OFD" {
+	if err.Error() != "save only supported for PDF" {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
