@@ -417,33 +417,37 @@ func decodeHexString(s string) string {
 	if decoded[0] == 0xFE && decoded[1] == 0xFF {
 		return utf16BEToUTF8(decoded[2:])
 	}
-	if isLikelyTextHex(decoded) {
-		return string(decoded)
+	if isMostlyPrintableASCII(decoded) {
+		return printableASCIIOnly(decoded)
 	}
 	return ""
 }
 
-func isLikelyTextHex(data []byte) bool {
-	if len(data) < 2 {
+func isMostlyPrintableASCII(data []byte) bool {
+	if len(data) == 0 {
 		return false
 	}
-	validPairs := 0
-	for i := 0; i < len(data)-1; i += 2 {
-		hi, lo := data[i], data[i+1]
-		if hi == 0 {
-			if lo >= 0x20 && lo <= 0x7E {
-				validPairs++
-				continue
-			}
-		} else if hi >= 0x20 && hi <= 0x7E {
-			validPairs++
-			continue
-		}
-		if lo == 0 && hi >= 0x20 && hi <= 0x7E {
-			validPairs++
+	printable := 0
+	for _, b := range data {
+		if b >= 0x20 && b <= 0x7E {
+			printable++
 		}
 	}
-	return validPairs > len(data)/4
+	return printable > len(data)/2
+}
+
+func printableASCIIOnly(data []byte) string {
+	var result strings.Builder
+	for _, b := range data {
+		if b >= 0x20 && b <= 0x7E {
+			result.WriteByte(b)
+		} else if b == '\n' || b == '\r' || b == '\t' {
+			result.WriteByte(b)
+		} else {
+			result.WriteByte(' ')
+		}
+	}
+	return strings.TrimSpace(result.String())
 }
 
 func utf16BEToUTF8(data []byte) string {
