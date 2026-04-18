@@ -315,38 +315,143 @@ func extractLiteralStrings(data []byte) string {
 	s := string(data)
 
 	for {
-		start := strings.Index(s, "(")
-		if start < 0 {
+		literalStart := strings.Index(s, "(")
+		hexStart := strings.Index(s, "<")
+		if literalStart < 0 && hexStart < 0 {
 			break
 		}
-		end := start + 1
-		parenDepth := 1
-		for end < len(s) && parenDepth > 0 {
-			if s[end] == '\\' && end+1 < len(s) {
-				end += 2
-				continue
+
+		if hexStart >= 0 && (literalStart < 0 || hexStart < literalStart) {
+			end := hexStart + 1
+			for end < len(s) && s[end] != '>' {
+				end++
 			}
-			if s[end] == '(' {
-				parenDepth++
-			} else if s[end] == ')' {
-				parenDepth--
-			}
-			end++
-		}
-		if parenDepth == 0 {
-			literal := s[start:end]
-			literal = strings.Trim(literal, "()")
-			if len(literal) > 0 {
-				if result.Len() > 0 {
-					result.WriteString(" ")
+			if end < len(s) && s[end] == '>' {
+				hex := s[hexStart+1 : end]
+				if isHexString(hex) {
+					decoded := decodeHexString(hex)
+					if decoded != "" {
+						if result.Len() > 0 {
+							result.WriteString(" ")
+						}
+						result.WriteString(decoded)
+					}
 				}
-				result.WriteString(literal)
 			}
+			s = s[hexStart+1:]
+			continue
 		}
-		s = s[start+1:]
+
+		if literalStart >= 0 {
+			end := literalStart + 1
+			parenDepth := 1
+			for end < len(s) && parenDepth > 0 {
+				if s[end] == '\\' && end+1 < len(s) {
+					end += 2
+					continue
+				}
+				if s[end] == '(' {
+					parenDepth++
+				} else if s[end] == ')' {
+					parenDepth--
+				}
+				end++
+			}
+			if parenDepth == 0 {
+				literal := s[literalStart:end]
+				literal = strings.Trim(literal, "()")
+				if len(literal) > 0 {
+					if result.Len() > 0 {
+						result.WriteString(" ")
+					}
+					result.WriteString(literal)
+				}
+			}
+			s = s[literalStart+1:]
+			continue
+		}
+
+		break
 	}
 
 	return result.String()
+}
+
+func isHexString(s string) bool {
+	for _, c := range s {
+		if c == ' ' || c == '\n' || c == '\r' || c == '\t' {
+			continue
+		}
+		if !((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f')) {
+			return false
+		}
+	}
+	return len(s) > 0
+}
+
+func decodeHexStringRaw(s string) []byte {
+	s = strings.ReplaceAll(s, " ", "")
+	s = strings.ReplaceAll(s, "\n", "")
+	s = strings.ReplaceAll(s, "\r", "")
+	s = strings.ReplaceAll(s, "\t", "")
+	if len(s)%2 != 0 {
+		s = s + "0"
+	}
+	result := make([]byte, 0, len(s)/2)
+	for i := 0; i < len(s); i += 2 {
+		h := s[i : i+2]
+		b, err := strconv.ParseUint(h, 16, 8)
+		if err != nil {
+			continue
+		}
+		result = append(result, byte(b))
+	}
+	return result
+}
+
+func decodeHexString(s string) string {
+	decoded := decodeHexStringRaw(s)
+	if len(decoded) == 0 {
+		return ""
+	}
+	if decoded[0] == 0xFE && decoded[1] == 0xFF {
+		return utf16BEToUTF8(decoded[2:])
+	}
+	if isLikelyTextHex(decoded) {
+		return string(decoded)
+	}
+	return ""
+}
+
+func isLikelyTextHex(data []byte) bool {
+	if len(data) < 2 {
+		return false
+	}
+	validPairs := 0
+	for i := 0; i < len(data)-1; i += 2 {
+		hi, lo := data[i], data[i+1]
+		if hi == 0 {
+			if lo >= 0x20 && lo <= 0x7E {
+				validPairs++
+				continue
+			}
+		} else if hi >= 0x20 && hi <= 0x7E {
+			validPairs++
+			continue
+		}
+		if lo == 0 && hi >= 0x20 && hi <= 0x7E {
+			validPairs++
+		}
+	}
+	return validPairs > len(data)/4
+}
+
+func utf16BEToUTF8(data []byte) string {
+	runes := make([]rune, 0, len(data)/2)
+	for i := 0; i < len(data)-1; i += 2 {
+		runes = append(runes, rune(data[i])<<8|rune(data[i+1]))
+	}
+	return string(runes)
 }
 
 func (s *service) RenderPreview(_ context.Context, d doc.Document, _ doc.PreviewRequest) (doc.PreviewResult, error) {
