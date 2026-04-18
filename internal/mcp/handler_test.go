@@ -123,3 +123,50 @@ func TestFirstPageHandlerInvalidJSON(t *testing.T) {
 		t.Fatal("handler should fail for invalid JSON")
 	}
 }
+
+func TestFirstPageHandlerPDFMatrix(t *testing.T) {
+	resolver := app.NewPhase1Resolver()
+	handler := NewFirstPageHandler(resolver)
+
+	samples := []struct {
+		name        string
+		path        string
+		wantSuccess bool
+	}{
+		{"pdf20-utf8", filepath.Join("..", "..", "testdata", "pdf", "pdf20-utf8-test.pdf"), true},
+		{"redhat-openshift", filepath.Join("..", "..", "testdata", "pdf", "Red_Hat_OpenShift_Serverless-1.35-Serverless_Logic-en-US.pdf"), true},
+		{"sample-local-pdf", filepath.Join("..", "..", "testdata", "pdf", "sample-local-pdf.pdf"), true},
+		{"testPDF-5x", filepath.Join("..", "..", "testdata", "pdf", "testPDF_Version.5.x.pdf"), true},
+		{"testPDF-8x", filepath.Join("..", "..", "testdata", "pdf", "testPDF_Version.8.x.pdf"), false},
+	}
+
+	for _, tc := range samples {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := os.Stat(tc.path); os.IsNotExist(err) {
+				t.Skipf("%s not found", tc.name)
+			}
+
+			input := FirstPageInfoInput{Path: tc.path}
+			payload, _ := json.Marshal(input)
+
+			result, err := handler.Handle(context.Background(), ToolNameFirstPageInfo, payload)
+			if tc.wantSuccess {
+				if err != nil {
+					t.Fatalf("handler error: %v", err)
+				}
+				var output FirstPageInfoOutput
+				if err := json.Unmarshal(result, &output); err != nil {
+					t.Fatalf("unmarshal result: %v", err)
+				}
+				if output.PagesRef.ObjNum == 0 {
+					t.Fatalf("pages_ref obj_num is zero")
+				}
+			} else {
+				if err == nil {
+					t.Fatal("expected error for known-bad PDF")
+				}
+				t.Logf("correctly failed: %v", err)
+			}
+		})
+	}
+}
