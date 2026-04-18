@@ -308,7 +308,7 @@ func writeTestOFD(t *testing.T) string {
 
 	path := filepath.Join(t.TempDir(), "sample.ofd")
 	content := buildTestOFDPackage(t, map[string]string{
-		"OFD.xml":            "<ofd/>",
+		"OFD.xml":            `<ofd><DocRoot>Doc_0/Document.xml</DocRoot></ofd>`,
 		"Doc_0/Document.xml": "<document/>",
 	})
 	if err := os.WriteFile(path, content, 0o644); err != nil {

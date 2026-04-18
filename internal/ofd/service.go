@@ -85,9 +85,23 @@ func (s *service) Validate(_ context.Context, d doc.Document) (doc.ValidationRep
 		Valid: true,
 	}
 
-	for _, errText := range validateOFDEntries(ofdDoc.zipReader.File) {
+	entryErrs := validateOFDEntries(ofdDoc.zipReader.File)
+	for _, errText := range entryErrs {
 		report.Valid = false
 		report.Errors = append(report.Errors, errText)
+	}
+
+	hasDocument := false
+	for _, f := range ofdDoc.zipReader.File {
+		name := strings.TrimPrefix(f.Name, "./")
+		if strings.HasSuffix(name, "/Document.xml") {
+			hasDocument = true
+			break
+		}
+	}
+
+	if !hasDocument {
+		return report, nil
 	}
 
 	docRoot, err := getDocRoot(ofdDoc.zipReader.File)
