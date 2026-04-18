@@ -3,7 +3,9 @@ package ofd
 import (
 	"archive/zip"
 	"context"
+	"encoding/xml"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -88,6 +90,17 @@ func (s *service) Validate(_ context.Context, d doc.Document) (doc.ValidationRep
 		report.Errors = append(report.Errors, errText)
 	}
 
+	docRoot, err := getDocRoot(ofdDoc.zipReader.File)
+	if err != nil {
+		report.Valid = false
+		report.Errors = append(report.Errors, fmt.Sprintf("failed to parse DocRoot: %v", err))
+	} else {
+		for _, errText := range validateDocRoot(ofdDoc.zipReader.File, docRoot) {
+			report.Valid = false
+			report.Errors = append(report.Errors, errText)
+		}
+	}
+
 	return report, nil
 }
 
@@ -142,4 +155,54 @@ func validateOFDEntries(files []*zip.File) []string {
 	}
 
 	return errs
+}
+
+func getDocRoot(files []*zip.File) (string, error) {
+	for _, f := range files {
+		name := strings.TrimPrefix(f.Name, "./")
+		if name == "OFD.xml" {
+			rc, err := f.Open()
+			if err != nil {
+				return "", fmt.Errorf("failed to open OFD.xml: %w", err)
+			}
+			data, err := io.ReadAll(rc)
+			rc.Close()
+			if err != nil {
+				return "", fmt.Errorf("failed to read OFD.xml: %w", err)
+			}
+
+			type ofdXML struct {
+				DocRoot string `xml:"DocRoot"`
+			}
+			var parsed ofdXML
+			if err := xml.Unmarshal(data, &parsed); err != nil {
+				return "", fmt.Errorf("failed to parse OFD.xml: %w", err)
+			}
+			return strings.TrimSpace(parsed.DocRoot), nil
+		}
+	}
+	return "", fmt.Errorf("OFD.xml not found")
+}
+
+func validateDocRoot(files []*zip.File, docRoot string) []string {
+	if docRoot == "" {
+		return []string{"DocRoot element is missing or empty in OFD.xml"}
+	}
+
+	normalizedDocRoot := strings.TrimPrefix(strings.TrimPrefix(docRoot, "./"), "./")
+	docRootFound := false
+
+	for _, f := range files {
+		name := strings.TrimPrefix(f.Name, "./")
+		if name == normalizedDocRoot {
+			docRootFound = true
+			break
+		}
+	}
+
+	if !docRootFound {
+		return []string{fmt.Sprintf("DocRoot %q points to a non-existent file", docRoot)}
+	}
+
+	return nil
 }

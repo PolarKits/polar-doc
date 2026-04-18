@@ -54,7 +54,7 @@ func TestServiceValidateValidOFD(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.ofd")
 	content := buildOFDPackage(t, map[string]string{
-		"OFD.xml":            "<ofd/>",
+		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd><Version>1.0</Version><DocRoot>Doc_0/Document.xml</DocRoot></ofd>`,
 		"Doc_0/Document.xml": "<document/>",
 	})
 	if err := os.WriteFile(path, content, 0o644); err != nil {
@@ -85,7 +85,8 @@ func TestServiceValidateInvalidOFD(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.ofd")
 	content := buildOFDPackage(t, map[string]string{
-		"OFD.xml": "<ofd/>",
+		"OFD.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd><Version>1.0</Version><DocRoot>Doc_99/Document.xml</DocRoot></ofd>`,
+		"Doc_0/Document.xml": "<document/>",
 	})
 	if err := os.WriteFile(path, content, 0o644); err != nil {
 		t.Fatalf("write bad OFD: %v", err)
@@ -109,8 +110,76 @@ func TestServiceValidateInvalidOFD(t *testing.T) {
 	if len(report.Errors) != 1 {
 		t.Fatalf("errors = %v, want one error", report.Errors)
 	}
-	if report.Errors[0] != "invalid OFD package: missing Document.xml" {
-		t.Fatalf("error = %q, want %q", report.Errors[0], "invalid OFD package: missing Document.xml")
+	if report.Errors[0] != `DocRoot "Doc_99/Document.xml" points to a non-existent file` {
+		t.Fatalf("error = %q, want %q", report.Errors[0], `DocRoot "Doc_99/Document.xml" points to a non-existent file`)
+	}
+}
+
+func TestServiceValidateDocRootMissing(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd><Version>1.0</Version></ofd>`,
+		"Doc_0/Document.xml": "<document/>",
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write OFD: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: path})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	report, err := svc.Validate(context.Background(), d)
+	if err != nil {
+		t.Fatalf("validate OFD: %v", err)
+	}
+
+	if report.Valid {
+		t.Fatal("valid = true, want false")
+	}
+	if len(report.Errors) != 1 {
+		t.Fatalf("errors = %v, want one error", report.Errors)
+	}
+	if report.Errors[0] != "DocRoot element is missing or empty in OFD.xml" {
+		t.Fatalf("error = %q, want %q", report.Errors[0], "DocRoot element is missing or empty in OFD.xml")
+	}
+}
+
+func TestServiceValidateDocRootPointsToNonexistent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd><Version>1.0</Version><DocRoot>NonExistent/Document.xml</DocRoot></ofd>`,
+		"Doc_0/Document.xml": "<document/>",
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write OFD: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: path})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	report, err := svc.Validate(context.Background(), d)
+	if err != nil {
+		t.Fatalf("validate OFD: %v", err)
+	}
+
+	if report.Valid {
+		t.Fatal("valid = true, want false")
+	}
+	if len(report.Errors) != 1 {
+		t.Fatalf("errors = %v, want one error", report.Errors)
+	}
+	if !strings.Contains(report.Errors[0], "points to a non-existent file") {
+		t.Fatalf("error = %q, want contains %q", report.Errors[0], "points to a non-existent file")
 	}
 }
 
