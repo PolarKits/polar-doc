@@ -142,8 +142,184 @@ func (s *service) ExtractText(_ context.Context, d doc.Document) (doc.TextResult
 		return doc.TextResult{}, fmt.Errorf("unsupported document type %T", d)
 	}
 
-	_ = pdfDoc
-	return doc.TextResult{}, fmt.Errorf("text extraction is not implemented for PDF")
+	info, err := s.FirstPageInfo(context.Background(), d)
+	if err != nil {
+		return doc.TextResult{}, fmt.Errorf("text extraction: %w", err)
+	}
+
+	var text strings.Builder
+	var lastErr error
+	for _, contentRef := range info.Contents {
+		ref := PDFRef{ObjNum: contentRef.ObjNum, GenNum: contentRef.GenNum}
+		streamData, err := readContentStream(pdfDoc.file, ref)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		extracted := extractLiteralStrings(streamData)
+		if extracted != "" {
+			text.WriteString(extracted)
+			text.WriteString(" ")
+		}
+	}
+
+	if text.Len() == 0 {
+		if lastErr != nil {
+			return doc.TextResult{}, fmt.Errorf("text extraction: %v", lastErr)
+		}
+		return doc.TextResult{}, fmt.Errorf("text extraction is not implemented for PDF")
+	}
+	return doc.TextResult{Text: strings.TrimSpace(text.String())}, nil
+}
+
+func readContentStream(f *os.File, ref PDFRef) ([]byte, error) {
+	xrefOffset, err := readStartxref(f)
+	if err != nil {
+		return nil, fmt.Errorf("readStartxref: %w", err)
+	}
+
+	objOffset, err := findObjectOffsetInXref(f, xrefOffset, strconv.FormatInt(ref.ObjNum, 10))
+	if err != nil {
+		return nil, fmt.Errorf("find object %d offset: %w", ref.ObjNum, err)
+	}
+
+	_, err = f.Seek(objOffset, io.SeekStart)
+	if err != nil {
+		return nil, err
+	}
+
+	rd := bufio.NewReader(f)
+
+	headerLine, err := rd.ReadString('\n')
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+	headerLine = strings.TrimRight(headerLine, "\r\n")
+
+	expectedPrefix := fmt.Sprintf("%d %d obj", ref.ObjNum, ref.GenNum)
+	if !strings.HasPrefix(headerLine, expectedPrefix) {
+		return nil, fmt.Errorf("expected object %s, got %q", expectedPrefix, headerLine)
+	}
+
+	var dictAndStream strings.Builder
+	dictAndStream.WriteString(headerLine)
+
+	openBrackets := strings.Count(headerLine, "<<") - strings.Count(headerLine, ">>")
+	for {
+		line, err := rd.ReadString('\n')
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		line = strings.TrimRight(line, "\r\n")
+		dictAndStream.WriteString(line)
+		if line == "endobj" || strings.HasPrefix(line, "endobj") {
+			break
+		}
+		openBrackets += strings.Count(line, "<<") - strings.Count(line, ">>")
+		if openBrackets == 0 && strings.Contains(dictAndStream.String(), ">>stream") {
+			break
+		}
+	}
+
+	dictStr := dictAndStream.String()
+
+	streamIdx := strings.Index(dictStr, ">>stream")
+	if streamIdx < 0 {
+		return nil, fmt.Errorf("no stream found in object")
+	}
+
+	streamDataStart := streamIdx + len(">>stream")
+	if streamDataStart < len(dictStr) && dictStr[streamDataStart] == '\r' {
+		streamDataStart++
+	}
+	if streamDataStart < len(dictStr) && dictStr[streamDataStart] == '\n' {
+		streamDataStart++
+	}
+
+	lengthIdx := strings.Index(dictStr, "/Length ")
+	length := 0
+	if lengthIdx >= 0 && lengthIdx < streamIdx {
+		lengthPart := dictStr[lengthIdx+8:]
+		lengthEnd := 0
+		for lengthEnd < len(lengthPart) && lengthPart[lengthEnd] >= '0' && lengthPart[lengthEnd] <= '9' {
+			lengthEnd++
+		}
+		if lengthEnd > 0 {
+			fmt.Sscanf(lengthPart[:lengthEnd], "%d", &length)
+		}
+	}
+
+	streamData := make([]byte, 0, 4096)
+	if length > 0 {
+		streamData = make([]byte, length)
+		n, err := io.ReadFull(rd, streamData)
+		if err != nil && err != io.ErrUnexpectedEOF {
+			return nil, fmt.Errorf("read stream data: %w", err)
+		}
+		streamData = streamData[:n]
+	} else {
+		data, err := io.ReadAll(rd)
+		if err != nil {
+			return nil, fmt.Errorf("read stream data: %w", err)
+		}
+		streamData = data
+	}
+
+	if strings.Contains(dictStr, "/Filter /FlateDecode") || strings.Contains(dictStr, "/Filter/FlateDecode") {
+		r, err := zlib.NewReader(bytes.NewReader(streamData))
+		if err != nil {
+			return nil, fmt.Errorf("zlib NewReader: %w", err)
+		}
+		decompressed, err := io.ReadAll(r)
+		if err != nil {
+			return nil, fmt.Errorf("zlib ReadAll: %w", err)
+		}
+		return decompressed, nil
+	}
+
+	return streamData, nil
+}
+
+func extractLiteralStrings(data []byte) string {
+	var result strings.Builder
+	s := string(data)
+
+	for {
+		start := strings.Index(s, "(")
+		if start < 0 {
+			break
+		}
+		end := start + 1
+		parenDepth := 1
+		for end < len(s) && parenDepth > 0 {
+			if s[end] == '\\' && end+1 < len(s) {
+				end += 2
+				continue
+			}
+			if s[end] == '(' {
+				parenDepth++
+			} else if s[end] == ')' {
+				parenDepth--
+			}
+			end++
+		}
+		if parenDepth == 0 {
+			literal := s[start:end]
+			literal = strings.Trim(literal, "()")
+			if len(literal) > 0 {
+				if result.Len() > 0 {
+					result.WriteString(" ")
+				}
+				result.WriteString(literal)
+			}
+		}
+		s = s[start+1:]
+	}
+
+	return result.String()
 }
 
 func (s *service) RenderPreview(_ context.Context, d doc.Document, _ doc.PreviewRequest) (doc.PreviewResult, error) {

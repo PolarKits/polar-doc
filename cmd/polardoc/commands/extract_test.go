@@ -26,8 +26,9 @@ func TestRunExtractPDF(t *testing.T) {
 	if runErr == nil {
 		t.Fatal("run extract PDF: expected error, got nil")
 	}
-	if !containsString(runErr.Error(), "not implemented") {
-		t.Fatalf("error = %q, want contains 'not implemented'", runErr.Error())
+	errStr := runErr.Error()
+	if !containsString(errStr, "not implemented") && !containsString(errStr, "too small") && !containsString(errStr, "xref") {
+		t.Fatalf("error = %q, want contains 'not implemented' or PDF error", errStr)
 	}
 }
 
@@ -106,8 +107,9 @@ func TestRunExtractWithFileFlag(t *testing.T) {
 	if runErr == nil {
 		t.Fatal("run extract with --file flag: expected error for PDF, got nil")
 	}
-	if !containsString(runErr.Error(), "not implemented") {
-		t.Fatalf("error = %q, want contains 'not implemented'", runErr.Error())
+	errStr := runErr.Error()
+	if !containsString(errStr, "not implemented") && !containsString(errStr, "too small") && !containsString(errStr, "xref") {
+		t.Fatalf("error = %q, want contains 'not implemented' or PDF error", errStr)
 	}
 }
 
