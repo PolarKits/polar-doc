@@ -98,7 +98,7 @@ func (s *service) ExtractText(_ context.Context, d doc.Document) (doc.TextResult
 	}
 
 	_ = ofdDoc
-	return doc.TextResult{}, nil
+	return doc.TextResult{}, fmt.Errorf("text extraction is not implemented for OFD")
 }
 
 func (s *service) RenderPreview(_ context.Context, d doc.Document, _ doc.PreviewRequest) (doc.PreviewResult, error) {

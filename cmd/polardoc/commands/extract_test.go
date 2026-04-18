@@ -43,14 +43,16 @@ func TestRunExtractOFD(t *testing.T) {
 	}
 
 	resolver := app.NewPhase1Resolver()
-	output := captureStdout(t, func() {
-		if err := RunExtract(context.Background(), resolver, []string{path}); err != nil {
-			t.Fatalf("run extract OFD: %v", err)
-		}
+	var runErr error
+	captureStdout(t, func() {
+		runErr = RunExtract(context.Background(), resolver, []string{path})
 	})
 
-	if output == "" {
-		t.Fatalf("expected non-empty output for OFD extract, got empty (stub returns empty TextResult)")
+	if runErr == nil {
+		t.Fatal("run extract OFD: expected error, got nil")
+	}
+	if !containsString(runErr.Error(), "not implemented") {
+		t.Fatalf("error = %q, want contains 'not implemented'", runErr.Error())
 	}
 }
 
@@ -121,14 +123,16 @@ func TestRunExtractWithFFlag(t *testing.T) {
 	}
 
 	resolver := app.NewPhase1Resolver()
-	output := captureStdout(t, func() {
-		if err := RunExtract(context.Background(), resolver, []string{"-f", path}); err != nil {
-			t.Fatalf("run extract with -f flag: %v", err)
-		}
+	var runErr error
+	captureStdout(t, func() {
+		runErr = RunExtract(context.Background(), resolver, []string{"-f", path})
 	})
 
-	if output == "" {
-		t.Fatalf("expected non-empty output for OFD extract with -f flag, got empty")
+	if runErr == nil {
+		t.Fatal("run extract with -f flag: expected error for OFD, got nil")
+	}
+	if !containsString(runErr.Error(), "not implemented") {
+		t.Fatalf("error = %q, want contains 'not implemented'", runErr.Error())
 	}
 }
 

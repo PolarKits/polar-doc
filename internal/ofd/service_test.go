@@ -184,7 +184,7 @@ func TestServiceRenderPreviewRejectsWrongDocumentType(t *testing.T) {
 	}
 }
 
-func TestServiceExtractTextReturnsEmpty(t *testing.T) {
+func TestServiceExtractTextNotImplemented(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.ofd")
 	content := buildOFDPackage(t, map[string]string{
@@ -202,11 +202,11 @@ func TestServiceExtractTextReturnsEmpty(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = d.Close() })
 
-	result, err := svc.ExtractText(context.Background(), d)
-	if err != nil {
-		t.Fatalf("ExtractText should not error for OFD, got: %v", err)
+	_, err = svc.ExtractText(context.Background(), d)
+	if err == nil {
+		t.Fatal("ExtractText expected error, got nil")
 	}
-	if result.Text != "" {
-		t.Fatalf("ExtractText returns non-empty text %q, want empty string (stub)", result.Text)
+	if !strings.Contains(err.Error(), "not implemented") {
+		t.Fatalf("error = %q, want contains 'not implemented'", err.Error())
 	}
 }
