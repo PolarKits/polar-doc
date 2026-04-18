@@ -42,7 +42,7 @@ Use the same command shape for both formats.
 
 **PDF:** Not implemented. Returns exit code 1 with error message `text extraction is not implemented for PDF`.
 
-**OFD:** Stub implementation. Returns exit code 0 with empty output (newline only).
+**OFD:** Not implemented. Returns exit code 1 with error message `text extraction is not implemented for OFD`.
 
 - use a stable top-level schema per command
 - return machine-readable status and errors

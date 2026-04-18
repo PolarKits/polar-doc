@@ -122,13 +122,15 @@ copied <src> to <dst>
 **Usage:** `polardoc extract <input>`
 
 **Behavior:**
-- OFD: stub implementation, returns empty text
 - PDF: not implemented, returns error `text extraction is not implemented for PDF`
+- OFD: not implemented, returns error `text extraction is not implemented for OFD`
 - `--json` flag is not supported
 
 **Exit codes:**
-- 0: OFD extract (stub, returns empty)
-- 1: PDF extract (not implemented) or usage error
+- 1: all extract calls (not implemented) or usage error
+- 0: never (extract is not implemented for any format)
+
+**Note:** testdata/ofd contains no real OFD samples.
 
 ## Help and Usage
 
