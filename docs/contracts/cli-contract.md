@@ -4,8 +4,9 @@ This documents the current behavior of the PolarDoc CLI.
 
 ## Supported Commands
 
-- `info` - print document metadata
+- `info` - print document metadata, optionally with `--page` for first page info
 - `validate` - check document structural validity
+- `extract` - extract text from document
 
 ## Path Input
 
@@ -29,6 +30,18 @@ size_bytes: <integer>
 declared_version: <string>   # only if non-empty
 ```
 
+**info --page (PDF only):**
+```
+path: <string>
+pages_ref: <obj_num> <gen_num> R
+page_ref: <obj_num> <gen_num> R
+parent: <obj_num> <gen_num> R
+media_box: [<float>, <float>, <float>, <float>]
+resources: <obj_num> <gen_num> R
+contents: <obj_num> <gen_num> R[, ...]
+rotate: <integer>   # only if non-zero
+```
+
 **validate:**
 ```
 valid: <true|false>
@@ -44,6 +57,20 @@ error: <string>   # repeated once per error
   "path": "<string>",
   "size_bytes": <integer>,
   "declared_version": "<string>"   // omitted if empty
+}
+```
+
+**info --page (PDF only):**
+```json
+{
+  "path": "<string>",
+  "pages_ref": {"obj_num": <int>, "gen_num": <int>},
+  "page_ref": {"obj_num": <int>, "gen_num": <int>},
+  "parent": {"obj_num": <int>, "gen_num": <int>},
+  "media_box": [<float>, <float>, <float>, <float>],
+  "resources": {"obj_num": <int>, "gen_num": <int>},
+  "contents": [{"obj_num": <int>, "gen_num": <int>}, ...],
+  "rotate": <int>   // omitted if null
 }
 ```
 

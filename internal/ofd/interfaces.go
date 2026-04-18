@@ -1,6 +1,10 @@
 package ofd
 
-import "github.com/PolarKits/polardoc/internal/doc"
+import (
+	"context"
+
+	"github.com/PolarKits/polardoc/internal/doc"
+)
 
 // Service defines OFD capability implementations.
 //
@@ -12,6 +16,12 @@ type Service interface {
 	doc.Validator
 	doc.TextExtractor
 	doc.PreviewRenderer
+	FirstPageInfoProvider
+}
+
+// FirstPageInfoProvider returns an error since OFD does not support first page info extraction.
+type FirstPageInfoProvider interface {
+	FirstPageInfo(ctx context.Context, d doc.Document) (*doc.FirstPageInfoResult, error)
 }
 
 // SigningService extends Service when OFD signing is available.

@@ -91,12 +91,32 @@ func (s *service) Validate(_ context.Context, d doc.Document) (doc.ValidationRep
 	return report, nil
 }
 
-func (s *service) ExtractText(_ context.Context, _ doc.Document) (doc.TextResult, error) {
+func (s *service) ExtractText(_ context.Context, d doc.Document) (doc.TextResult, error) {
+	ofdDoc, ok := d.(*document)
+	if !ok {
+		return doc.TextResult{}, fmt.Errorf("unsupported document type %T", d)
+	}
+
+	_ = ofdDoc
 	return doc.TextResult{}, nil
 }
 
-func (s *service) RenderPreview(_ context.Context, _ doc.Document, _ doc.PreviewRequest) (doc.PreviewResult, error) {
+func (s *service) RenderPreview(_ context.Context, d doc.Document, _ doc.PreviewRequest) (doc.PreviewResult, error) {
+	ofdDoc, ok := d.(*document)
+	if !ok {
+		return doc.PreviewResult{}, fmt.Errorf("unsupported document type %T", d)
+	}
+
+	_ = ofdDoc
 	return doc.PreviewResult{}, fmt.Errorf("preview is not implemented for %q", doc.FormatOFD)
+}
+
+func (s *service) FirstPageInfo(_ context.Context, d doc.Document) (*doc.FirstPageInfoResult, error) {
+	_, ok := d.(*document)
+	if !ok {
+		return nil, fmt.Errorf("unsupported document type %T", d)
+	}
+	return nil, fmt.Errorf("first page info not supported for OFD")
 }
 
 func validateOFDEntries(files []*zip.File) []string {

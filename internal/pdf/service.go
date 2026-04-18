@@ -50,6 +50,10 @@ func (d *document) Close() error {
 	return d.file.Close()
 }
 
+func (d *document) getFile() *os.File {
+	return d.file
+}
+
 func (s *service) Open(_ context.Context, ref doc.DocumentRef) (doc.Document, error) {
 	if ref.Format != doc.FormatPDF {
 		return nil, fmt.Errorf("format mismatch: expected %q, got %q", doc.FormatPDF, ref.Format)
@@ -150,6 +154,59 @@ func (s *service) RenderPreview(_ context.Context, d doc.Document, _ doc.Preview
 
 	_ = pdfDoc
 	return doc.PreviewResult{}, fmt.Errorf("preview is not implemented for %q", doc.FormatPDF)
+}
+
+func (s *service) FirstPageInfo(_ context.Context, d doc.Document) (*doc.FirstPageInfoResult, error) {
+	pdfDoc, ok := d.(*document)
+	if !ok {
+		return nil, fmt.Errorf("unsupported document type %T", d)
+	}
+
+	if pdfDoc.file == nil {
+		return nil, fmt.Errorf("document file is not open")
+	}
+
+	_, err := pdfDoc.file.Seek(0, io.SeekStart)
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := ReadFirstPageInfo(pdfDoc.file)
+	if err != nil {
+		return nil, err
+	}
+
+	return toFirstPageInfoResult(info), nil
+}
+
+func toFirstPageInfoResult(info *FirstPageInfo) *doc.FirstPageInfoResult {
+	contents := make([]doc.RefInfo, len(info.Contents))
+	for i, c := range info.Contents {
+		contents[i] = doc.RefInfo{ObjNum: c.ObjNum, GenNum: c.GenNum}
+	}
+
+	mediaBox := make([]float64, len(info.MediaBox))
+	for i, v := range info.MediaBox {
+		if f, ok := v.(PDFReal); ok {
+			mediaBox[i] = float64(f)
+		} else if iv, ok := v.(PDFInteger); ok {
+			mediaBox[i] = float64(iv)
+		}
+	}
+
+	return &doc.FirstPageInfoResult{
+		Path:     "",
+		PagesRef: doc.RefInfo{ObjNum: info.PagesRef.ObjNum, GenNum: info.PagesRef.GenNum},
+		PageRef:  doc.RefInfo{ObjNum: info.PageRef.ObjNum, GenNum: info.PageRef.GenNum},
+		Parent:   doc.RefInfo{ObjNum: info.Parent.ObjNum, GenNum: info.Parent.GenNum},
+		MediaBox: mediaBox,
+		Resources: doc.RefInfo{
+			ObjNum: info.Resources.ObjNum,
+			GenNum: info.Resources.GenNum,
+		},
+		Contents: contents,
+		Rotate:   info.Rotate,
+	}
 }
 
 func readPDFHeaderVersion(r io.Reader) (string, error) {

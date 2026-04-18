@@ -184,3 +184,102 @@ func buildOFDPackage(t *testing.T, files map[string]string) []byte {
 	}
 	return buf.Bytes()
 }
+
+func TestRunInfoPagePDF(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "testdata", "pdf", "testPDF_Version.5.x.pdf")
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Skip("testPDF_Version.5.x.pdf not found")
+	}
+
+	resolver := app.NewPhase1Resolver()
+	output := captureStdout(t, func() {
+		if err := RunInfo(context.Background(), resolver, []string{"--page", path}); err != nil {
+			t.Fatalf("run info --page: %v", err)
+		}
+	})
+
+	mustContain(t, output, "path: "+path)
+	mustContain(t, output, "pages_ref:")
+	mustContain(t, output, "page_ref:")
+	mustContain(t, output, "parent:")
+	mustContain(t, output, "media_box:")
+	mustContain(t, output, "resources:")
+}
+
+func TestRunInfoPageJSON(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "testdata", "pdf", "testPDF_Version.5.x.pdf")
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Skip("testPDF_Version.5.x.pdf not found")
+	}
+
+	resolver := app.NewPhase1Resolver()
+	output := captureStdout(t, func() {
+		if err := RunInfo(context.Background(), resolver, []string{"--json", "--page", path}); err != nil {
+			t.Fatalf("run info --json --page: %v", err)
+		}
+	})
+
+	var got pageInfoOutput
+	mustUnmarshalJSON(t, output, &got)
+
+	if got.Path != path {
+		t.Fatalf("path = %q, want %q", got.Path, path)
+	}
+	if got.PagesRef.ObjNum == 0 {
+		t.Fatalf("pages_ref obj_num is zero")
+	}
+	if got.PageRef.ObjNum == 0 {
+		t.Fatalf("page_ref obj_num is zero")
+	}
+	if got.Parent.ObjNum == 0 {
+		t.Fatalf("parent obj_num is zero")
+	}
+	if len(got.MediaBox) == 0 {
+		t.Fatalf("media_box is empty")
+	}
+	if got.Resources.ObjNum == 0 && len(got.Contents) == 0 {
+		t.Fatalf("both resources obj_num and contents are zero (inline resources not supported in JSON output)")
+	}
+}
+
+func TestRunInfoPageKnownBad(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "testdata", "pdf", "testPDF_Version.8.x.pdf")
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Skip("testPDF_Version.8.x.pdf not found")
+	}
+
+	resolver := app.NewPhase1Resolver()
+	err := RunInfo(context.Background(), resolver, []string{"--page", path})
+	if err == nil {
+		t.Fatal("run info --page should fail for known-bad PDF")
+	}
+
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "object 14") {
+		t.Fatalf("expected error about object 14, got: %s", errMsg)
+	}
+
+	t.Logf("info --page correctly fails for known-bad PDF: %s", errMsg)
+}
+
+func TestRunInfoPageOFDUnsupported(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml":            "<ofd/>",
+		"Doc_0/Document.xml": "<document/>",
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write sample OFD: %v", err)
+	}
+
+	resolver := app.NewPhase1Resolver()
+	err := RunInfo(context.Background(), resolver, []string{"--page", path})
+	if err == nil {
+		t.Fatal("run info --page OFD should fail")
+	}
+
+	if !strings.Contains(err.Error(), "--page is only supported for PDF") {
+		t.Fatalf("expected --page is only supported for PDF, got: %s", err.Error())
+	}
+}

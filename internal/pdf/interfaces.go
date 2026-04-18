@@ -1,6 +1,10 @@
 package pdf
 
-import "github.com/PolarKits/polardoc/internal/doc"
+import (
+	"context"
+
+	"github.com/PolarKits/polardoc/internal/doc"
+)
 
 // Service defines PDF capability implementations.
 //
@@ -12,6 +16,12 @@ type Service interface {
 	doc.Validator
 	doc.TextExtractor
 	doc.PreviewRenderer
+	FirstPageInfoProvider
+}
+
+// FirstPageInfoProvider returns structured first page information for a PDF document.
+type FirstPageInfoProvider interface {
+	FirstPageInfo(ctx context.Context, d doc.Document) (*doc.FirstPageInfoResult, error)
 }
 
 // SigningService extends Service when PDF signing is available.
