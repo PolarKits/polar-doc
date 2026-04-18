@@ -183,3 +183,30 @@ func TestServiceRenderPreviewRejectsWrongDocumentType(t *testing.T) {
 		t.Fatalf("error = %q, want contains %q", err.Error(), "unsupported document type")
 	}
 }
+
+func TestServiceExtractTextReturnsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml":            "<ofd/>",
+		"Doc_0/Document.xml": "<document/>",
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write sample OFD: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: path})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	result, err := svc.ExtractText(context.Background(), d)
+	if err != nil {
+		t.Fatalf("ExtractText should not error for OFD, got: %v", err)
+	}
+	if result.Text != "" {
+		t.Fatalf("ExtractText returns non-empty text %q, want empty string (stub)", result.Text)
+	}
+}
