@@ -93,10 +93,27 @@ type TextResult struct {
 // and certification signatures. For OFD, profiles map to GB/T 33190-2016
 // digital signature rules.
 //
-// Phase-1 coverage: signing is not implemented.
+// Phase-1 coverage: signing is not implemented. The fields below represent
+// capability-layer reservations for Phase-2 signature and timestamp support.
 type SignRequest struct {
 	Profile string
-	Reason  string
+
+	Reason string
+
+	// HashAlgorithm reserves the hash algorithm identifier for Phase-2.
+	// Examples: "SHA-256", "SHA-384", "SHA-512".
+	// Empty string means not specified.
+	HashAlgorithm string
+
+	// CertSource reserves the certificate source or identifier for Phase-2.
+	// This may be a keystore alias, PKCS#11 slot, or explicit cert fingerprint.
+	// Empty string means not specified.
+	CertSource string
+
+	// TimestampURL reserves the RFC 3161 timestamp service URL for Phase-2.
+	// When non-empty, the signer will request a trusted timestamp.
+	// Empty string means no timestamp requested.
+	TimestampURL string
 }
 
 // SignResult describes signature metadata returned after signing.
@@ -105,10 +122,23 @@ type SignRequest struct {
 // signature bytes. This struct does not include certificate chain, timestamp,
 // or revocation information; those are future extensions.
 //
-// Phase-1 coverage: signing is not implemented.
+// Phase-1 coverage: signing is not implemented. The fields below represent
+// capability-layer reservations for Phase-2 signature and timestamp support.
 type SignResult struct {
 	Method    string
 	Signature []byte
+
+	// CertDigest reserves the SHA-256 digest of the signing certificate for Phase-2.
+	// Hex-encoded string. Empty if certificate not available.
+	CertDigest string
+
+	// HasTimestamp reserves the timestamp indicator for Phase-2.
+	// True if the signature includes an RFC 3161 trusted timestamp.
+	HasTimestamp bool
+
+	// TimestampURL reserves the timestamp service URL used for Phase-2, if any.
+	// Empty string if no timestamp was requested or obtained.
+	TimestampURL string
 }
 
 // FirstPageInfoResult holds first page structure information.
