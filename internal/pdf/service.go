@@ -143,7 +143,7 @@ func (s *service) ExtractText(_ context.Context, d doc.Document) (doc.TextResult
 	}
 
 	_ = pdfDoc
-	return doc.TextResult{}, nil
+	return doc.TextResult{}, fmt.Errorf("text extraction is not implemented for PDF")
 }
 
 func (s *service) RenderPreview(_ context.Context, d doc.Document, _ doc.PreviewRequest) (doc.PreviewResult, error) {

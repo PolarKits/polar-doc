@@ -203,22 +203,19 @@ func TestRunFlagHelpPrintsUsageAndReturnsZero(t *testing.T) {
 	}
 }
 
-func TestRunExtractSuccessReturnsZero(t *testing.T) {
+func TestRunExtractPDFReturnsNonZero(t *testing.T) {
 	path := writeTestPDF(t)
 	resolver := app.NewPhase1Resolver()
 
-	stdout, stderr, code := captureProcessIO(t, func(outWriter, errWriter io.Writer) int {
+	_, stderr, code := captureProcessIO(t, func(outWriter, errWriter io.Writer) int {
 		return run(context.Background(), []string{"extract", path}, resolver, outWriter, errWriter)
 	})
 
-	if code != 0 {
-		t.Fatalf("exit code = %d, want 0", code)
+	if code == 0 {
+		t.Fatal("exit code = 0, want non-zero (PDF text extraction not implemented)")
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
-	if stdout == "" {
-		t.Fatalf("stdout = %q, want non-empty (current stub returns empty string + newline)", stdout)
+	if !strings.Contains(stderr, "not implemented") {
+		t.Fatalf("stderr = %q, want contains 'not implemented'", stderr)
 	}
 }
 

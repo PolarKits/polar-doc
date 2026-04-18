@@ -18,14 +18,16 @@ func TestRunExtractPDF(t *testing.T) {
 	}
 
 	resolver := app.NewPhase1Resolver()
-	output := captureStdout(t, func() {
-		if err := RunExtract(context.Background(), resolver, []string{path}); err != nil {
-			t.Fatalf("run extract PDF: %v", err)
-		}
+	var runErr error
+	captureStdout(t, func() {
+		runErr = RunExtract(context.Background(), resolver, []string{path})
 	})
 
-	if output == "" {
-		t.Fatalf("expected non-empty output for PDF extract, got empty (stub returns empty TextResult)")
+	if runErr == nil {
+		t.Fatal("run extract PDF: expected error, got nil")
+	}
+	if !containsString(runErr.Error(), "not implemented") {
+		t.Fatalf("error = %q, want contains 'not implemented'", runErr.Error())
 	}
 }
 
@@ -94,14 +96,16 @@ func TestRunExtractWithFileFlag(t *testing.T) {
 	}
 
 	resolver := app.NewPhase1Resolver()
-	output := captureStdout(t, func() {
-		if err := RunExtract(context.Background(), resolver, []string{"--file", path}); err != nil {
-			t.Fatalf("run extract with --file flag: %v", err)
-		}
+	var runErr error
+	captureStdout(t, func() {
+		runErr = RunExtract(context.Background(), resolver, []string{"--file", path})
 	})
 
-	if output == "" {
-		t.Fatalf("expected non-empty output for PDF extract with --file flag, got empty")
+	if runErr == nil {
+		t.Fatal("run extract with --file flag: expected error for PDF, got nil")
+	}
+	if !containsString(runErr.Error(), "not implemented") {
+		t.Fatalf("error = %q, want contains 'not implemented'", runErr.Error())
 	}
 }
 

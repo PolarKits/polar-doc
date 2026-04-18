@@ -435,7 +435,7 @@ func TestServiceExtractTextRejectsWrongDocumentType(t *testing.T) {
 	}
 }
 
-func TestServiceExtractTextReturnsEmpty(t *testing.T) {
+func TestServiceExtractTextNotImplemented(t *testing.T) {
 	svc := NewService()
 	samples := []struct {
 		name string
@@ -460,12 +460,12 @@ func TestServiceExtractTextReturnsEmpty(t *testing.T) {
 			}
 			defer d.Close()
 
-			result, err := svc.ExtractText(context.Background(), d)
-			if err != nil {
-				t.Fatalf("ExtractText should not error, got: %v", err)
+			_, err = svc.ExtractText(context.Background(), d)
+			if err == nil {
+				t.Fatal("ExtractText expected error, got nil")
 			}
-			if result.Text != "" {
-				t.Fatalf("ExtractText returns non-empty text %q, want empty string (not implemented)", result.Text)
+			if !strings.Contains(err.Error(), "not implemented") {
+				t.Fatalf("error = %q, want contains 'not implemented'", err.Error())
 			}
 		})
 	}
