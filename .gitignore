@@ -3,3 +3,13 @@
 *.test
 *.out
 coverage.out
+
+# Agent runtime
+.tmux-agents/
+
+# AI context files
+CLAUDE.md
+TASKRESULT.md
+
+# Build artifacts
+polardoc-mcp
