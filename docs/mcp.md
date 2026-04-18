@@ -78,3 +78,27 @@ Extracts structured first page information from a PDF document.
 - Only returns first page information
 - Inline resources in PDF show `resources.obj_num: 0`
 - Corrupted XRef PDFs return specific error messages
+
+## Compatibility Matrix
+
+### `pdf_first_page_info` — testdata/pdf samples
+
+| Sample | Result | Notes |
+|--------|--------|-------|
+| `pdf20-utf8-test.pdf` | ✓ Success | PDF 2.0, UTF-8 text |
+| `Red_Hat_OpenShift_Serverless-1.35-Serverless_Logic-en-US.pdf` | ✓ Success | Commercial document |
+| `sample-local-pdf.pdf` | ✓ Success | Local sample |
+| `testPDF_Version.5.x.pdf` | ✓ Success | PDF 1.5 |
+| `testPDF_Version.8.x.pdf` | ✗ Error | Known corrupted XRef |
+
+### `testPDF_Version.8.x.pdf` failure semantics
+
+When `pdf_first_page_info` is called on this file, it returns:
+
+```json
+{
+  "error": "first page info: ReadFirstPageInfo: find object 14 offset: object 14 not found in xref"
+}
+```
+
+This is expected behavior — the XRef table is damaged and the parser correctly reports the failure rather than returning incomplete data.
