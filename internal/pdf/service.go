@@ -250,6 +250,33 @@ func readContentStream(f *os.File, ref PDFRef) ([]byte, error) {
 		if lengthEnd > 0 {
 			fmt.Sscanf(lengthPart[:lengthEnd], "%d", &length)
 		}
+		rest := strings.TrimSpace(lengthPart[lengthEnd:])
+		if strings.HasPrefix(rest, "0 R") {
+			lengthObjNum := int64(length)
+			lengthRefStr := fmt.Sprintf("%d 0 R", lengthObjNum)
+			lengthObjStr, err := readObject(f, lengthRefStr)
+			if err == nil {
+				lengthDict, err := extractDictFromObject(lengthObjStr)
+				if err == nil {
+					lengthFromDict, ok := DictGetInt(lengthDict, "Length")
+					if ok {
+						length = int(lengthFromDict)
+					}
+				} else {
+					lengthObjStr = strings.TrimSpace(lengthObjStr)
+					lines := strings.Split(lengthObjStr, "\n")
+					for _, line := range lines {
+						line = strings.TrimSpace(line)
+						if len(line) == 0 || strings.Contains(line, "obj") || strings.Contains(line, "endobj") {
+							continue
+						}
+						if _, err := fmt.Sscanf(line, "%d", &length); err == nil {
+							break
+						}
+					}
+				}
+			}
+		}
 	}
 
 	streamData := make([]byte, 0, 4096)
