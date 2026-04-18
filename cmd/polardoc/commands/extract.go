@@ -14,12 +14,13 @@ func RunExtract(ctx context.Context, resolver app.ServiceResolver, args []string
 		return err
 	}
 
-	if input.json {
-		return fmt.Errorf("extract does not support --json flag")
-	}
-
 	format, err := detectFormatByExtension(input.path)
 	if err != nil {
+		if input.json {
+			_ = writeJSON(struct {
+				Error string `json:"error"`
+			}{Error: err.Error()})
+		}
 		return err
 	}
 
@@ -30,18 +31,40 @@ func RunExtract(ctx context.Context, resolver app.ServiceResolver, args []string
 
 	svc, ok := resolver.ByFormat(ref.Format)
 	if !ok {
-		return fmt.Errorf("no service for format %q", ref.Format)
+		err = fmt.Errorf("no service for format %q", ref.Format)
+		if input.json {
+			_ = writeJSON(struct {
+				Error string `json:"error"`
+			}{Error: err.Error()})
+		}
+		return err
 	}
 
 	d, err := svc.Open(ctx, ref)
 	if err != nil {
+		if input.json {
+			_ = writeJSON(struct {
+				Error string `json:"error"`
+			}{Error: err.Error()})
+		}
 		return err
 	}
 	defer d.Close()
 
 	result, err := svc.ExtractText(ctx, d)
 	if err != nil {
+		if input.json {
+			_ = writeJSON(struct {
+				Error string `json:"error"`
+			}{Error: err.Error()})
+		}
 		return err
+	}
+
+	if input.json {
+		return writeJSON(struct {
+			Text string `json:"text"`
+		}{Text: result.Text})
 	}
 
 	fmt.Println(result.Text)

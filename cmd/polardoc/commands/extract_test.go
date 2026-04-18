@@ -2,8 +2,10 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/PolarKits/polardoc/internal/app"
@@ -234,6 +236,77 @@ func TestRunExtractRealPDFErrorRedHat(t *testing.T) {
 	errStr := runErr.Error()
 	if !containsString(errStr, "zlib") && !containsString(errStr, "invalid header") {
 		t.Fatalf("error = %q, want contains 'zlib' or 'invalid header'", errStr)
+	}
+}
+
+func TestRunExtractJSONSuccess(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "testdata", "pdf", "sample-local-pdf.pdf")
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Skip("sample-local-pdf.pdf not found")
+	}
+
+	resolver := app.NewPhase1Resolver()
+	output := captureStdout(t, func() {
+		runErr := RunExtract(context.Background(), resolver, []string{"--json", path})
+		if runErr != nil {
+			t.Fatalf("run extract --json PDF: unexpected error %v", runErr)
+		}
+	})
+
+	var got struct {
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal([]byte(output), &got); err != nil {
+		t.Fatalf("unmarshal JSON output %q: %v", output, err)
+	}
+	if got.Text == "" {
+		t.Fatal("text field should not be empty")
+	}
+}
+
+func TestRunExtractJSONUnsupportedExtension(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.txt")
+	if err := os.WriteFile(path, []byte("hello"), 0o644); err != nil {
+		t.Fatalf("write sample txt: %v", err)
+	}
+
+	resolver := app.NewPhase1Resolver()
+	output := captureStdout(t, func() {
+		runErr := RunExtract(context.Background(), resolver, []string{"--json", path})
+		if runErr == nil {
+			t.Fatal("run extract --json unsupported extension: expected error, got nil")
+		}
+	})
+
+	var got struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(output), &got); err != nil {
+		t.Fatalf("unmarshal JSON output %q: %v", output, err)
+	}
+	if !strings.Contains(got.Error, "unsupported file extension") {
+		t.Fatalf("error = %q, want contains 'unsupported file extension'", got.Error)
+	}
+}
+
+func TestRunExtractJSONMissingFile(t *testing.T) {
+	resolver := app.NewPhase1Resolver()
+	output := captureStdout(t, func() {
+		runErr := RunExtract(context.Background(), resolver, []string{"--json", "/tmp/missing.pdf"})
+		if runErr == nil {
+			t.Fatal("run extract --json missing file: expected error, got nil")
+		}
+	})
+
+	var got struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(output), &got); err != nil {
+		t.Fatalf("unmarshal JSON output %q: %v", output, err)
+	}
+	if got.Error == "" {
+		t.Fatal("error field should not be empty")
 	}
 }
 
