@@ -10,20 +10,25 @@ import (
 	"github.com/PolarKits/polardoc/internal/doc"
 )
 
-func TestPDFServiceHasNoWriteCapability(t *testing.T) {
+func TestPDFServiceHasLimitedWriteCapability(t *testing.T) {
 	svc := NewService()
 	v := reflect.ValueOf(svc)
 	if v.Kind() != reflect.Ptr {
 		t.Fatalf("NewService returns non-pointer: %T", svc)
 	}
 
-	t.Log("Phase-1 PDF module has read-only capabilities. Write capabilities are not implemented.")
+	t.Log("Phase-1 PDF module has limited write capability: Save (CopyFile). Other write methods not implemented.")
 
-	for _, method := range []string{"Write", "Save", "Update", "Modify", "Export"} {
+	for _, method := range []string{"Write", "Update", "Modify", "Export"} {
 		methodValue := v.MethodByName(method)
 		if methodValue.IsValid() {
 			t.Errorf("unexpected write method found: %s", method)
 		}
+	}
+
+	saveMethod := v.MethodByName("Save")
+	if !saveMethod.IsValid() {
+		t.Error("Save method should be present")
 	}
 }
 

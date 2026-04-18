@@ -119,6 +119,10 @@ func (s *service) FirstPageInfo(_ context.Context, d doc.Document) (*doc.FirstPa
 	return nil, fmt.Errorf("first page info not supported for OFD")
 }
 
+func (s *service) Save(_ context.Context, _ doc.DocumentRef, _ string) error {
+	return fmt.Errorf("save not supported for OFD")
+}
+
 func validateOFDEntries(files []*zip.File) []string {
 	hasRoot := false
 	hasDocument := false

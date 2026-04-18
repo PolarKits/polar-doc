@@ -209,6 +209,10 @@ func toFirstPageInfoResult(info *FirstPageInfo) *doc.FirstPageInfoResult {
 	}
 }
 
+func (s *service) Save(_ context.Context, ref doc.DocumentRef, dst string) error {
+	return CopyFile(ref.Path, dst)
+}
+
 func readPDFHeaderVersion(r io.Reader) (string, error) {
 	line, err := bufio.NewReader(r).ReadString('\n')
 	if err != nil && err != io.EOF {

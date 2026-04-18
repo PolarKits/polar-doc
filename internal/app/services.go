@@ -39,6 +39,14 @@ type SigningFormatService interface {
 	doc.Signer
 }
 
+// Saver is the capability interface for saving a document to a destination path.
+//
+// PDF implementation performs a raw byte copy (CopyFile semantics).
+// OFD implementation returns error (not supported in phase-1).
+type Saver interface {
+	Save(ctx context.Context, ref doc.DocumentRef, dst string) error
+}
+
 // ServiceSet wires format services for application routing.
 //
 // The application layer depends on doc contracts, not on PDF/OFD internals.

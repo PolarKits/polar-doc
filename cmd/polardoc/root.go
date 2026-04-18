@@ -24,6 +24,8 @@ func Execute(ctx context.Context, args []string, resolver app.ServiceResolver) e
 		return commands.RunValidate(ctx, resolver, args[1:])
 	case "extract":
 		return commands.RunExtract(ctx, resolver, args[1:])
+	case "cp":
+		return commands.RunCopy(ctx, resolver, args[1:])
 	case "help", "-h", "--help":
 		return errHelp
 	default:
@@ -31,4 +33,4 @@ func Execute(ctx context.Context, args []string, resolver app.ServiceResolver) e
 	}
 }
 
-const usageText = "polardoc\nusage: polardoc <info|validate|extract> [--file|-f] <path>\ncommands: info, validate, extract\ninfo flags: --json, --page"
+const usageText = "polardoc\nusage: polardoc <info|validate|extract|cp> [--file|-f] <path>\ncommands: info, validate, extract, cp\ninfo flags: --json, --page"
