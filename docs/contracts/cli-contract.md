@@ -115,6 +115,21 @@ copied <src> to <dst>
 - Non-PDF source: `save only supported for PDF`
 - Source file not found: standard file system error
 
+## extract Command
+
+`extract` extracts text from a document.
+
+**Usage:** `polardoc extract <input>`
+
+**Behavior:**
+- OFD: stub implementation, returns empty text
+- PDF: not implemented, returns error `text extraction is not implemented for PDF`
+- `--json` flag is not supported
+
+**Exit codes:**
+- 0: OFD extract (stub, returns empty)
+- 1: PDF extract (not implemented) or usage error
+
 ## Help and Usage
 
 - Running `polardoc help` (or `-h`, `--help`) prints the usage line and exits 0.

@@ -27,7 +27,6 @@ polardoc info ./testdata/sample.pdf
 polardoc info ./testdata/sample.ofd
 polardoc validate ./testdata/sample.pdf
 polardoc validate ./testdata/sample.ofd
-polardoc extract ./testdata/sample.pdf
 polardoc extract ./testdata/sample.ofd
 ```
 
@@ -38,6 +37,12 @@ Use the same command shape for both formats.
 `info` and `validate` support `--json`.
 
 `extract` emits plain text to stdout; `--json` is not supported.
+
+## Extract Command Behavior
+
+**PDF:** Not implemented. Returns exit code 1 with error message `text extraction is not implemented for PDF`.
+
+**OFD:** Stub implementation. Returns exit code 0 with empty output (newline only).
 
 - use a stable top-level schema per command
 - return machine-readable status and errors
