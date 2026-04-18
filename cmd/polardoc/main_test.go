@@ -203,6 +203,61 @@ func TestRunFlagHelpPrintsUsageAndReturnsZero(t *testing.T) {
 	}
 }
 
+func TestRunExtractSuccessReturnsZero(t *testing.T) {
+	path := writeTestPDF(t)
+	resolver := app.NewPhase1Resolver()
+
+	stdout, stderr, code := captureProcessIO(t, func(outWriter, errWriter io.Writer) int {
+		return run(context.Background(), []string{"extract", path}, resolver, outWriter, errWriter)
+	})
+
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0", code)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if stdout == "" {
+		t.Fatalf("stdout = %q, want non-empty (current stub returns empty string + newline)", stdout)
+	}
+}
+
+func TestRunExtractMissingFileReturnsNonZero(t *testing.T) {
+	resolver := app.NewPhase1Resolver()
+
+	stdout, stderr, code := captureProcessIO(t, func(outWriter, errWriter io.Writer) int {
+		return run(context.Background(), []string{"extract", "/tmp/missing.pdf"}, resolver, outWriter, errWriter)
+	})
+
+	if code == 0 {
+		t.Fatalf("exit code = %d, want non-zero", code)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	if !strings.Contains(stderr, "error:") {
+		t.Fatalf("stderr = %q, want error prefix", stderr)
+	}
+}
+
+func TestRunExtractUnsupportedExtensionReturnsNonZero(t *testing.T) {
+	resolver := app.NewPhase1Resolver()
+
+	stdout, stderr, code := captureProcessIO(t, func(outWriter, errWriter io.Writer) int {
+		return run(context.Background(), []string{"extract", "/tmp/file.txt"}, resolver, outWriter, errWriter)
+	})
+
+	if code == 0 {
+		t.Fatalf("exit code = %d, want non-zero", code)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	if !strings.Contains(stderr, "unsupported file extension") {
+		t.Fatalf("stderr = %q, want unsupported file extension error", stderr)
+	}
+}
+
 func captureProcessIO(t *testing.T, runFunc func(io.Writer, io.Writer) int) (string, string, int) {
 	t.Helper()
 

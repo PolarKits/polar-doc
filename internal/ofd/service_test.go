@@ -6,9 +6,11 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/PolarKits/polardoc/internal/doc"
+	"github.com/PolarKits/polardoc/internal/pdf"
 )
 
 func TestServiceOpenAndInfo(t *testing.T) {
@@ -130,4 +132,54 @@ func buildOFDPackage(t *testing.T, files map[string]string) []byte {
 		t.Fatalf("close zip writer: %v", err)
 	}
 	return buf.Bytes()
+}
+
+func TestServiceExtractTextRejectsWrongDocumentType(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	content := []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write sample PDF: %v", err)
+	}
+
+	pdfSvc := pdf.NewService()
+	pdfDoc, err := pdfSvc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = pdfDoc.Close() })
+
+	ofdSvc := NewService()
+	_, err = ofdSvc.ExtractText(context.Background(), pdfDoc)
+	if err == nil {
+		t.Fatalf("ExtractText with PDF doc: expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "unsupported document type") {
+		t.Fatalf("error = %q, want contains %q", err.Error(), "unsupported document type")
+	}
+}
+
+func TestServiceRenderPreviewRejectsWrongDocumentType(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	content := []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write sample PDF: %v", err)
+	}
+
+	pdfSvc := pdf.NewService()
+	pdfDoc, err := pdfSvc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = pdfDoc.Close() })
+
+	ofdSvc := NewService()
+	_, err = ofdSvc.RenderPreview(context.Background(), pdfDoc, doc.PreviewRequest{})
+	if err == nil {
+		t.Fatalf("RenderPreview with PDF doc: expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "unsupported document type") {
+		t.Fatalf("error = %q, want contains %q", err.Error(), "unsupported document type")
+	}
 }

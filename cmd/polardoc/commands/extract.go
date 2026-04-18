@@ -5,12 +5,27 @@ import (
 	"fmt"
 
 	"github.com/PolarKits/polardoc/internal/app"
+	"github.com/PolarKits/polardoc/internal/doc"
 )
 
 func RunExtract(ctx context.Context, resolver app.ServiceResolver, args []string) error {
-	ref, err := parseDocumentRef("extract", args)
+	input, err := parseCommandInput("extract", args)
 	if err != nil {
 		return err
+	}
+
+	if input.json {
+		return fmt.Errorf("extract does not support --json flag")
+	}
+
+	format, err := detectFormatByExtension(input.path)
+	if err != nil {
+		return err
+	}
+
+	ref := doc.DocumentRef{
+		Format: format,
+		Path:   input.path,
 	}
 
 	svc, ok := resolver.ByFormat(ref.Format)
