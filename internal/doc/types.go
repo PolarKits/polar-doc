@@ -34,11 +34,25 @@ type DocumentRef struct {
 //
 // DeclaredVersion for PDF reflects the %PDF-X.Y header comment. For OFD it is
 // currently empty (phase-1 stub).
+//
+// PageCount and FileIdentifiers are cross-format optional fields reserved for
+// Phase-2. Phase-1 may not populate these fields for all formats; callers should
+// treat zero PageCount as "unknown" and empty FileIdentifiers as "not available".
 type InfoResult struct {
 	Format          Format
 	Path            string
 	SizeBytes       int64
 	DeclaredVersion string
+
+	// PageCount reserves the document page count for Phase-2.
+	// Zero means page count is not available or not yet implemented for this format.
+	PageCount int
+
+	// FileIdentifiers reserves file-level identifiers for Phase-2.
+	// For PDF, this maps to the /ID array in the trailer dictionary.
+	// For OFD, this field is currently unused (Phase-1 stub).
+	// Empty slice means no file identifiers are available.
+	FileIdentifiers []string
 }
 
 // ValidationReport is a structured validation output.
