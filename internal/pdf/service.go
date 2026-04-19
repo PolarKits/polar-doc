@@ -98,12 +98,22 @@ func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error
 		return doc.InfoResult{}, fmt.Errorf("unsupported document type %T", d)
 	}
 
-	return doc.InfoResult{
+	info := doc.InfoResult{
 		Format:          pdfDoc.ref.Format,
 		Path:            pdfDoc.ref.Path,
 		SizeBytes:       pdfDoc.sizeBytes,
 		DeclaredVersion: pdfDoc.declaredVersion,
-	}, nil
+	}
+
+	if pdfDoc.file != nil {
+		if xrefOffset, err := readStartxref(pdfDoc.file); err == nil {
+			if ids, err := readTrailerID(pdfDoc.file, xrefOffset); err == nil {
+				info.FileIdentifiers = ids
+			}
+		}
+	}
+
+	return info, nil
 }
 
 func (s *service) Validate(_ context.Context, d doc.Document) (doc.ValidationReport, error) {
@@ -653,6 +663,62 @@ func readTrailerRootRef(f *os.File, xrefOffset int64) (string, error) {
 	}
 
 	return "", fmt.Errorf("Root key not found in trailer")
+}
+
+func readTrailerID(f *os.File, xrefOffset int64) ([]string, error) {
+	_, err := f.Seek(xrefOffset, io.SeekStart)
+	if err != nil {
+		return nil, fmt.Errorf("seek to xref at %d: %w", xrefOffset, err)
+	}
+
+	rd := bufio.NewReader(f)
+
+	trailerDict, isXRefStream, err := readTrailerDictLines(rd)
+	if err != nil {
+		return nil, fmt.Errorf("read trailer dict: %w", err)
+	}
+
+	if isXRefStream {
+		d, err := ParseDictContent(trailerDict)
+		if err != nil {
+			return nil, fmt.Errorf("parse xref stream dict: %w", err)
+		}
+
+		if arr, ok := DictGetArray(d, "ID"); ok {
+			return arrayToStrings(arr), nil
+		}
+		return nil, nil
+	}
+
+	if trailerDict == "" {
+		return nil, nil
+	}
+
+	d, err := ParseDictContent(trailerDict)
+	if err != nil {
+		return nil, fmt.Errorf("parse trailer dict: %w", err)
+	}
+
+	if arr, ok := DictGetArray(d, "ID"); ok {
+		return arrayToStrings(arr), nil
+	}
+
+	return nil, nil
+}
+
+func arrayToStrings(arr PDFArray) []string {
+	var result []string
+	for _, obj := range arr {
+		switch v := obj.(type) {
+		case PDFLiteralString:
+			result = append(result, string(v))
+		case PDFHexString:
+			result = append(result, string(v))
+		case string:
+			result = append(result, v)
+		}
+	}
+	return result
 }
 
 func readTrailerDictLines(rd *bufio.Reader) (string, bool, error) {

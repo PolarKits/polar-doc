@@ -47,6 +47,94 @@ func TestServiceOpenAndInfo(t *testing.T) {
 	}
 }
 
+func TestServiceInfoWithFileIdentifiers(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	pdf := []byte("%PDF-1.4\n" +
+		"1 0 obj\n" +
+		"<< /Type /Catalog /Pages 2 0 R >>\n" +
+		"endobj\n" +
+		"2 0 obj\n" +
+		"<< /Type /Pages /Kids [] /Count 0 >>\n" +
+		"endobj\n" +
+		"xref\n" +
+		"0 3\n" +
+		"0000000000 65535 f \n" +
+		"0000000009 00000 n \n" +
+		"0000000058 00000 n \n" +
+		"trailer\n" +
+		"<< /Root 1 0 R /Size 3 /ID [(abcd1234)(efgh5678)] >>\n" +
+		"startxref\n" +
+		"110\n" +
+		"%%EOF\n")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
+		t.Fatalf("write PDF: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info PDF: %v", err)
+	}
+
+	if len(info.FileIdentifiers) != 2 {
+		t.Fatalf("file identifiers count = %d, want 2", len(info.FileIdentifiers))
+	}
+	if info.FileIdentifiers[0] != "abcd1234" {
+		t.Fatalf("file identifiers[0] = %q, want %q", info.FileIdentifiers[0], "abcd1234")
+	}
+	if info.FileIdentifiers[1] != "efgh5678" {
+		t.Fatalf("file identifiers[1] = %q, want %q", info.FileIdentifiers[1], "efgh5678")
+	}
+}
+
+func TestServiceInfoWithoutFileIdentifiers(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	pdf := []byte("%PDF-1.4\n" +
+		"1 0 obj\n" +
+		"<< /Type /Catalog /Pages 2 0 R >>\n" +
+		"endobj\n" +
+		"2 0 obj\n" +
+		"<< /Type /Pages /Kids [] /Count 0 >>\n" +
+		"endobj\n" +
+		"xref\n" +
+		"0 3\n" +
+		"0000000000 65535 f \n" +
+		"0000000009 00000 n \n" +
+		"0000000058 00000 n \n" +
+		"trailer\n" +
+		"<< /Root 1 0 R /Size 3 >>\n" +
+		"startxref\n" +
+		"110\n" +
+		"%%EOF\n")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
+		t.Fatalf("write PDF: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info PDF: %v", err)
+	}
+
+	if len(info.FileIdentifiers) != 0 {
+		t.Fatalf("file identifiers count = %d, want 0", len(info.FileIdentifiers))
+	}
+}
+
 func TestServiceValidateValidPDF(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")
