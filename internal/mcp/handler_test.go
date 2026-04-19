@@ -1,6 +1,8 @@
 package mcp
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -169,4 +171,137 @@ func TestFirstPageHandlerPDFMatrix(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDocumentInfoHandlerPDFWithMetadata(t *testing.T) {
+	path := filepath.Join("..", "..", "testdata", "pdf", "pdf20-utf8-test.pdf")
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Skip("pdf20-utf8-test.pdf not found")
+	}
+
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentInfoHandler(resolver)
+
+	input := DocumentInfoInput{Path: path}
+	payload, _ := json.Marshal(input)
+
+	result, err := handler.Handle(context.Background(), ToolNameDocumentInfo, payload)
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+
+	var output DocumentInfoOutput
+	if err := json.Unmarshal(result, &output); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if output.Format != "pdf" {
+		t.Fatalf("format = %q, want %q", output.Format, "pdf")
+	}
+	if output.Path != path {
+		t.Fatalf("path = %q, want %q", output.Path, path)
+	}
+	if output.SizeBytes == 0 {
+		t.Fatalf("size_bytes is zero")
+	}
+	if output.DeclaredVersion == "" {
+		t.Fatalf("declared_version is empty")
+	}
+	t.Logf("declared_version = %q", output.DeclaredVersion)
+	if output.Title != "" {
+		t.Logf("title = %q", output.Title)
+	}
+	if output.Author != "" {
+		t.Logf("author = %q", output.Author)
+	}
+	if output.Creator != "" {
+		t.Logf("creator = %q", output.Creator)
+	}
+	if output.Producer != "" {
+		t.Logf("producer = %q", output.Producer)
+	}
+	if len(output.FileIdentifiers) > 0 {
+		t.Logf("file_identifiers = %v", output.FileIdentifiers)
+	}
+}
+
+func TestDocumentInfoHandlerOFD(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd><Version>1.0</Version><DocRoot>Doc_0/Document.xml</DocRoot></ofd>`,
+		"Doc_0/Document.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd:Document xmlns:ofd="http://www.ofd.cn/2016/F最低配"><ofd:Pages><ofd:Page ID="1"/><ofd:Page ID="2"/></ofd:Pages></ofd:Document>`,
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write sample OFD: %v", err)
+	}
+
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentInfoHandler(resolver)
+
+	input := DocumentInfoInput{Path: path}
+	payload, _ := json.Marshal(input)
+
+	result, err := handler.Handle(context.Background(), ToolNameDocumentInfo, payload)
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+
+	var output DocumentInfoOutput
+	if err := json.Unmarshal(result, &output); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if output.Format != "ofd" {
+		t.Fatalf("format = %q, want %q", output.Format, "ofd")
+	}
+	if output.DeclaredVersion != "1.0" {
+		t.Fatalf("declared_version = %q, want %q", output.DeclaredVersion, "1.0")
+	}
+	if output.PageCount != 2 {
+		t.Fatalf("page_count = %d, want 2", output.PageCount)
+	}
+}
+
+func TestDocumentInfoHandlerUnknownTool(t *testing.T) {
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentInfoHandler(resolver)
+
+	_, err := handler.Handle(context.Background(), "unknown_tool", []byte("{}"))
+	if err == nil {
+		t.Fatal("handler should fail for unknown tool")
+	}
+}
+
+func TestDocumentInfoHandlerEmptyPath(t *testing.T) {
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentInfoHandler(resolver)
+
+	input := DocumentInfoInput{Path: ""}
+	payload, _ := json.Marshal(input)
+
+	_, err := handler.Handle(context.Background(), ToolNameDocumentInfo, payload)
+	if err == nil {
+		t.Fatal("handler should fail for empty path")
+	}
+}
+
+func buildOFDPackage(t *testing.T, files map[string]string) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for name, body := range files {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatalf("create zip entry %q: %v", name, err)
+		}
+		if _, err := w.Write([]byte(body)); err != nil {
+			t.Fatalf("write zip entry %q: %v", name, err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("close zip writer: %v", err)
+	}
+	return buf.Bytes()
 }
