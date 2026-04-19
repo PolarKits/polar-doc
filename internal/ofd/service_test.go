@@ -17,8 +17,8 @@ func TestServiceOpenAndInfo(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.ofd")
 	content := buildOFDPackage(t, map[string]string{
-		"OFD.xml":            "<ofd/>",
-		"Doc_0/Document.xml": "<document/>",
+		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd><DocRoot>Doc_0/Document.xml</DocRoot></ofd>`,
+		"Doc_0/Document.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd:Document xmlns:ofd="http://www.ofd.cn/2016/F最低配"><ofd:Pages><ofd:Page ID="1"/></ofd:Pages></ofd:Document>`,
 	})
 	if err := os.WriteFile(path, content, 0o644); err != nil {
 		t.Fatalf("write sample OFD: %v", err)
@@ -47,6 +47,9 @@ func TestServiceOpenAndInfo(t *testing.T) {
 	}
 	if info.DeclaredVersion != "" {
 		t.Fatalf("declared version = %q, want empty", info.DeclaredVersion)
+	}
+	if info.PageCount != 1 {
+		t.Fatalf("page count = %d, want 1", info.PageCount)
 	}
 }
 
@@ -277,5 +280,116 @@ func TestServiceExtractTextNotImplemented(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "not implemented") {
 		t.Fatalf("error = %q, want contains 'not implemented'", err.Error())
+	}
+}
+
+func TestServiceInfoMultiPage(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "multi.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd><DocRoot>Doc_0/Document.xml</DocRoot></ofd>`,
+		"Doc_0/Document.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd:Document xmlns:ofd="http://www.ofd.cn/2016/F最低配"><ofd:Pages><ofd:Page ID="1"/><ofd:Page ID="2"/><ofd:Page ID="3"/></ofd:Pages></ofd:Document>`,
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write multi-page OFD: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: path})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info OFD: %v", err)
+	}
+
+	if info.PageCount != 3 {
+		t.Fatalf("page count = %d, want 3", info.PageCount)
+	}
+}
+
+func TestServiceInfoNoDocRoot(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "nodocroot.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd><Version>1.0</Version></ofd>`,
+		"Doc_0/Document.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd:Document xmlns:ofd="http://www.ofd.cn/2016/F最低配"><ofd:Pages><ofd:Page ID="1"/></ofd:Pages></ofd:Document>`,
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write OFD without DocRoot: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: path})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info OFD: %v", err)
+	}
+
+	if info.PageCount != 0 {
+		t.Fatalf("page count = %d, want 0 (graceful degradation)", info.PageCount)
+	}
+}
+
+func TestServiceInfoNoDocumentXml(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "nodoc.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd><DocRoot>Doc_0/Document.xml</DocRoot></ofd>`,
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write OFD without Document.xml: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: path})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info OFD: %v", err)
+	}
+
+	if info.PageCount != 0 {
+		t.Fatalf("page count = %d, want 0 (graceful degradation)", info.PageCount)
+	}
+}
+
+func TestServiceInfoMalformedDocumentXml(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "malformed.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd><DocRoot>Doc_0/Document.xml</DocRoot></ofd>`,
+		"Doc_0/Document.xml": `not valid xml <>`,
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write OFD with malformed Document.xml: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: path})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info OFD: %v", err)
+	}
+
+	if info.PageCount != 0 {
+		t.Fatalf("page count = %d, want 0 (graceful degradation)", info.PageCount)
 	}
 }

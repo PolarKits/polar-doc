@@ -2,6 +2,7 @@ package ofd
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/xml"
 	"fmt"
@@ -64,11 +65,16 @@ func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error
 		return doc.InfoResult{}, fmt.Errorf("unsupported document type %T", d)
 	}
 
-	return doc.InfoResult{
+	info := doc.InfoResult{
 		Format:    ofdDoc.ref.Format,
 		Path:      ofdDoc.ref.Path,
 		SizeBytes: ofdDoc.sizeBytes,
-	}, nil
+	}
+
+	pageCount, _ := getPageCount(ofdDoc.zipReader.File)
+	info.PageCount = pageCount
+
+	return info, nil
 }
 
 func (s *service) Validate(_ context.Context, d doc.Document) (doc.ValidationReport, error) {
@@ -219,4 +225,58 @@ func validateDocRoot(files []*zip.File, docRoot string) []string {
 	}
 
 	return nil
+}
+
+func getPageCount(files []*zip.File) (int, error) {
+	docRoot, err := getDocRoot(files)
+	if err != nil {
+		return 0, err
+	}
+
+	normalizedDocRoot := strings.TrimPrefix(strings.TrimPrefix(docRoot, "./"), "./")
+
+	var docFile *zip.File
+	for _, f := range files {
+		name := strings.TrimPrefix(f.Name, "./")
+		if name == normalizedDocRoot {
+			docFile = f
+			break
+		}
+	}
+
+	if docFile == nil {
+		return 0, fmt.Errorf("Document.xml not found at %s", docRoot)
+	}
+
+	rc, err := docFile.Open()
+	if err != nil {
+		return 0, fmt.Errorf("failed to open Document.xml: %w", err)
+	}
+	defer rc.Close()
+
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read Document.xml: %w", err)
+	}
+
+	decoder := xml.NewDecoder(bytes.NewReader(data))
+	pageCount := 0
+	for {
+		token, err := decoder.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse Document.xml: %w", err)
+		}
+
+		if se, ok := token.(xml.StartElement); ok {
+			localName := strings.TrimPrefix(se.Name.Local, "ofd:")
+			if localName == "Page" {
+				pageCount++
+			}
+		}
+	}
+
+	return pageCount, nil
 }
