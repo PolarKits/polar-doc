@@ -71,6 +71,9 @@ func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error
 		SizeBytes: ofdDoc.sizeBytes,
 	}
 
+	version, _ := getVersion(ofdDoc.zipReader.File)
+	info.DeclaredVersion = version
+
 	pageCount, _ := getPageCount(ofdDoc.zipReader.File)
 	info.PageCount = pageCount
 
@@ -199,6 +202,33 @@ func getDocRoot(files []*zip.File) (string, error) {
 				return "", fmt.Errorf("failed to parse OFD.xml: %w", err)
 			}
 			return strings.TrimSpace(parsed.DocRoot), nil
+		}
+	}
+	return "", fmt.Errorf("OFD.xml not found")
+}
+
+func getVersion(files []*zip.File) (string, error) {
+	for _, f := range files {
+		name := strings.TrimPrefix(f.Name, "./")
+		if name == "OFD.xml" {
+			rc, err := f.Open()
+			if err != nil {
+				return "", fmt.Errorf("failed to open OFD.xml: %w", err)
+			}
+			data, err := io.ReadAll(rc)
+			rc.Close()
+			if err != nil {
+				return "", fmt.Errorf("failed to read OFD.xml: %w", err)
+			}
+
+			type ofdXML struct {
+				Version string `xml:"Version"`
+			}
+			var parsed ofdXML
+			if err := xml.Unmarshal(data, &parsed); err != nil {
+				return "", fmt.Errorf("failed to parse OFD.xml: %w", err)
+			}
+			return strings.TrimSpace(parsed.Version), nil
 		}
 	}
 	return "", fmt.Errorf("OFD.xml not found")

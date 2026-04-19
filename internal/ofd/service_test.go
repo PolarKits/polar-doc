@@ -17,7 +17,7 @@ func TestServiceOpenAndInfo(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.ofd")
 	content := buildOFDPackage(t, map[string]string{
-		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd><DocRoot>Doc_0/Document.xml</DocRoot></ofd>`,
+		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd><Version>1.0</Version><DocRoot>Doc_0/Document.xml</DocRoot></ofd>`,
 		"Doc_0/Document.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd:Document xmlns:ofd="http://www.ofd.cn/2016/F最低配"><ofd:Pages><ofd:Page ID="1"/></ofd:Pages></ofd:Document>`,
 	})
 	if err := os.WriteFile(path, content, 0o644); err != nil {
@@ -45,8 +45,8 @@ func TestServiceOpenAndInfo(t *testing.T) {
 	if info.SizeBytes != int64(len(content)) {
 		t.Fatalf("size = %d, want %d", info.SizeBytes, len(content))
 	}
-	if info.DeclaredVersion != "" {
-		t.Fatalf("declared version = %q, want empty", info.DeclaredVersion)
+	if info.DeclaredVersion != "1.0" {
+		t.Fatalf("declared version = %q, want 1.0", info.DeclaredVersion)
 	}
 	if info.PageCount != 1 {
 		t.Fatalf("page count = %d, want 1", info.PageCount)
@@ -334,6 +334,9 @@ func TestServiceInfoNoDocRoot(t *testing.T) {
 		t.Fatalf("info OFD: %v", err)
 	}
 
+	if info.DeclaredVersion != "1.0" {
+		t.Fatalf("declared version = %q, want 1.0", info.DeclaredVersion)
+	}
 	if info.PageCount != 0 {
 		t.Fatalf("page count = %d, want 0 (graceful degradation)", info.PageCount)
 	}
@@ -391,5 +394,61 @@ func TestServiceInfoMalformedDocumentXml(t *testing.T) {
 
 	if info.PageCount != 0 {
 		t.Fatalf("page count = %d, want 0 (graceful degradation)", info.PageCount)
+	}
+}
+
+func TestServiceInfoMissingVersion(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "noversion.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd><DocRoot>Doc_0/Document.xml</DocRoot></ofd>`,
+		"Doc_0/Document.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd:Document xmlns:ofd="http://www.ofd.cn/2016/F最低配"><ofd:Pages><ofd:Page ID="1"/></ofd:Pages></ofd:Document>`,
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write OFD without version: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: path})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info OFD: %v", err)
+	}
+
+	if info.DeclaredVersion != "" {
+		t.Fatalf("declared version = %q, want empty", info.DeclaredVersion)
+	}
+}
+
+func TestServiceInfoMalformedOfdXml(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "malformed.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml":            `not valid xml <>`,
+		"Doc_0/Document.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd:Document xmlns:ofd="http://www.ofd.cn/2016/F最低配"><ofd:Pages><ofd:Page ID="1"/></ofd:Pages></ofd:Document>`,
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write OFD with malformed OFD.xml: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: path})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info OFD: %v", err)
+	}
+
+	if info.DeclaredVersion != "" {
+		t.Fatalf("declared version = %q, want empty (graceful degradation)", info.DeclaredVersion)
 	}
 }
