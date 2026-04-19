@@ -38,6 +38,11 @@ type DocumentRef struct {
 // PageCount and FileIdentifiers are cross-format optional fields reserved for
 // Phase-2. Phase-1 may not populate these fields for all formats; callers should
 // treat zero PageCount as "unknown" and empty FileIdentifiers as "not available".
+//
+// Title, Author, Creator, and Producer are optional metadata fields populated
+// from format-specific metadata dictionaries. For PDF these map to the InfoDict
+// entries. Not all formats or Phase-1 implementations populate these fields;
+// empty string means the metadata is not available.
 type InfoResult struct {
 	Format          Format
 	Path            string
@@ -53,6 +58,26 @@ type InfoResult struct {
 	// For OFD, this field is currently unused (Phase-1 stub).
 	// Empty slice means no file identifiers are available.
 	FileIdentifiers []string
+
+	// Title reserves the document title metadata field for Phase-2.
+	// For PDF, this maps to the /Title entry in the InfoDict.
+	// Empty string means title is not available.
+	Title string
+
+	// Author reserves the document author metadata field for Phase-2.
+	// For PDF, this maps to the /Author entry in the InfoDict.
+	// Empty string means author is not available.
+	Author string
+
+	// Creator reserves the document creator metadata field for Phase-2.
+	// For PDF, this maps to the /Creator entry in the InfoDict.
+	// Empty string means creator is not available.
+	Creator string
+
+	// Producer reserves the document producer metadata field for Phase-2.
+	// For PDF, this maps to the /Producer entry in the InfoDict.
+	// Empty string means producer is not available.
+	Producer string
 }
 
 // ValidationReport is a structured validation output.
