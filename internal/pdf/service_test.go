@@ -273,6 +273,108 @@ func TestServiceInfoWithoutInfoDict(t *testing.T) {
 	if info.Author != "" {
 		t.Fatalf("author = %q, want empty", info.Author)
 	}
+	if info.Creator != "" {
+		t.Fatalf("creator = %q, want empty", info.Creator)
+	}
+	if info.Producer != "" {
+		t.Fatalf("producer = %q, want empty", info.Producer)
+	}
+}
+
+func TestServiceInfoWithCreatorAndProducer(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	pdf := []byte("%PDF-1.4\n" +
+		"1 0 obj\n" +
+		"<< /Type /Catalog /Pages 2 0 R >>\n" +
+		"endobj\n" +
+		"2 0 obj\n" +
+		"<< /Type /Pages /Kids [] /Count 0 >>\n" +
+		"endobj\n" +
+		"3 0 obj\n" +
+		"<< /Creator (Test Creator) /Producer (Test Producer) >>\n" +
+		"endobj\n" +
+		"xref\n" +
+		"0 4\n" +
+		"0000000000 65535 f \n" +
+		"0000000009 00000 n \n" +
+		"0000000058 00000 n \n" +
+		"0000000110 00000 n \n" +
+		"trailer\n" +
+		"<< /Root 1 0 R /Size 4 /Info 3 0 R >>\n" +
+		"startxref\n" +
+		"181\n" +
+		"%%EOF\n")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
+		t.Fatalf("write PDF: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info PDF: %v", err)
+	}
+
+	if info.Creator != "Test Creator" {
+		t.Fatalf("creator = %q, want %q", info.Creator, "Test Creator")
+	}
+	if info.Producer != "Test Producer" {
+		t.Fatalf("producer = %q, want %q", info.Producer, "Test Producer")
+	}
+}
+
+func TestServiceInfoWithCreatorOnly(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	pdf := []byte("%PDF-1.4\n" +
+		"1 0 obj\n" +
+		"<< /Type /Catalog /Pages 2 0 R >>\n" +
+		"endobj\n" +
+		"2 0 obj\n" +
+		"<< /Type /Pages /Kids [] /Count 0 >>\n" +
+		"endobj\n" +
+		"3 0 obj\n" +
+		"<< /Creator (Creator Only) >>\n" +
+		"endobj\n" +
+		"xref\n" +
+		"0 4\n" +
+		"0000000000 65535 f \n" +
+		"0000000009 00000 n \n" +
+		"0000000058 00000 n \n" +
+		"0000000110 00000 n \n" +
+		"trailer\n" +
+		"<< /Root 1 0 R /Size 4 /Info 3 0 R >>\n" +
+		"startxref\n" +
+		"155\n" +
+		"%%EOF\n")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
+		t.Fatalf("write PDF: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info PDF: %v", err)
+	}
+
+	if info.Creator != "Creator Only" {
+		t.Fatalf("creator = %q, want %q", info.Creator, "Creator Only")
+	}
+	if info.Producer != "" {
+		t.Fatalf("producer = %q, want empty", info.Producer)
+	}
 }
 
 func TestServiceValidateValidPDF(t *testing.T) {

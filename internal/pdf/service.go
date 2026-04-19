@@ -110,9 +110,11 @@ func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error
 			if ids, err := readTrailerID(pdfDoc.file, xrefOffset); err == nil {
 				info.FileIdentifiers = ids
 			}
-			title, author := readInfoMetadata(pdfDoc.file, xrefOffset)
+			title, author, creator, producer := readInfoMetadata(pdfDoc.file, xrefOffset)
 			info.Title = title
 			info.Author = author
+			info.Creator = creator
+			info.Producer = producer
 		}
 	}
 
@@ -724,20 +726,20 @@ func arrayToStrings(arr PDFArray) []string {
 	return result
 }
 
-func readInfoMetadata(f *os.File, xrefOffset int64) (title, author string) {
+func readInfoMetadata(f *os.File, xrefOffset int64) (title, author, creator, producer string) {
 	infoRef, err := readTrailerInfoRef(f, xrefOffset)
 	if err != nil || infoRef == "" {
-		return "", ""
+		return "", "", "", ""
 	}
 
 	infoObj, err := readObject(f, infoRef)
 	if err != nil {
-		return "", ""
+		return "", "", "", ""
 	}
 
 	infoDict, err := extractDictFromObject(infoObj)
 	if err != nil {
-		return "", ""
+		return "", "", "", ""
 	}
 
 	if obj := DictGet(infoDict, "Title"); obj != nil {
@@ -756,7 +758,23 @@ func readInfoMetadata(f *os.File, xrefOffset int64) (title, author string) {
 		}
 	}
 
-	return title, author
+	if obj := DictGet(infoDict, "Creator"); obj != nil {
+		if ls, ok := obj.(PDFLiteralString); ok {
+			creator = string(ls)
+		} else if hs, ok := obj.(PDFHexString); ok {
+			creator = string(hs)
+		}
+	}
+
+	if obj := DictGet(infoDict, "Producer"); obj != nil {
+		if ls, ok := obj.(PDFLiteralString); ok {
+			producer = string(ls)
+		} else if hs, ok := obj.(PDFHexString); ok {
+			producer = string(hs)
+		}
+	}
+
+	return title, author, creator, producer
 }
 
 func readTrailerInfoRef(f *os.File, xrefOffset int64) (string, error) {
