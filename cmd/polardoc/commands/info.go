@@ -108,11 +108,23 @@ func RunInfo(ctx context.Context, resolver app.ServiceResolver, args []string) e
 			Path            string     `json:"path"`
 			SizeBytes       int64      `json:"size_bytes"`
 			DeclaredVersion string     `json:"declared_version,omitempty"`
+			PageCount       int        `json:"page_count,omitempty"`
+			FileIdentifiers []string    `json:"file_identifiers,omitempty"`
+			Title           string     `json:"title,omitempty"`
+			Author          string     `json:"author,omitempty"`
+			Creator         string     `json:"creator,omitempty"`
+			Producer        string     `json:"producer,omitempty"`
 		}{
 			Format:          info.Format,
 			Path:            info.Path,
 			SizeBytes:       info.SizeBytes,
 			DeclaredVersion: info.DeclaredVersion,
+			PageCount:       info.PageCount,
+			FileIdentifiers: info.FileIdentifiers,
+			Title:           info.Title,
+			Author:          info.Author,
+			Creator:         info.Creator,
+			Producer:        info.Producer,
 		})
 	}
 

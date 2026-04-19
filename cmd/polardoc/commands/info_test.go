@@ -77,10 +77,16 @@ func TestRunInfoJSONPDF(t *testing.T) {
 	})
 
 	var got struct {
-		Format          string `json:"format"`
-		Path            string `json:"path"`
-		SizeBytes       int64  `json:"size_bytes"`
-		DeclaredVersion string `json:"declared_version"`
+		Format          string   `json:"format"`
+		Path            string   `json:"path"`
+		SizeBytes       int64    `json:"size_bytes"`
+		DeclaredVersion string   `json:"declared_version"`
+		PageCount       int      `json:"page_count"`
+		FileIdentifiers []string `json:"file_identifiers"`
+		Title           string   `json:"title"`
+		Author          string   `json:"author"`
+		Creator         string   `json:"creator"`
+		Producer        string   `json:"producer"`
 	}
 	mustUnmarshalJSON(t, output, &got)
 
@@ -95,6 +101,24 @@ func TestRunInfoJSONPDF(t *testing.T) {
 	}
 	if got.DeclaredVersion != "1.4" {
 		t.Fatalf("declared_version = %q, want %q", got.DeclaredVersion, "1.4")
+	}
+	if got.PageCount != 0 {
+		t.Fatalf("page_count = %d, want 0", got.PageCount)
+	}
+	if got.FileIdentifiers != nil {
+		t.Fatalf("file_identifiers = %v, want nil", got.FileIdentifiers)
+	}
+	if got.Title != "" {
+		t.Fatalf("title = %q, want empty", got.Title)
+	}
+	if got.Author != "" {
+		t.Fatalf("author = %q, want empty", got.Author)
+	}
+	if got.Creator != "" {
+		t.Fatalf("creator = %q, want empty", got.Creator)
+	}
+	if got.Producer != "" {
+		t.Fatalf("producer = %q, want empty", got.Producer)
 	}
 }
 
