@@ -135,6 +135,146 @@ func TestServiceInfoWithoutFileIdentifiers(t *testing.T) {
 	}
 }
 
+func TestServiceInfoWithTitleAndAuthor(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	pdf := []byte("%PDF-1.4\n" +
+		"1 0 obj\n" +
+		"<< /Type /Catalog /Pages 2 0 R >>\n" +
+		"endobj\n" +
+		"2 0 obj\n" +
+		"<< /Type /Pages /Kids [] /Count 0 >>\n" +
+		"endobj\n" +
+		"3 0 obj\n" +
+		"<< /Title (Test Document) /Author (Test Author) >>\n" +
+		"endobj\n" +
+		"xref\n" +
+		"0 4\n" +
+		"0000000000 65535 f \n" +
+		"0000000009 00000 n \n" +
+		"0000000058 00000 n \n" +
+		"0000000110 00000 n \n" +
+		"trailer\n" +
+		"<< /Root 1 0 R /Size 4 /Info 3 0 R >>\n" +
+		"startxref\n" +
+		"176\n" +
+		"%%EOF\n")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
+		t.Fatalf("write PDF: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info PDF: %v", err)
+	}
+
+	if info.Title != "Test Document" {
+		t.Fatalf("title = %q, want %q", info.Title, "Test Document")
+	}
+	if info.Author != "Test Author" {
+		t.Fatalf("author = %q, want %q", info.Author, "Test Author")
+	}
+}
+
+func TestServiceInfoWithTitleOnly(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	pdf := []byte("%PDF-1.4\n" +
+		"1 0 obj\n" +
+		"<< /Type /Catalog /Pages 2 0 R >>\n" +
+		"endobj\n" +
+		"2 0 obj\n" +
+		"<< /Type /Pages /Kids [] /Count 0 >>\n" +
+		"endobj\n" +
+		"3 0 obj\n" +
+		"<< /Title (Title Only) >>\n" +
+		"endobj\n" +
+		"xref\n" +
+		"0 4\n" +
+		"0000000000 65535 f \n" +
+		"0000000009 00000 n \n" +
+		"0000000058 00000 n \n" +
+		"0000000110 00000 n \n" +
+		"trailer\n" +
+		"<< /Root 1 0 R /Size 4 /Info 3 0 R >>\n" +
+		"startxref\n" +
+		"151\n" +
+		"%%EOF\n")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
+		t.Fatalf("write PDF: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info PDF: %v", err)
+	}
+
+	if info.Title != "Title Only" {
+		t.Fatalf("title = %q, want %q", info.Title, "Title Only")
+	}
+	if info.Author != "" {
+		t.Fatalf("author = %q, want empty", info.Author)
+	}
+}
+
+func TestServiceInfoWithoutInfoDict(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	pdf := []byte("%PDF-1.4\n" +
+		"1 0 obj\n" +
+		"<< /Type /Catalog /Pages 2 0 R >>\n" +
+		"endobj\n" +
+		"2 0 obj\n" +
+		"<< /Type /Pages /Kids [] /Count 0 >>\n" +
+		"endobj\n" +
+		"xref\n" +
+		"0 3\n" +
+		"0000000000 65535 f \n" +
+		"0000000009 00000 n \n" +
+		"0000000058 00000 n \n" +
+		"trailer\n" +
+		"<< /Root 1 0 R /Size 3 >>\n" +
+		"startxref\n" +
+		"110\n" +
+		"%%EOF\n")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
+		t.Fatalf("write PDF: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info PDF: %v", err)
+	}
+
+	if info.Title != "" {
+		t.Fatalf("title = %q, want empty", info.Title)
+	}
+	if info.Author != "" {
+		t.Fatalf("author = %q, want empty", info.Author)
+	}
+}
+
 func TestServiceValidateValidPDF(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")

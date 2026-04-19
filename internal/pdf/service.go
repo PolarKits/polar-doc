@@ -110,6 +110,9 @@ func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error
 			if ids, err := readTrailerID(pdfDoc.file, xrefOffset); err == nil {
 				info.FileIdentifiers = ids
 			}
+			title, author := readInfoMetadata(pdfDoc.file, xrefOffset)
+			info.Title = title
+			info.Author = author
 		}
 	}
 
@@ -719,6 +722,82 @@ func arrayToStrings(arr PDFArray) []string {
 		}
 	}
 	return result
+}
+
+func readInfoMetadata(f *os.File, xrefOffset int64) (title, author string) {
+	infoRef, err := readTrailerInfoRef(f, xrefOffset)
+	if err != nil || infoRef == "" {
+		return "", ""
+	}
+
+	infoObj, err := readObject(f, infoRef)
+	if err != nil {
+		return "", ""
+	}
+
+	infoDict, err := extractDictFromObject(infoObj)
+	if err != nil {
+		return "", ""
+	}
+
+	if obj := DictGet(infoDict, "Title"); obj != nil {
+		if ls, ok := obj.(PDFLiteralString); ok {
+			title = string(ls)
+		} else if hs, ok := obj.(PDFHexString); ok {
+			title = string(hs)
+		}
+	}
+
+	if obj := DictGet(infoDict, "Author"); obj != nil {
+		if ls, ok := obj.(PDFLiteralString); ok {
+			author = string(ls)
+		} else if hs, ok := obj.(PDFHexString); ok {
+			author = string(hs)
+		}
+	}
+
+	return title, author
+}
+
+func readTrailerInfoRef(f *os.File, xrefOffset int64) (string, error) {
+	_, err := f.Seek(xrefOffset, io.SeekStart)
+	if err != nil {
+		return "", fmt.Errorf("seek to xref at %d: %w", xrefOffset, err)
+	}
+
+	rd := bufio.NewReader(f)
+
+	trailerDict, isXRefStream, err := readTrailerDictLines(rd)
+	if err != nil {
+		return "", fmt.Errorf("read trailer dict: %w", err)
+	}
+
+	if isXRefStream {
+		d, err := ParseDictContent(trailerDict)
+		if err != nil {
+			return "", fmt.Errorf("parse xref stream dict: %w", err)
+		}
+
+		if ref, ok := DictGetRef(d, "Info"); ok {
+			return RefToString(ref), nil
+		}
+		return "", nil
+	}
+
+	if trailerDict == "" {
+		return "", nil
+	}
+
+	d, err := ParseDictContent(trailerDict)
+	if err != nil {
+		return "", fmt.Errorf("parse trailer dict: %w", err)
+	}
+
+	if ref, ok := DictGetRef(d, "Info"); ok {
+		return RefToString(ref), nil
+	}
+
+	return "", nil
 }
 
 func readTrailerDictLines(rd *bufio.Reader) (string, bool, error) {
