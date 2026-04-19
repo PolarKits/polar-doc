@@ -122,12 +122,87 @@ func TestRunInfoJSONPDF(t *testing.T) {
 	}
 }
 
+func TestRunInfoJSONPDFWithMetadata(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	pdf := []byte("%PDF-1.4\n" +
+		"1 0 obj\n" +
+		"<< /Type /Catalog /Pages 2 0 R >>\n" +
+		"endobj\n" +
+		"2 0 obj\n" +
+		"<< /Type /Pages /Kids [] /Count 0 >>\n" +
+		"endobj\n" +
+		"3 0 obj\n" +
+		"<< /Title (Test Title) /Author (Test Author) /Creator (Test Creator) /Producer (Test Producer) >>\n" +
+		"endobj\n" +
+		"xref\n" +
+		"0 4\n" +
+		"0000000000 65535 f \n" +
+		"0000000009 00000 n \n" +
+		"0000000058 00000 n \n" +
+		"0000000110 00000 n \n" +
+		"trailer\n" +
+		"<< /Root 1 0 R /Size 4 /Info 3 0 R /ID [(abcd1234)(efgh5678)] >>\n" +
+		"startxref\n" +
+		"223\n" +
+		"%%EOF\n")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
+		t.Fatalf("write PDF with metadata: %v", err)
+	}
+
+	resolver := app.NewPhase1Resolver()
+	output := captureStdout(t, func() {
+		if err := RunInfo(context.Background(), resolver, []string{"--json", path}); err != nil {
+			t.Fatalf("run info PDF JSON with metadata: %v", err)
+		}
+	})
+
+	var got struct {
+		Format          string   `json:"format"`
+		Path            string   `json:"path"`
+		SizeBytes       int64    `json:"size_bytes"`
+		DeclaredVersion string   `json:"declared_version"`
+		PageCount       int      `json:"page_count"`
+		FileIdentifiers []string `json:"file_identifiers"`
+		Title           string   `json:"title"`
+		Author          string   `json:"author"`
+		Creator         string   `json:"creator"`
+		Producer        string   `json:"producer"`
+	}
+	mustUnmarshalJSON(t, output, &got)
+
+	if got.Format != "pdf" {
+		t.Fatalf("format = %q, want %q", got.Format, "pdf")
+	}
+	if got.DeclaredVersion != "1.4" {
+		t.Fatalf("declared_version = %q, want %q", got.DeclaredVersion, "1.4")
+	}
+	if got.PageCount != 0 {
+		t.Fatalf("page_count = %d, want 0 (not implemented for PDF)", got.PageCount)
+	}
+	if len(got.FileIdentifiers) != 2 {
+		t.Fatalf("file_identifiers length = %d, want 2", len(got.FileIdentifiers))
+	}
+	if got.Title != "Test Title" {
+		t.Fatalf("title = %q, want %q", got.Title, "Test Title")
+	}
+	if got.Author != "Test Author" {
+		t.Fatalf("author = %q, want %q", got.Author, "Test Author")
+	}
+	if got.Creator != "Test Creator" {
+		t.Fatalf("creator = %q, want %q", got.Creator, "Test Creator")
+	}
+	if got.Producer != "Test Producer" {
+		t.Fatalf("producer = %q, want %q", got.Producer, "Test Producer")
+	}
+}
+
 func TestRunInfoJSONOFD(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.ofd")
 	content := buildOFDPackage(t, map[string]string{
-		"OFD.xml":            "<ofd/>",
-		"Doc_0/Document.xml": "<document/>",
+		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd><Version>1.0</Version><DocRoot>Doc_0/Document.xml</DocRoot></ofd>`,
+		"Doc_0/Document.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd:Document xmlns:ofd="http://www.ofd.cn/2016/F最低配"><ofd:Pages><ofd:Page ID="1"/></ofd:Pages></ofd:Document>`,
 	})
 	if err := os.WriteFile(path, content, 0o644); err != nil {
 		t.Fatalf("write sample OFD: %v", err)
@@ -140,17 +215,26 @@ func TestRunInfoJSONOFD(t *testing.T) {
 		}
 	})
 
-	var got map[string]any
+	var got struct {
+		Format          string `json:"format"`
+		Path            string `json:"path"`
+		SizeBytes       int64  `json:"size_bytes"`
+		DeclaredVersion string `json:"declared_version,omitempty"`
+		PageCount       int    `json:"page_count,omitempty"`
+	}
 	mustUnmarshalJSON(t, output, &got)
 
-	if got["format"] != "ofd" {
-		t.Fatalf("format = %v, want %q", got["format"], "ofd")
+	if got.Format != "ofd" {
+		t.Fatalf("format = %v, want %q", got.Format, "ofd")
 	}
-	if got["path"] != path {
-		t.Fatalf("path = %v, want %q", got["path"], path)
+	if got.Path != path {
+		t.Fatalf("path = %v, want %q", got.Path, path)
 	}
-	if _, ok := got["declared_version"]; ok {
-		t.Fatalf("unexpected declared_version in output: %q", output)
+	if got.DeclaredVersion != "1.0" {
+		t.Fatalf("declared_version = %q, want %q", got.DeclaredVersion, "1.0")
+	}
+	if got.PageCount != 1 {
+		t.Fatalf("page_count = %d, want 1", got.PageCount)
 	}
 }
 
