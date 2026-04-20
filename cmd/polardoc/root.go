@@ -12,6 +12,8 @@ import (
 var errUsage = errors.New("usage")
 var errHelp = errors.New("help")
 
+// Execute parses args and dispatches to the appropriate sub-command.
+// It returns errUsage or errHelp for usage or help display; all other errors indicate failure.
 func Execute(ctx context.Context, args []string, resolver app.ServiceResolver) error {
 	if len(args) == 0 {
 		return errUsage
