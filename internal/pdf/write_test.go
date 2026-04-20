@@ -213,3 +213,102 @@ func TestCopyFileDestDirMissing(t *testing.T) {
 	}
 	t.Logf("CopyFile with missing dest dir returns error: %v", err)
 }
+
+func TestRewriteFileCoreMinimal(t *testing.T) {
+	src := requirePDFSample(t, "core-minimal")
+	dst := filepath.Join(t.TempDir(), "rewritten.pdf")
+	if err := RewriteFile(src, dst); err != nil {
+		t.Fatalf("RewriteFile failed: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: dst})
+	if err != nil {
+		t.Fatalf("open rewritten PDF: %v", err)
+	}
+	defer d.Close()
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("Info on rewritten PDF: %v", err)
+	}
+	if info.Format != "pdf" {
+		t.Fatalf("format = %q, want pdf", info.Format)
+	}
+	if info.SizeBytes == 0 {
+		t.Fatal("rewritten PDF has zero size")
+	}
+}
+
+func TestRewriteFilePreservesInfo(t *testing.T) {
+	src := requirePDFSample(t, "version-compat-v1.4")
+	dst := filepath.Join(t.TempDir(), "rewritten.pdf")
+	if err := RewriteFile(src, dst); err != nil {
+		t.Fatalf("RewriteFile failed: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: dst})
+	if err != nil {
+		t.Fatalf("open rewritten PDF: %v", err)
+	}
+	defer d.Close()
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("Info on rewritten PDF: %v", err)
+	}
+	if info.Title == "" {
+		t.Fatal("rewritten PDF has empty Title; metadata was lost")
+	}
+	t.Logf("rewritten PDF title: %q", info.Title)
+}
+
+func TestRewriteFilePDF20UTF8(t *testing.T) {
+	src := requirePDFSample(t, "standard-pdf20-utf8")
+	dst := filepath.Join(t.TempDir(), "rewritten.pdf")
+	if err := RewriteFile(src, dst); err != nil {
+		t.Fatalf("RewriteFile failed: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: dst})
+	if err != nil {
+		t.Fatalf("open rewritten PDF: %v", err)
+	}
+	defer d.Close()
+
+	_, err = svc.FirstPageInfo(context.Background(), d)
+	if err != nil {
+		t.Fatalf("FirstPageInfo on rewritten PDF: %v", err)
+	}
+}
+
+func TestRewriteFileEmptyPath(t *testing.T) {
+	if err := RewriteFile("", "/tmp/dst.pdf"); err == nil {
+		t.Fatal("RewriteFile with empty source should fail")
+	}
+	if err := RewriteFile("/tmp/src.pdf", ""); err == nil {
+		t.Fatal("RewriteFile with empty destination should fail")
+	}
+}
+
+func TestRewriteFileIsSingleRevision(t *testing.T) {
+	// An incremental PDF has multiple startxref markers. After RewriteFile,
+	// the output should be a clean single-revision PDF with exactly one startxref.
+	src := requirePDFSample(t, "version-compat-v1.4")
+	dst := filepath.Join(t.TempDir(), "rewritten.pdf")
+	if err := RewriteFile(src, dst); err != nil {
+		t.Fatalf("RewriteFile failed: %v", err)
+	}
+
+	dstBytes, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+
+	count := bytes.Count(dstBytes, []byte("startxref"))
+	if count != 1 {
+		t.Fatalf("expected exactly 1 startxref in rewritten PDF, got %d", count)
+	}
+}
