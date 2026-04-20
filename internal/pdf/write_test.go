@@ -1,7 +1,9 @@
 package pdf
 
 import (
+	"bytes"
 	"context"
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -143,4 +145,71 @@ func TestCopyFileEmptyPath(t *testing.T) {
 	if err == nil {
 		t.Fatal("CopyFile with empty destination should fail")
 	}
+}
+
+func TestCopyFileBytesMatchSource(t *testing.T) {
+	src := requirePDFSample(t, "version-compat-v1.4")
+	srcBytes, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatalf("ReadFile source: %v", err)
+	}
+
+	dst := filepath.Join(t.TempDir(), "byte-match.pdf")
+	if err := CopyFile(src, dst); err != nil {
+		t.Fatalf("CopyFile failed: %v", err)
+	}
+
+	dstBytes, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatalf("ReadFile destination: %v", err)
+	}
+
+	if !bytes.Equal(srcBytes, dstBytes) {
+		t.Fatalf("destination bytes do not match source: src len=%d, dst len=%d", len(srcBytes), len(dstBytes))
+	}
+}
+
+func TestCopyFileOverwriteExistingDest(t *testing.T) {
+	src := requirePDFSample(t, "standard-pdf20-utf8")
+	srcBytes, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatalf("ReadFile source: %v", err)
+	}
+
+	dst := filepath.Join(t.TempDir(), "overwrite-target.pdf")
+	if err := os.WriteFile(dst, []byte("different content"), 0644); err != nil {
+		t.Fatalf("WriteFile initial destination: %v", err)
+	}
+
+	if err := CopyFile(src, dst); err != nil {
+		t.Fatalf("CopyFile should succeed when destination exists: %v", err)
+	}
+
+	dstBytes, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatalf("ReadFile destination after copy: %v", err)
+	}
+
+	if !bytes.Equal(srcBytes, dstBytes) {
+		t.Fatalf("destination was not overwritten correctly: expected %d bytes, got %d", len(srcBytes), len(dstBytes))
+	}
+}
+
+func TestCopyFileSourceNotFound(t *testing.T) {
+	nonExistent := filepath.Join(t.TempDir(), "nonexistent-src-"+t.Name()+".pdf")
+	err := CopyFile(nonExistent, filepath.Join(t.TempDir(), "dst.pdf"))
+	if err == nil {
+		t.Fatal("CopyFile should fail when source does not exist")
+	}
+	t.Logf("CopyFile with nonexistent source returns error: %v", err)
+}
+
+func TestCopyFileDestDirMissing(t *testing.T) {
+	src := requirePDFSample(t, "core-multipage")
+	dst := filepath.Join(t.TempDir(), "nonexistent-dir-"+t.Name(), "output.pdf")
+	err := CopyFile(src, dst)
+	if err == nil {
+		t.Fatal("CopyFile should fail when destination directory does not exist")
+	}
+	t.Logf("CopyFile with missing dest dir returns error: %v", err)
 }

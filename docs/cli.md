@@ -89,6 +89,8 @@ Any other extension returns an error.
 `cp` is currently PDF-only.
 It copies the source PDF bytes to a destination path and does not perform PDF normalization, upgrade, or editing.
 
+> **Phase note:** Current `cp` is raw byte copy (Phase-1). Full PDF editing (content modification, metadata updates, version upgrade) via writer pipeline is Phase-2 work.
+
 - use a stable top-level schema per command
 - return machine-readable status and errors
 - do not mix human-readable prose with JSON output
