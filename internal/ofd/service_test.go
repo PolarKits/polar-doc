@@ -256,12 +256,13 @@ func TestServiceRenderPreviewRejectsWrongDocumentType(t *testing.T) {
 	}
 }
 
-func TestServiceExtractTextNotImplemented(t *testing.T) {
+func TestServiceExtractTextEmptyOFD(t *testing.T) {
+	// An OFD with no pages should return empty text without error.
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.ofd")
 	content := buildOFDPackage(t, map[string]string{
-		"OFD.xml":            "<ofd/>",
-		"Doc_0/Document.xml": "<document/>",
+		"OFD.xml":            `<ofd:OFD xmlns:ofd="http://www.ofdspec.org/2016" Version="1.0" DocType="OFD"><ofd:DocBody><ofd:DocRoot>Doc_0/Document.xml</ofd:DocRoot></ofd:DocBody></ofd:OFD>`,
+		"Doc_0/Document.xml": `<ofd:Document xmlns:ofd="http://www.ofdspec.org/2016"><ofd:CommonData/><ofd:Pages></ofd:Pages></ofd:Document>`,
 	})
 	if err := os.WriteFile(path, content, 0o644); err != nil {
 		t.Fatalf("write sample OFD: %v", err)
@@ -274,13 +275,51 @@ func TestServiceExtractTextNotImplemented(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = d.Close() })
 
-	_, err = svc.ExtractText(context.Background(), d)
-	if err == nil {
-		t.Fatal("ExtractText expected error, got nil")
+	result, err := svc.ExtractText(context.Background(), d)
+	if err != nil {
+		t.Fatalf("ExtractText unexpected error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "not implemented") {
-		t.Fatalf("error = %q, want contains 'not implemented'", err.Error())
+	if result.Text != "" {
+		t.Fatalf("ExtractText: expected empty text, got %q", result.Text)
 	}
+}
+
+func TestServiceExtractTextHelloWorld(t *testing.T) {
+	const helloPath = "../../testdata/ofd/test_core_helloworld.ofd"
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: helloPath})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	result, err := svc.ExtractText(context.Background(), d)
+	if err != nil {
+		t.Fatalf("ExtractText: %v", err)
+	}
+	if result.Text == "" {
+		t.Fatal("ExtractText: expected non-empty text for hello world OFD")
+	}
+	t.Logf("extracted: %q", result.Text)
+}
+
+func TestServiceExtractTextKeywordSearch(t *testing.T) {
+	const kwPath = "../../testdata/ofd/test_feat_keyword_search.ofd"
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: kwPath})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	result, err := svc.ExtractText(context.Background(), d)
+	if err != nil {
+		t.Fatalf("ExtractText: %v", err)
+	}
+	if result.Text == "" {
+		t.Fatal("ExtractText: expected non-empty text for keyword search OFD")
+	}
+	t.Logf("extracted %d chars", len(result.Text))
 }
 
 func TestServiceInfoMultiPage(t *testing.T) {

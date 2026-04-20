@@ -132,9 +132,147 @@ func (s *service) ExtractText(_ context.Context, d doc.Document) (doc.TextResult
 	if !ok {
 		return doc.TextResult{}, fmt.Errorf("unsupported document type %T", d)
 	}
+	if ofdDoc.zipReader == nil {
+		return doc.TextResult{}, fmt.Errorf("OFD package is not open")
+	}
 
-	_ = ofdDoc
-	return doc.TextResult{}, fmt.Errorf("text extraction is not implemented for OFD")
+	text, err := extractOFDText(ofdDoc.zipReader.File)
+	if err != nil {
+		return doc.TextResult{}, err
+	}
+	return doc.TextResult{Text: strings.TrimSpace(text)}, nil
+}
+
+// extractOFDText reads all page Content.xml files and collects TextCode text.
+// It follows the Document.xml page list to enumerate pages in order, then
+// scans each page's Content.xml for TextObject/TextCode elements.
+func extractOFDText(files []*zip.File) (string, error) {
+	// Build a filename → zip.File index for O(1) lookup.
+	fileIndex := make(map[string]*zip.File, len(files))
+	for _, f := range files {
+		name := strings.TrimPrefix(f.Name, "./")
+		fileIndex[name] = f
+	}
+
+	// Locate Document.xml via OFD.xml's DocRoot.
+	docRoot, err := getDocRoot(files)
+	if err != nil {
+		return "", fmt.Errorf("extractOFDText: %w", err)
+	}
+	docRoot = strings.TrimPrefix(docRoot, "./")
+
+	docFile, ok := fileIndex[docRoot]
+	if !ok {
+		return "", fmt.Errorf("extractOFDText: Document.xml not found at %q", docRoot)
+	}
+
+	// Parse Document.xml to find all <Page BaseLoc="..."/> entries.
+	rc, err := docFile.Open()
+	if err != nil {
+		return "", fmt.Errorf("extractOFDText: open Document.xml: %w", err)
+	}
+	docData, err := io.ReadAll(rc)
+	rc.Close()
+	if err != nil {
+		return "", fmt.Errorf("extractOFDText: read Document.xml: %w", err)
+	}
+
+	// docRoot's directory is the base for relative page paths.
+	docDir := ""
+	if slash := strings.LastIndex(docRoot, "/"); slash >= 0 {
+		docDir = docRoot[:slash+1]
+	}
+
+	pageLocations := ofdPageLocations(docData)
+
+	// Extract text from each page's Content.xml.
+	var sb strings.Builder
+	for _, relLoc := range pageLocations {
+		// Page BaseLoc is relative to Document.xml's directory.
+		absLoc := docDir + strings.TrimPrefix(relLoc, "./")
+		contentFile, found := fileIndex[absLoc]
+		if !found {
+			continue
+		}
+		cr, err := contentFile.Open()
+		if err != nil {
+			continue
+		}
+		pageData, err := io.ReadAll(cr)
+		cr.Close()
+		if err != nil {
+			continue
+		}
+		pageText := extractTextCodesFromPage(pageData)
+		if sb.Len() > 0 && len(pageText) > 0 {
+			sb.WriteByte('\n')
+		}
+		sb.WriteString(pageText)
+	}
+
+	return sb.String(), nil
+}
+
+// ofdPageLocations parses a Document.xml byte slice and returns the BaseLoc
+// attribute values of all <ofd:Page> elements in document order.
+func ofdPageLocations(data []byte) []string {
+	var locs []string
+	decoder := xml.NewDecoder(bytes.NewReader(data))
+	for {
+		tok, err := decoder.Token()
+		if err != nil {
+			break
+		}
+		se, ok := tok.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		local := strings.TrimPrefix(se.Name.Local, "ofd:")
+		if local != "Page" {
+			continue
+		}
+		for _, attr := range se.Attr {
+			if attr.Name.Local == "BaseLoc" {
+				locs = append(locs, attr.Value)
+				break
+			}
+		}
+	}
+	return locs
+}
+
+// extractTextCodesFromPage parses a Content.xml byte slice and returns all
+// TextCode element text values joined by spaces.
+func extractTextCodesFromPage(data []byte) string {
+	var parts []string
+	decoder := xml.NewDecoder(bytes.NewReader(data))
+	inTextCode := false
+	for {
+		tok, err := decoder.Token()
+		if err != nil {
+			break
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			local := strings.TrimPrefix(t.Name.Local, "ofd:")
+			if local == "TextCode" {
+				inTextCode = true
+			}
+		case xml.EndElement:
+			local := strings.TrimPrefix(t.Name.Local, "ofd:")
+			if local == "TextCode" {
+				inTextCode = false
+			}
+		case xml.CharData:
+			if inTextCode {
+				text := strings.TrimSpace(string(t))
+				if text != "" {
+					parts = append(parts, text)
+				}
+			}
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 func (s *service) RenderPreview(_ context.Context, d doc.Document, _ doc.PreviewRequest) (doc.PreviewResult, error) {
@@ -194,14 +332,30 @@ func getDocRoot(files []*zip.File) (string, error) {
 				return "", fmt.Errorf("failed to read OFD.xml: %w", err)
 			}
 
-			type ofdXML struct {
-				DocRoot string `xml:"DocRoot"`
+			// Use streaming decoder to find DocRoot regardless of nesting depth.
+			// Real OFD files nest DocRoot inside DocBody; simplified test fixtures
+			// may place it as a direct child of the root element.
+			decoder := xml.NewDecoder(bytes.NewReader(data))
+			for {
+				tok, decErr := decoder.Token()
+				if decErr != nil {
+					break
+				}
+				se, ok := tok.(xml.StartElement)
+				if !ok {
+					continue
+				}
+				local := se.Name.Local
+				if local == "DocRoot" {
+					var content string
+					if err := decoder.DecodeElement(&content, &se); err == nil {
+						if v := strings.TrimSpace(content); v != "" {
+							return v, nil
+						}
+					}
+				}
 			}
-			var parsed ofdXML
-			if err := xml.Unmarshal(data, &parsed); err != nil {
-				return "", fmt.Errorf("failed to parse OFD.xml: %w", err)
-			}
-			return strings.TrimSpace(parsed.DocRoot), nil
+			return "", nil
 		}
 	}
 	return "", fmt.Errorf("OFD.xml not found")
@@ -221,14 +375,39 @@ func getVersion(files []*zip.File) (string, error) {
 				return "", fmt.Errorf("failed to read OFD.xml: %w", err)
 			}
 
-			type ofdXML struct {
-				Version string `xml:"Version"`
+			// Use streaming decoder to handle both:
+			//   - Real OFD files: version in <ofd:OFD Version="1.0"> attribute
+			//   - Simplified test files: version in <Version>1.0</Version> child element
+			decoder := xml.NewDecoder(bytes.NewReader(data))
+			for {
+				tok, decErr := decoder.Token()
+				if decErr != nil {
+					break
+				}
+				se, ok := tok.(xml.StartElement)
+				if !ok {
+					continue
+				}
+				local := se.Name.Local
+				// Check for Version attribute on any root-level element (e.g. <ofd:OFD Version="1.0">).
+				for _, attr := range se.Attr {
+					if attr.Name.Local == "Version" {
+						if v := strings.TrimSpace(attr.Value); v != "" {
+							return v, nil
+						}
+					}
+				}
+				// Also check for Version as a child element (simplified test format).
+				if local == "Version" {
+					var content string
+					if err := decoder.DecodeElement(&content, &se); err == nil {
+						if v := strings.TrimSpace(content); v != "" {
+							return v, nil
+						}
+					}
+				}
 			}
-			var parsed ofdXML
-			if err := xml.Unmarshal(data, &parsed); err != nil {
-				return "", fmt.Errorf("failed to parse OFD.xml: %w", err)
-			}
-			return strings.TrimSpace(parsed.Version), nil
+			return "", nil
 		}
 	}
 	return "", fmt.Errorf("OFD.xml not found")
