@@ -18,19 +18,26 @@ PolarDoc currently focuses on explicit PDF and OFD document capabilities in a Go
   - copy/save to a destination path
 - OFD phase-1 read-oriented capabilities:
   - open package
-  - read version metadata
-  - count pages
+  - read version metadata (from OFD.xml Version attribute)
+  - count pages (from Document.xml Page elements)
   - validate package structure
+  - extract text (TextCode elements across all pages via Content.xml)
 - MCP handlers implemented in-process:
   - `pdf_first_page_info`
   - `document_info`
+
+## Recently Delivered (Post Stage 1-9)
+
+- PDF write pipeline: `RewriteFile` — normalizes incremental PDFs to single-revision output
+- PDF metadata: `parsePDFName` delimiter fix enabling correct Info dict key parsing
+- PDF xref: Prev chain traversal for incremental/linearized PDFs
+- OFD text extraction: full implementation traversing Document.xml → page Content.xml → TextCode elements
 
 ## Deferred
 
 - full MCP server runtime in `cmd/polardoc-mcp`
 - deep PDF validation and robust full-document extraction
-- PDF rewrite and incremental-update writer pipeline
-- OFD text extraction, preview, and first-page inspection
+- OFD preview and first-page inspection
 - rendering implementations in `internal/render`
 - signing and trust implementations in `internal/security`
 

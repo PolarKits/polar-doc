@@ -36,8 +36,8 @@ type Opener interface {
 // any standard's metadata schema.
 //
 // Phase-1 note: Info returns declared version string read from the document header.
-// For PDF this is the %PDF-X.Y version comment. For OFD there is no declared version
-// in the current phase-1 implementation.
+// For PDF this is the %PDF-X.Y version comment. For OFD this is the Version attribute
+// read from the root <ofd:OFD Version="..."> element in OFD.xml.
 type InfoProvider interface {
 	Info(ctx context.Context, d Document) (InfoResult, error)
 }
@@ -65,7 +65,8 @@ type Validator interface {
 // Phase-1 coverage:
 //   - PDF: partial first-page-oriented extraction from supported content streams.
 //     It is intentionally narrow and not a complete PDF text model.
-//   - OFD: returns an explicit "not implemented" error.
+//   - OFD: implemented; traverses Document.xml page list and reads TextCode elements
+//     from each page's Content.xml per GB/T 33190-2016 page block semantics.
 //
 // Future: version upgrade path (e.g. read older PDF, output newer version) is a
 // planned capability that requires a writer/upgrade pipeline, not yet implemented.

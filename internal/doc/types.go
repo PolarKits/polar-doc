@@ -34,8 +34,8 @@ type DocumentRef struct {
 //
 // Field population by format:
 //   - Format, Path, SizeBytes: populated for both PDF and OFD
-//   - DeclaredVersion: PDF reads %PDF-X.Y header; OFD reads OFD.xml/Doc_Version
-//   - PageCount: Phase-2 reserved; currently zero for both formats in phase-1
+//   - DeclaredVersion: PDF reads %PDF-X.Y header; OFD reads Version attribute from OFD.xml root element
+//   - PageCount: PDF zero (Phase-2); OFD populated from Document.xml <Page> element count
 //   - FileIdentifiers: Phase-2 reserved; PDF populates from trailer /ID; OFD stub
 //   - Title, Author, Creator, Producer: PDF populates from InfoDict; OFD does not
 //
@@ -47,8 +47,8 @@ type InfoResult struct {
 	SizeBytes       int64
 	DeclaredVersion string
 
-	// PageCount reserves the document page count for Phase-2.
-	// Zero means page count is not available or not yet implemented for this format.
+	// PageCount holds the document page count.
+	// PDF: zero (page traversal not yet implemented). OFD: populated from Document.xml.
 	PageCount int
 
 	// FileIdentifiers: PDF populates from trailer /ID array; OFD is unused (Phase-1 stub).
@@ -116,7 +116,7 @@ type PreviewResult struct {
 // ordering guarantees, and content completeness are format-defined.
 // Phase-1:
 //   - PDF may return partial extracted text for supported content streams.
-//   - OFD extraction is not implemented yet.
+//   - OFD returns text extracted from TextCode elements across all pages.
 //
 // # Version Upgrade Note
 //
