@@ -379,7 +379,6 @@ func TestServiceInfoWithCreatorOnly(t *testing.T) {
 }
 
 func TestServiceInfoWithUTF16HexTitleAndAuthor(t *testing.T) {
-	t.Skip("UTF-16 BE hex string decoding not yet implemented")
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")
 	xrefStart := 184
@@ -429,7 +428,6 @@ func TestServiceInfoWithUTF16HexTitleAndAuthor(t *testing.T) {
 }
 
 func TestServiceInfoWithLiteralStringEscapes(t *testing.T) {
-	t.Skip("literal string escape sequence processing not yet implemented")
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")
 	xrefStart := 168
@@ -479,7 +477,6 @@ func TestServiceInfoWithLiteralStringEscapes(t *testing.T) {
 }
 
 func TestServiceInfoWithUTF16LEHexTitleAndAuthor(t *testing.T) {
-	t.Skip("UTF-16 LE hex string decoding not yet implemented")
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")
 	xrefStart := 184
@@ -529,7 +526,6 @@ func TestServiceInfoWithUTF16LEHexTitleAndAuthor(t *testing.T) {
 }
 
 func TestServiceInfoWithUTF16LELiteralString(t *testing.T) {
-	t.Skip("UTF-16 LE literal string decoding not yet implemented")
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")
 	xrefStart := 153
@@ -577,7 +573,7 @@ func TestServiceInfoWithUTF16LELiteralString(t *testing.T) {
 }
 
 func TestServiceInfoRealSampleVersionCompatV14(t *testing.T) {
-	t.Skip("Info dict Title field is UTF-16BE encoded; parser returns raw bytes as empty string (Type C: UTF-16 decoding not implemented)")
+	t.Skip("Type B: linearized PDF — Info dict (obj 10) is in Prev xref at offset 5522, but current reader only looks in startxref xref; cross-Prev object resolution not yet implemented (Stage B)")
 	path := requirePDFSample(t, "version-compat-v1.4")
 	svc := NewService()
 	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})

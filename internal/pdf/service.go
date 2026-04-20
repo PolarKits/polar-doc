@@ -333,6 +333,9 @@ func readContentStream(f *os.File, ref PDFRef) ([]byte, error) {
 	return streamBuf, nil
 }
 
+// extractLiteralStrings extracts and decodes literal and hex strings from raw PDF stream content.
+// It scans for literal strings (parentheses) and hex strings (angle brackets), decoding UTF-16 BOM
+// and escape sequences where present. Results are joined with spaces.
 func extractLiteralStrings(data []byte) string {
 	var result strings.Builder
 	s := string(data)
@@ -384,10 +387,23 @@ func extractLiteralStrings(data []byte) string {
 				literal := s[literalStart:end]
 				literal = strings.Trim(literal, "()")
 				if len(literal) > 0 {
+					unescaped := unescapeLiteralString(literal)
+					b := []byte(unescaped)
+					var decoded string
+					if len(b) >= 2 {
+						if b[0] == 0xFE && b[1] == 0xFF {
+							decoded = utf16BEToUTF8(b[2:])
+						} else if b[0] == 0xFF && b[1] == 0xFE {
+							decoded = utf16LEToUTF8(b[2:])
+						}
+					}
+					if decoded == "" {
+						decoded = unescaped
+					}
 					if result.Len() > 0 {
 						result.WriteString(" ")
 					}
-					result.WriteString(literal)
+					result.WriteString(decoded)
 				}
 			}
 			s = s[literalStart+1:]
@@ -432,6 +448,10 @@ func decodeHexStringRaw(s string) []byte {
 	return result
 }
 
+// decodeHexString decodes a PDF hex string (angle-bracket notation) into a UTF-8 string.
+// It detects and handles UTF-16BE BOM (0xFE 0xFF), UTF-16LE BOM (0xFF 0xFE), and uses a heuristic
+// to detect no-BOM UTF-16BE (even-length data with alternating 0x00 bytes). Falls back to
+// printable ASCII filtering if no Unicode encoding is detected.
 func decodeHexString(s string) string {
 	decoded := decodeHexStringRaw(s)
 	if len(decoded) == 0 {
@@ -439,6 +459,22 @@ func decodeHexString(s string) string {
 	}
 	if decoded[0] == 0xFE && decoded[1] == 0xFF {
 		return utf16BEToUTF8(decoded[2:])
+	}
+	if decoded[0] == 0xFF && decoded[1] == 0xFE {
+		return utf16LEToUTF8(decoded[2:])
+	}
+	// Heuristic: no-BOM UTF-16BE has alternating 0x00 bytes (odd indices).
+	// If more than 25% of odd-indexed bytes are 0x00, assume UTF-16BE and decode directly.
+	if len(decoded) >= 4 && len(decoded)%2 == 0 {
+		zeroCount := 0
+		for i := 1; i < len(decoded); i += 2 {
+			if decoded[i] == 0x00 {
+				zeroCount++
+			}
+		}
+		if zeroCount > len(decoded)/4 {
+			return utf16BEToUTF8(decoded)
+		}
 	}
 	if isMostlyPrintableASCII(decoded) {
 		return printableASCIIOnly(decoded)
@@ -473,12 +509,79 @@ func printableASCIIOnly(data []byte) string {
 	return strings.TrimSpace(result.String())
 }
 
+// utf16BEToUTF8 converts a UTF-16 BE byte slice to a UTF-8 string.
 func utf16BEToUTF8(data []byte) string {
 	runes := make([]rune, 0, len(data)/2)
 	for i := 0; i < len(data)-1; i += 2 {
 		runes = append(runes, rune(data[i])<<8|rune(data[i+1]))
 	}
 	return string(runes)
+}
+
+// utf16LEToUTF8 converts a UTF-16 LE byte slice to a UTF-8 string.
+func utf16LEToUTF8(data []byte) string {
+	runes := make([]rune, 0, len(data)/2)
+	for i := 0; i+1 < len(data); i += 2 {
+		runes = append(runes, rune(data[i])|rune(data[i+1])<<8)
+	}
+	return string(runes)
+}
+
+// unescapeLiteralString processes PDF literal string escape sequences.
+// Handles: \n \r \t \b \f \( \) \\ and \ddd (up to 3 octal digits).
+func unescapeLiteralString(s string) string {
+	if !strings.ContainsRune(s, '\\') {
+		return s
+	}
+	var buf strings.Builder
+	i := 0
+	for i < len(s) {
+		if s[i] != '\\' || i+1 >= len(s) {
+			buf.WriteByte(s[i])
+			i++
+			continue
+		}
+		i++
+		switch s[i] {
+		case 'n':
+			buf.WriteByte('\n')
+			i++
+		case 'r':
+			buf.WriteByte('\r')
+			i++
+		case 't':
+			buf.WriteByte('\t')
+			i++
+		case 'b':
+			buf.WriteByte('\b')
+			i++
+		case 'f':
+			buf.WriteByte('\f')
+			i++
+		case '(':
+			buf.WriteByte('(')
+			i++
+		case ')':
+			buf.WriteByte(')')
+			i++
+		case '\\':
+			buf.WriteByte('\\')
+			i++
+		default:
+			if s[i] >= '0' && s[i] <= '7' {
+				octal := 0
+				for j := 0; j < 3 && i < len(s) && s[i] >= '0' && s[i] <= '7'; j++ {
+					octal = octal*8 + int(s[i]-'0')
+					i++
+				}
+				buf.WriteByte(byte(octal))
+			} else {
+				buf.WriteByte(s[i])
+				i++
+			}
+		}
+	}
+	return buf.String()
 }
 
 func (s *service) RenderPreview(_ context.Context, d doc.Document, _ doc.PreviewRequest) (doc.PreviewResult, error) {
@@ -727,6 +830,26 @@ func arrayToStrings(arr PDFArray) []string {
 	return result
 }
 
+// decodePDFString decodes a raw PDF string value (after stripping outer delimiters).
+// It handles UTF-16BE (BOM 0xFE 0xFF), UTF-16LE (BOM 0xFF 0xFE), literal string escape
+// sequences, and falls back to printable ASCII filtering.
+func decodePDFString(raw string) string {
+	unescaped := unescapeLiteralString(raw)
+	b := []byte(unescaped)
+	if len(b) >= 2 {
+		if b[0] == 0xFE && b[1] == 0xFF {
+			return utf16BEToUTF8(b[2:])
+		}
+		if b[0] == 0xFF && b[1] == 0xFE {
+			return utf16LEToUTF8(b[2:])
+		}
+	}
+	if isMostlyPrintableASCII(b) {
+		return printableASCIIOnly(b)
+	}
+	return ""
+}
+
 func readInfoMetadata(f *os.File, xrefOffset int64) (title, author, creator, producer string) {
 	infoRef, err := readTrailerInfoRef(f, xrefOffset)
 	if err != nil || infoRef == "" {
@@ -745,33 +868,33 @@ func readInfoMetadata(f *os.File, xrefOffset int64) (title, author, creator, pro
 
 	if obj := DictGet(infoDict, "Title"); obj != nil {
 		if ls, ok := obj.(PDFLiteralString); ok {
-			title = string(ls)
+			title = decodePDFString(string(ls))
 		} else if hs, ok := obj.(PDFHexString); ok {
-			title = string(hs)
+			title = decodeHexString(string(hs))
 		}
 	}
 
 	if obj := DictGet(infoDict, "Author"); obj != nil {
 		if ls, ok := obj.(PDFLiteralString); ok {
-			author = string(ls)
+			author = decodePDFString(string(ls))
 		} else if hs, ok := obj.(PDFHexString); ok {
-			author = string(hs)
+			author = decodeHexString(string(hs))
 		}
 	}
 
 	if obj := DictGet(infoDict, "Creator"); obj != nil {
 		if ls, ok := obj.(PDFLiteralString); ok {
-			creator = string(ls)
+			creator = decodePDFString(string(ls))
 		} else if hs, ok := obj.(PDFHexString); ok {
-			creator = string(hs)
+			creator = decodeHexString(string(hs))
 		}
 	}
 
 	if obj := DictGet(infoDict, "Producer"); obj != nil {
 		if ls, ok := obj.(PDFLiteralString); ok {
-			producer = string(ls)
+			producer = decodePDFString(string(ls))
 		} else if hs, ok := obj.(PDFHexString); ok {
-			producer = string(hs)
+			producer = decodeHexString(string(hs))
 		}
 	}
 
