@@ -33,7 +33,7 @@ type DocumentRef struct {
 // object; it is a phase-1 transport struct.
 //
 // DeclaredVersion for PDF reflects the %PDF-X.Y header comment. For OFD it is
-// currently empty (phase-1 stub).
+// read from `OFD.xml` when available in the current phase-1 implementation.
 //
 // PageCount and FileIdentifiers are cross-format optional fields reserved for
 // Phase-2. Phase-1 may not populate these fields for all formats; callers should
@@ -115,7 +115,9 @@ type PreviewResult struct {
 //
 // Text is returned as a single concatenated string. The extraction rules,
 // ordering guarantees, and content completeness are format-defined.
-// Phase-1: both PDF and OFD return empty string (stub).
+// Phase-1:
+//   - PDF may return partial extracted text for supported content streams.
+//   - OFD extraction is not implemented yet.
 //
 // # Version Upgrade Note
 //

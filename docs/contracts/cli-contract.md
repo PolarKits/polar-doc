@@ -18,6 +18,7 @@ All commands accept a document path via one of:
 - `-f <path>`: `polardoc info -f document.pdf`
 
 Only `.pdf` and `.ofd` extensions are accepted.
+Extension matching is case-insensitive.
 
 ## Output Modes
 
@@ -88,6 +89,20 @@ copied <src> to <dst>
 }
 ```
 
+**extract:**
+```json
+{
+  "text": "<string>"
+}
+```
+
+**extract error path with `--json`:**
+```json
+{
+  "error": "<string>"
+}
+```
+
 ## Exit Codes
 
 | Scenario | Exit Code |
@@ -124,7 +139,7 @@ copied <src> to <dst>
 **Behavior:**
 - PDF: minimal text extraction supported for some PDFs (see compatibility below)
 - OFD: not implemented, returns error `text extraction is not implemented for OFD`
-- `--json` flag is not supported
+- `--json` is supported and emits either `{"text": ...}` or `{"error": ...}`
 
 **PDF Compatibility Matrix (testdata/pdf):**
 

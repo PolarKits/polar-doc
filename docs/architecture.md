@@ -31,6 +31,22 @@ Dependency direction is one-way:
 - interface -> `internal/app` -> `internal/doc` -> format domain implementations
 - `internal/pdf` and `internal/ofd` must not depend on each other
 
+## Phase Definitions
+
+Phase names in this repository refer to implementation milestones, not standards versions.
+
+- Phase-1:
+  - prove package boundaries and dependency direction
+  - expose a minimal but testable CLI surface
+  - deliver narrow read-oriented capabilities for PDF and OFD without flattening semantics
+  - keep write, render, and security work explicitly limited
+- Phase-2:
+  - deepen format-specific capabilities without changing the no-flattening rule
+  - expand validation, extraction, and write support where each format can support it honestly
+  - turn placeholder entry points such as `cmd/polardoc-mcp` into real runtime surfaces
+
+`NewPhase1Resolver` refers to the current milestone wiring for that first implementation slice.
+
 ## Abstraction Approach
 
 Do not create a unified document model. Use capability-oriented contracts.

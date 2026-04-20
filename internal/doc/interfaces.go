@@ -62,8 +62,10 @@ type Validator interface {
 // The result shape (plain text) is uniform across formats at this contract layer,
 // but the extraction rules and content ordering are format-defined.
 //
-// Phase-1 coverage: internal/pdf and internal/ofd both return empty TextResult{}
-// (stub). Full text extraction is not yet implemented.
+// Phase-1 coverage:
+//   - PDF: partial first-page-oriented extraction from supported content streams.
+//     It is intentionally narrow and not a complete PDF text model.
+//   - OFD: returns an explicit "not implemented" error.
 //
 // Future: version upgrade path (e.g. read older PDF, output newer version) is a
 // planned capability that requires a writer/upgrade pipeline, not yet implemented.

@@ -19,6 +19,7 @@ Core commands:
 - `info`
 - `validate`
 - `extract`
+- `cp`
 
 ## Examples
 
@@ -27,16 +28,17 @@ polardoc info ./testdata/sample.pdf
 polardoc info ./testdata/sample.ofd
 polardoc validate ./testdata/sample.pdf
 polardoc validate ./testdata/sample.ofd
-polardoc extract ./testdata/sample.ofd
+polardoc extract ./testdata/sample.pdf
+polardoc cp ./testdata/sample.pdf ./tmp/copied.pdf
 ```
 
 Use the same command shape for both formats.
 
 ## JSON Output Rules
 
-`info` and `validate` support `--json`.
+`info`, `validate`, and `extract` support `--json`.
 
-`extract` emits plain text to stdout; `--json` is not supported.
+`cp` emits plain text only.
 
 ## Extract Command Behavior
 
@@ -54,6 +56,38 @@ Current compatibility (testdata/pdf):
 | testPDF_Version.8.x.pdf | ✗ XRef: object not found |
 
 **OFD:** Not implemented. Returns exit code 1 with error message `text extraction is not implemented for OFD`.
+
+When `--json` is used, `extract` emits:
+
+```json
+{
+  "text": "..."
+}
+```
+
+On extract failure with `--json`, the command currently emits:
+
+```json
+{
+  "error": "..."
+}
+```
+
+and still exits with code 1.
+
+## Routing Rules
+
+Format routing is currently extension-based and case-insensitive.
+
+- `.pdf` routes to `FormatPDF`
+- `.ofd` routes to `FormatOFD`
+
+Any other extension returns an error.
+
+## cp Command Behavior
+
+`cp` is currently PDF-only.
+It copies the source PDF bytes to a destination path and does not perform PDF normalization, upgrade, or editing.
 
 - use a stable top-level schema per command
 - return machine-readable status and errors

@@ -20,7 +20,7 @@ The repository keeps format-specific semantics explicit while sharing cross-cutt
 
 - A flattened, unified document model that erases PDF/OFD differences
 - Early over-abstraction or framework-heavy layering
-- Complete format implementation in this bootstrap stage
+- Complete format implementation in the current phase-1 stage
 - UI or end-user office suite features
 
 ## Architecture Overview
@@ -43,8 +43,8 @@ Rules:
 
 ## Repository Layout
 
-- `cmd/polardoc`: CLI entry point
-- `cmd/polardoc-mcp`: MCP server entry point
+- `cmd/polardoc`: CLI entry point for `info`, `validate`, `extract`, and `cp`
+- `cmd/polardoc-mcp`: MCP server entry point placeholder
 - `internal/app`: application assembly and runtime wiring
 - `internal/doc`: shared capability contracts across formats
 - `internal/pdf`: PDF domain
@@ -62,5 +62,19 @@ PolarOffice should consume PolarDoc as an internal platform dependency, while Po
 
 ## Current Status
 
-This repository is bootstrapped with structure and architectural documentation only.
-Implementation packages are intentionally placeholders to preserve clean boundaries from the start.
+This repository is in a phase-1 partial-delivery state rather than a documentation-only bootstrap.
+
+Implemented today:
+
+- CLI command routing for `info`, `validate`, `extract`, and `cp`
+- PDF open, basic metadata inspection, first-page inspection, minimal validation, text extraction, and copy/save flow
+- OFD open, basic metadata inspection, page counting, and package validation
+- application-layer format resolution through `internal/app`
+- MCP read handlers in `internal/mcp` for `pdf_first_page_info` and `document_info`
+
+Not yet complete:
+
+- `cmd/polardoc-mcp` is still a placeholder entry point rather than a full runnable MCP server
+- PDF validation, extraction, and writing are still narrow and phase-1 scoped
+- OFD extraction, preview, and first-page inspection are not implemented
+- `internal/render` and `internal/security` remain interface-oriented placeholders
