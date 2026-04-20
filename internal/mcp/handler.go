@@ -172,13 +172,5 @@ func (h *DocumentInfoHandler) Handle(ctx context.Context, tool string, payload [
 }
 
 func detectFormatByExtension(path string) (doc.Format, error) {
-	ext := path[len(path)-4:]
-	switch ext {
-	case ".pdf":
-		return doc.FormatPDF, nil
-	case ".ofd":
-		return doc.FormatOFD, nil
-	default:
-		return "", fmt.Errorf("unsupported file extension: %s", ext)
-	}
+	return doc.DetectFormatByExtension(path)
 }

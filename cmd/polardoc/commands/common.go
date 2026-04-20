@@ -1,12 +1,6 @@
 package commands
 
-import (
-	"fmt"
-	"path/filepath"
-	"strings"
-
-	"github.com/PolarKits/polardoc/internal/doc"
-)
+import "github.com/PolarKits/polardoc/internal/doc"
 
 func parseDocumentRef(command string, args []string) (doc.DocumentRef, error) {
 	input, err := parseCommandInput(command, args)
@@ -26,12 +20,5 @@ func parseDocumentRef(command string, args []string) (doc.DocumentRef, error) {
 }
 
 func detectFormatByExtension(path string) (doc.Format, error) {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".pdf":
-		return doc.FormatPDF, nil
-	case ".ofd":
-		return doc.FormatOFD, nil
-	default:
-		return "", fmt.Errorf("unsupported file extension for %q", path)
-	}
+	return doc.DetectFormatByExtension(path)
 }

@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/PolarKits/polardoc/internal/app"
+	"github.com/PolarKits/polardoc/internal/doc"
 )
 
 func TestFirstPageHandlerPDFSuccess(t *testing.T) {
@@ -283,6 +285,70 @@ func TestDocumentInfoHandlerEmptyPath(t *testing.T) {
 	_, err := handler.Handle(context.Background(), ToolNameDocumentInfo, payload)
 	if err == nil {
 		t.Fatal("handler should fail for empty path")
+	}
+}
+
+func TestDetectFormatByExtensionUppercase(t *testing.T) {
+	tests := []struct {
+		path    string
+		wantErr bool
+	}{
+		{"/path/to/file.PDF", false},
+		{"/path/to/file.OFD", false},
+		{"/path/to/file.Pdf", false},
+		{"/path/to/file.Ofd", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.path, func(t *testing.T) {
+			format, err := doc.DetectFormatByExtension(tc.path)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("expected error for %q", tc.path)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error for %q: %v", tc.path, err)
+				}
+				if format != doc.FormatPDF && format != doc.FormatOFD {
+					t.Errorf("unexpected format %q for %q", format, tc.path)
+				}
+			}
+		})
+	}
+}
+
+func TestDetectFormatByExtensionEdgeCases(t *testing.T) {
+	tests := []struct {
+		path    string
+		wantErr bool
+		errMsg  string
+	}{
+		{"", true, "unsupported"},
+		{"/a", true, "unsupported"},
+		{"/ab", true, "unsupported"},
+		{"/abc", true, "unsupported"},
+		{"/path", true, "unsupported"},
+		{"/path/noext", true, "unsupported"},
+		{"/path/file.txt", true, "unsupported"},
+		{"/path/file.xyz", true, "unsupported"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.path, func(t *testing.T) {
+			_, err := doc.DetectFormatByExtension(tc.path)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("expected error for %q", tc.path)
+				} else if tc.errMsg != "" && !strings.Contains(err.Error(), tc.errMsg) {
+					t.Errorf("error %q for %q does not contain %q", err.Error(), tc.path, tc.errMsg)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error for %q: %v", tc.path, err)
+				}
+			}
+		})
 	}
 }
 
