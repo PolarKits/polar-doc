@@ -91,6 +91,18 @@ Abstraction must not break format semantics.
 - format-specific behavior stays explicit where semantics differ
 - if behavior cannot be aligned safely, keep separate format operations
 
+## Adding a New Format
+
+To add a new format without violating PDF/OFD separation:
+
+1. Define capability contracts in `internal/doc` (e.g., `Open`, `Validate`, `ExtractText`).
+2. Implement the contracts in `internal/<format>` (e.g., `internal/zipped-xml`).
+3. Register the service in `internal/app` via `NewPhase1Resolver` or a new resolver.
+4. Add format detection in `internal/doc/format.go` (`DetectFormatByExtension`).
+5. Route the format in CLI entry points using the resolver.
+
+The new format package must not import `internal/pdf` or `internal/ofd`. All format-agnostic routing flows through `internal/doc` contracts.
+
 ## Anti-Patterns
 
 The following are explicitly disallowed:

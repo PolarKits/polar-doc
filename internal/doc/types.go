@@ -32,17 +32,15 @@ type DocumentRef struct {
 // It does not correspond to any specific standard's "Info dictionary" or metadata
 // object; it is a phase-1 transport struct.
 //
-// DeclaredVersion for PDF reflects the %PDF-X.Y header comment. For OFD it is
-// read from `OFD.xml` when available in the current phase-1 implementation.
+// Field population by format:
+//   - Format, Path, SizeBytes: populated for both PDF and OFD
+//   - DeclaredVersion: PDF reads %PDF-X.Y header; OFD reads OFD.xml/Doc_Version
+//   - PageCount: Phase-2 reserved; currently zero for both formats in phase-1
+//   - FileIdentifiers: Phase-2 reserved; PDF populates from trailer /ID; OFD stub
+//   - Title, Author, Creator, Producer: PDF populates from InfoDict; OFD does not
 //
-// PageCount and FileIdentifiers are cross-format optional fields reserved for
-// Phase-2. Phase-1 may not populate these fields for all formats; callers should
-// treat zero PageCount as "unknown" and empty FileIdentifiers as "not available".
-//
-// Title, Author, Creator, and Producer are optional metadata fields populated
-// from format-specific metadata dictionaries. For PDF these map to the InfoDict
-// entries. Not all formats or Phase-1 implementations populate these fields;
-// empty string means the metadata is not available.
+// Empty string on optional fields means the metadata is not available.
+// Zero PageCount means page count is unknown or not yet implemented.
 type InfoResult struct {
 	Format          Format
 	Path            string
@@ -53,29 +51,23 @@ type InfoResult struct {
 	// Zero means page count is not available or not yet implemented for this format.
 	PageCount int
 
-	// FileIdentifiers reserves file-level identifiers for Phase-2.
-	// For PDF, this maps to the /ID array in the trailer dictionary.
-	// For OFD, this field is currently unused (Phase-1 stub).
+	// FileIdentifiers: PDF populates from trailer /ID array; OFD is unused (Phase-1 stub).
 	// Empty slice means no file identifiers are available.
 	FileIdentifiers []string
 
-	// Title reserves the document title metadata field for Phase-2.
-	// For PDF, this maps to the /Title entry in the InfoDict.
+	// Title: PDF populates from InfoDict /Title; OFD does not populate (stub).
 	// Empty string means title is not available.
 	Title string
 
-	// Author reserves the document author metadata field for Phase-2.
-	// For PDF, this maps to the /Author entry in the InfoDict.
+	// Author: PDF populates from InfoDict /Author; OFD does not populate (stub).
 	// Empty string means author is not available.
 	Author string
 
-	// Creator reserves the document creator metadata field for Phase-2.
-	// For PDF, this maps to the /Creator entry in the InfoDict.
+	// Creator: PDF populates from InfoDict /Creator; OFD does not populate (stub).
 	// Empty string means creator is not available.
 	Creator string
 
-	// Producer reserves the document producer metadata field for Phase-2.
-	// For PDF, this maps to the /Producer entry in the InfoDict.
+	// Producer: PDF populates from InfoDict /Producer; OFD does not populate (stub).
 	// Empty string means producer is not available.
 	Producer string
 }
@@ -88,8 +80,15 @@ type InfoResult struct {
 //
 // Phase-1 coverage for PDF: only the header presence rule from ISO 32000-2.
 // Phase-1 coverage for OFD: only the package entry presence rules from GB/T 33190-2016.
+//
+// All fields are structural checks only. Semantic validation (e.g., font licensing,
+// accessibility requirements, digital signature validity) is not performed in phase-1.
 type ValidationReport struct {
-	Valid  bool
+	// Valid is true when the document passes basic structural checks for its format.
+	// A document may be structurally valid yet semantically non-compliant (Phase-2 scope).
+	Valid bool
+	// Errors contains human-readable structural failure reasons.
+	// This is not an exhaustive list of standard violations.
 	Errors []string
 }
 
@@ -184,10 +183,14 @@ type SignResult struct {
 
 // FirstPageInfoResult holds first page structure information.
 //
-// This is a format-neutral result type. PDF implementations populate
-// fields from PDF primitives; OFD does not support this capability.
-// Fields use plain Go types to avoid leaking format-specific internals
-// to the command layer.
+// This is a PDF-only capability. OFD does not support this capability and
+// will return (nil, error) if called. The result type itself is format-neutral
+// (plain Go types) to avoid leaking PDF internals to the command layer.
+//
+// PDF implementations populate fields from PDF page primitives (page tree,
+// page dictionary, content stream references). The MediaBox reflects the
+// page's declared bounding box. Resources and Contents are indirect reference
+// chains that may fail to resolve for some PDF structures (parser limitations).
 type FirstPageInfoResult struct {
 	Path      string
 	PagesRef  RefInfo

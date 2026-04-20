@@ -14,6 +14,10 @@ type FirstPageInfoResult = doc.FirstPageInfoResult
 // This is a capability bundle. It does not imply full standard compliance
 // for any format. Each method maps to a doc contract whose standards coverage
 // is defined in the doc package and implemented by internal/pdf or internal/ofd.
+//
+// Note: RenderPreview (doc.PreviewRenderer) is embedded but is a Phase-2 placeholder.
+// Neither the CLI nor the MCP layer calls RenderPreview in phase-1; both PDF and OFD
+// implementations return "preview is not implemented" if invoked.
 type FormatService interface {
 	doc.Opener
 	doc.InfoProvider
