@@ -14,7 +14,6 @@ import (
 	"github.com/PolarKits/polardoc/internal/doc"
 )
 
-// FirstPageInfo holds raw PDF object references and attributes for the first page.
 type FirstPageInfo struct {
 	PagesRef        PDFRef
 	PageRef         PDFRef
@@ -1840,7 +1839,6 @@ func lookupRotateFromAncestors(pageRefStr string, f *os.File) (*int64, error) {
 	return nil, fmt.Errorf("lookupRotateFromAncestors: object is /Type /%s, expected /Page or /Pages", typ)
 }
 
-// ReadFirstPageInfo parses the PDF file to extract first-page structure from the Pages tree.
 func ReadFirstPageInfo(f *os.File) (*FirstPageInfo, error) {
 	xrefOffset, err := readStartxref(f)
 	if err != nil {
