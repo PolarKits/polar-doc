@@ -36,7 +36,7 @@ func parsePDFName(input string) (PDFName, string, error) {
 	i := 1
 	for i < len(input) {
 		ch := rune(input[i])
-		if unicode.IsSpace(ch) || ch == '/' || ch == '<' || ch == '>' || ch == '[' || ch == ']' {
+		if unicode.IsSpace(ch) || ch == '/' || ch == '<' || ch == '>' || ch == '[' || ch == ']' || ch == '(' || ch == ')' || ch == '{' || ch == '}' || ch == '%' {
 			break
 		}
 		i++

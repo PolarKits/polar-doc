@@ -1364,6 +1364,14 @@ func readPageContentsRefs(pageDict PDFDict) ([]PDFRef, error) {
 
 func findObjectOffsetInXref(f *os.File, xrefOffset int64, objNum string) (int64, error) {
 	objNumInt, _ := strconv.ParseInt(objNum, 10, 64)
+	return findObjectOffsetInXrefRecursive(f, xrefOffset, objNumInt, map[int64]bool{})
+}
+
+func findObjectOffsetInXrefRecursive(f *os.File, xrefOffset int64, objNumInt int64, visited map[int64]bool) (int64, error) {
+	if visited[xrefOffset] {
+		return 0, fmt.Errorf("object %d not found in xref (cycle detected)", objNumInt)
+	}
+	visited[xrefOffset] = true
 
 	_, err := f.Seek(xrefOffset, io.SeekStart)
 	if err != nil {
@@ -1371,6 +1379,11 @@ func findObjectOffsetInXref(f *os.File, xrefOffset int64, objNum string) (int64,
 	}
 
 	rd := bufio.NewReader(f)
+
+	var prevOffset int64
+	var foundOffset int64
+	foundInThisXref := false
+
 	for {
 		line, err := rd.ReadString('\n')
 		if err == io.EOF {
@@ -1381,7 +1394,7 @@ func findObjectOffsetInXref(f *os.File, xrefOffset int64, objNum string) (int64,
 		}
 		line = strings.TrimRight(line, "\r\n")
 
-		if line == "trailer" || line == "xref" {
+		if line == "trailer" {
 			continue
 		}
 
@@ -1402,8 +1415,13 @@ func findObjectOffsetInXref(f *os.File, xrefOffset int64, objNum string) (int64,
 					entryFields := strings.Fields(entryLine)
 					if len(entryFields) >= 1 && i == objNumInt {
 						offset, _ := strconv.ParseInt(entryFields[0], 10, 64)
-						return offset, nil
+						foundOffset = offset
+						foundInThisXref = true
+						break
 					}
+				}
+				if foundInThisXref {
+					break
 				}
 				continue
 			}
@@ -1422,7 +1440,9 @@ func findObjectOffsetInXref(f *os.File, xrefOffset int64, objNum string) (int64,
 				entryFields := strings.Fields(entryLine)
 				if len(entryFields) >= 1 {
 					offset, _ := strconv.ParseInt(entryFields[0], 10, 64)
-					return offset, nil
+					foundOffset = offset
+					foundInThisXref = true
+					break
 				}
 			}
 			for i := int64(0); i < count; i++ {
@@ -1434,22 +1454,103 @@ func findObjectOffsetInXref(f *os.File, xrefOffset int64, objNum string) (int64,
 		}
 	}
 
+	if foundInThisXref {
+		return foundOffset, nil
+	}
+
+	// Check for Prev in trailer
 	_, err = f.Seek(xrefOffset, io.SeekStart)
 	if err != nil {
 		return 0, err
 	}
+	prevOffset, _ = findPrevInTraditionalXref(f, xrefOffset)
 
-	objOffset, err := findObjectOffsetInXRefStream(f, xrefOffset, objNumInt)
-	if err == nil {
-		return objOffset, nil
+	if prevOffset == 0 {
+		// Try xref stream
+		objOffset, err := findObjectOffsetInXRefStream(f, xrefOffset, objNumInt)
+		if err == nil {
+			return objOffset, nil
+		}
+
+		// Try file body scan
+		offset, err := findObjectOffsetInFileBody(f, objNumInt)
+		if err == nil {
+			return offset, nil
+		}
+
+		return 0, fmt.Errorf("object %d not found in xref", objNumInt)
 	}
 
-	offset, err := findObjectOffsetInFileBody(f, objNumInt)
-	if err == nil {
-		return offset, nil
+	// Recursively search Prev xref
+	return findObjectOffsetInXrefRecursive(f, prevOffset, objNumInt, visited)
+}
+
+func findPrevInTraditionalXref(f *os.File, xrefOffset int64) (int64, error) {
+	_, err := f.Seek(xrefOffset, io.SeekStart)
+	if err != nil {
+		return 0, err
 	}
 
-	return 0, fmt.Errorf("object %s not found in xref", objNum)
+	rd := bufio.NewReader(f)
+	var trailerDict string
+	var foundTrailer bool
+
+	for {
+		line, err := rd.ReadString('\n')
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return 0, err
+		}
+		line = strings.TrimRight(line, "\r\n")
+
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		if strings.HasPrefix(line, "trailer") || line == "trailer" {
+			trailerDict = ""
+			if strings.HasPrefix(line, "trailer<<") {
+				trailerDict = line[len("trailer"):]
+			}
+			foundTrailer = true
+		} else if foundTrailer {
+			trailerDict += line
+
+			openBrackets := strings.Count(trailerDict, "<<") - strings.Count(trailerDict, ">>")
+			for openBrackets > 0 {
+				nextLine, err := rd.ReadString('\n')
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					return 0, err
+				}
+				nextLine = strings.TrimRight(nextLine, "\r\n")
+				trailerDict += nextLine
+				openBrackets += strings.Count(nextLine, "<<") - strings.Count(nextLine, ">>")
+			}
+
+			idx := strings.Index(trailerDict, "/Prev ")
+			if idx >= 0 {
+				rest := trailerDict[idx+6:]
+				endIdx := 0
+				for endIdx < len(rest) && rest[endIdx] >= '0' && rest[endIdx] <= '9' {
+					endIdx++
+				}
+				if endIdx > 0 {
+					prev, err := strconv.ParseInt(rest[:endIdx], 10, 64)
+					if err == nil {
+						return prev, nil
+					}
+				}
+			}
+			break
+		}
+	}
+
+	return 0, nil
 }
 
 func findObjectOffsetInFileBody(f *os.File, objNum int64) (int64, error) {

@@ -573,7 +573,6 @@ func TestServiceInfoWithUTF16LELiteralString(t *testing.T) {
 }
 
 func TestServiceInfoRealSampleVersionCompatV14(t *testing.T) {
-	t.Skip("Type B: linearized PDF — Info dict (obj 10) is in Prev xref at offset 5522, but current reader only looks in startxref xref; cross-Prev object resolution not yet implemented (Stage B)")
 	path := requirePDFSample(t, "version-compat-v1.4")
 	svc := NewService()
 	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
