@@ -2806,3 +2806,333 @@ func TestReadFirstPageInfoRotateZero(t *testing.T) {
 		t.Fatalf("Rotate = %d, want 0", *info.Rotate)
 	}
 }
+
+func TestServiceOpenMalformedHeader(t *testing.T) {
+	dir := t.TempDir()
+
+	t.Run("empty file", func(t *testing.T) {
+		path := filepath.Join(dir, "empty.pdf")
+		if err := os.WriteFile(path, []byte{}, 0o644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+		svc := NewService()
+		d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+		if err != nil {
+			t.Fatalf("open empty PDF: %v", err)
+		}
+		info, _ := svc.Info(context.Background(), d)
+		_ = d.Close()
+		if info.DeclaredVersion != "" {
+			t.Fatalf("declared_version = %q, want empty for invalid header", info.DeclaredVersion)
+		}
+	})
+
+	t.Run("plain text file", func(t *testing.T) {
+		path := filepath.Join(dir, "text.txt")
+		if err := os.WriteFile(path, []byte("Hello, this is plain text"), 0o644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+		svc := NewService()
+		d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+		if err != nil {
+			t.Fatalf("open text file as PDF: %v", err)
+		}
+		info, _ := svc.Info(context.Background(), d)
+		_ = d.Close()
+		if info.DeclaredVersion != "" {
+			t.Fatalf("declared_version = %q, want empty for invalid header", info.DeclaredVersion)
+		}
+	})
+
+	t.Run("garbage header", func(t *testing.T) {
+		path := filepath.Join(dir, "garbage.pdf")
+		if err := os.WriteFile(path, []byte("XYZ-1.0\nnot a pdf"), 0o644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+		svc := NewService()
+		d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+		if err != nil {
+			t.Fatalf("open garbage-header file: %v", err)
+		}
+		info, _ := svc.Info(context.Background(), d)
+		_ = d.Close()
+		if info.DeclaredVersion != "" {
+			t.Fatalf("declared_version = %q, want empty for invalid header", info.DeclaredVersion)
+		}
+	})
+}
+
+func TestServiceInfoMissingStartXref(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "nostartxref.pdf")
+	pdf := []byte("%PDF-1.4\n" +
+		"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n" +
+		"2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n" +
+		"xref\n" +
+		"0 3\n" +
+		"0000000000 65535 f \n" +
+		"0000000009 00000 n \n" +
+		"0000000058 00000 n \n" +
+		"trailer\n" +
+		"<< /Root 1 0 R /Size 3 >>\n" +
+		"%%EOF\n")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
+		t.Fatalf("write PDF: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info PDF: %v", err)
+	}
+	if info.DeclaredVersion != "1.4" {
+		t.Fatalf("declared_version = %q, want 1.4", info.DeclaredVersion)
+	}
+	if info.Title != "" {
+		t.Fatalf("title = %q, want empty (no startxref for Info)", info.Title)
+	}
+	if info.FileIdentifiers != nil {
+		t.Fatalf("file_identifiers = %v, want nil (no startxref)", info.FileIdentifiers)
+	}
+}
+
+func TestServiceInfoMalformedTrailerID(t *testing.T) {
+	dir := t.TempDir()
+
+	t.Run("empty ID array", func(t *testing.T) {
+		path := filepath.Join(dir, "emptyid.pdf")
+		xrefStart := 168
+		pdf := []byte("%PDF-1.4\n" +
+			"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n" +
+			"2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n" +
+			"xref\n" +
+			"0 3\n" +
+			"0000000000 65535 f \n" +
+			"0000000009 00000 n \n" +
+			"0000000058 00000 n \n" +
+			"trailer\n" +
+			"<< /Root 1 0 R /Size 3 /ID [] >>\n" +
+			"startxref\n" +
+			fmt.Sprintf("%d", xrefStart) + "\n" +
+			"%%EOF\n")
+		if err := os.WriteFile(path, pdf, 0o644); err != nil {
+			t.Fatalf("write PDF: %v", err)
+		}
+		svc := NewService()
+		d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+		if err != nil {
+			t.Fatalf("open PDF: %v", err)
+		}
+		t.Cleanup(func() { _ = d.Close() })
+		info, err := svc.Info(context.Background(), d)
+		if err != nil {
+			t.Fatalf("info PDF: %v", err)
+		}
+		if len(info.FileIdentifiers) != 0 {
+			t.Fatalf("file_identifiers = %v, want empty slice", info.FileIdentifiers)
+		}
+	})
+
+	t.Run("single-element ID array", func(t *testing.T) {
+		path := filepath.Join(dir, "singleid.pdf")
+		xrefStart := 176
+		pdf := []byte("%PDF-1.4\n" +
+			"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n" +
+			"2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n" +
+			"xref\n" +
+			"0 3\n" +
+			"0000000000 65535 f \n" +
+			"0000000009 00000 n \n" +
+			"0000000058 00000 n \n" +
+			"trailer\n" +
+			"<< /Root 1 0 R /Size 3 /ID [<abc123>] >>\n" +
+			"startxref\n" +
+			fmt.Sprintf("%d", xrefStart) + "\n" +
+			"%%EOF\n")
+		if err := os.WriteFile(path, pdf, 0o644); err != nil {
+			t.Fatalf("write PDF: %v", err)
+		}
+		svc := NewService()
+		d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+		if err != nil {
+			t.Fatalf("open PDF: %v", err)
+		}
+		t.Cleanup(func() { _ = d.Close() })
+		info, err := svc.Info(context.Background(), d)
+		if err != nil {
+			t.Fatalf("info PDF: %v", err)
+		}
+		if len(info.FileIdentifiers) != 1 {
+			t.Fatalf("file_identifiers = %v, want 1 element", info.FileIdentifiers)
+		}
+	})
+}
+
+func TestServiceInfoMalformedInfoDictRef(t *testing.T) {
+	dir := t.TempDir()
+
+	t.Run("Info points to nonexistent object", func(t *testing.T) {
+		path := filepath.Join(dir, "badinforef.pdf")
+		xrefStart := 176
+		pdf := []byte("%PDF-1.4\n" +
+			"1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Info 99 0 R >>\nendobj\n" +
+			"2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n" +
+			"xref\n" +
+			"0 3\n" +
+			"0000000000 65535 f \n" +
+			"0000000009 00000 n \n" +
+			"0000000058 00000 n \n" +
+			"trailer\n" +
+			"<< /Root 1 0 R /Size 3 >>\n" +
+			"startxref\n" +
+			fmt.Sprintf("%d", xrefStart) + "\n" +
+			"%%EOF\n")
+		if err := os.WriteFile(path, pdf, 0o644); err != nil {
+			t.Fatalf("write PDF: %v", err)
+		}
+		svc := NewService()
+		d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+		if err != nil {
+			t.Fatalf("open PDF: %v", err)
+		}
+		t.Cleanup(func() { _ = d.Close() })
+		info, err := svc.Info(context.Background(), d)
+		if err != nil {
+			t.Fatalf("info PDF: expected no error for missing Info object, got: %v", err)
+		}
+		if info.Title != "" {
+			t.Fatalf("title = %q, want empty", info.Title)
+		}
+	})
+
+	t.Run("Info points to non-dict object", func(t *testing.T) {
+		path := filepath.Join(dir, "infonotdict.pdf")
+		xrefStart := 176
+		pdf := []byte("%PDF-1.4\n" +
+			"1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Info 3 0 R >>\nendobj\n" +
+			"2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n" +
+			"3 0 obj\n99\nendobj\n" +
+			"xref\n" +
+			"0 4\n" +
+			"0000000000 65535 f \n" +
+			"0000000009 00000 n \n" +
+			"0000000058 00000 n \n" +
+			"0000000101 00000 n \n" +
+			"trailer\n" +
+			"<< /Root 1 0 R /Size 4 >>\n" +
+			"startxref\n" +
+			fmt.Sprintf("%d", xrefStart) + "\n" +
+			"%%EOF\n")
+		if err := os.WriteFile(path, pdf, 0o644); err != nil {
+			t.Fatalf("write PDF: %v", err)
+		}
+		svc := NewService()
+		d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+		if err != nil {
+			t.Fatalf("open PDF: %v", err)
+		}
+		t.Cleanup(func() { _ = d.Close() })
+		info, err := svc.Info(context.Background(), d)
+		if err != nil {
+			t.Fatalf("info PDF: expected no error for Info non-dict, got: %v", err)
+		}
+		if info.Title != "" {
+			t.Fatalf("title = %q, want empty", info.Title)
+		}
+	})
+}
+
+func TestServiceFirstPageInfoInlineResources(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "inlineresources.pdf")
+	xrefStart := 272
+	pdf := []byte("%PDF-1.4\n" +
+		"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n" +
+		"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n" +
+		"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /ProcSet [/PDF /Text] >> >>\nendobj\n" +
+		"4 0 obj\n<< /Length 0 >>\nendobj\n" +
+		"xref\n" +
+		"0 5\n" +
+		"0000000000 65535 f \n" +
+		"0000000009 00000 n \n" +
+		"0000000058 00000 n \n" +
+		"0000000115 00000 n \n" +
+		"0000000241 00000 n \n" +
+		"trailer\n" +
+		"<< /Root 1 0 R /Size 5 >>\n" +
+		"startxref\n" +
+		fmt.Sprintf("%d", xrefStart) + "\n" +
+		"%%EOF\n")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
+		t.Fatalf("write PDF: %v", err)
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open file: %v", err)
+	}
+	defer f.Close()
+
+	info, err := ReadFirstPageInfo(f)
+	if err != nil {
+		t.Fatalf("ReadFirstPageInfo: %v", err)
+	}
+
+	if info.Resources.ObjNum != 0 {
+		t.Fatalf("Resources.ObjNum = %d, want 0 (inline Resources)", info.Resources.ObjNum)
+	}
+	if info.InlineResources == nil {
+		t.Fatal("InlineResources = nil, want non-nil inline dict")
+	}
+}
+
+func TestServiceFirstPageInfoMultipleContentStreams(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "multicontent.pdf")
+	xrefStart := 391
+	pdf := []byte("%PDF-1.4\n" +
+		"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n" +
+		"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n" +
+		"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents [4 0 R 5 0 R] /Resources 6 0 R >>\nendobj\n" +
+		"4 0 obj\n<< /Length 10 >>\nstream\nFirst text\nendstream\nendobj\n" +
+		"5 0 obj\n<< /Length 11 >>\nstream\nSecond text\nendstream\nendobj\n" +
+		"6 0 obj\n<< /ProcSet [/PDF /Text] >>\nendobj\n" +
+		"xref\n" +
+		"0 7\n" +
+		"0000000000 65535 f \n" +
+		"0000000009 00000 n \n" +
+		"0000000058 00000 n \n" +
+		"0000000115 00000 n \n" +
+		"0000000227 00000 n \n" +
+		"0000000287 00000 n \n" +
+		"0000000348 00000 n \n" +
+		"trailer\n" +
+		"<< /Root 1 0 R /Size 7 >>\n" +
+		"startxref\n" +
+		fmt.Sprintf("%d", xrefStart) + "\n" +
+		"%%EOF\n")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
+		t.Fatalf("write PDF: %v", err)
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open file: %v", err)
+	}
+	defer f.Close()
+
+	info, err := ReadFirstPageInfo(f)
+	if err != nil {
+		t.Fatalf("ReadFirstPageInfo: %v", err)
+	}
+
+	if len(info.Contents) != 2 {
+		t.Fatalf("len(Contents) = %d, want 2", len(info.Contents))
+	}
+}
