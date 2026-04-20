@@ -15,10 +15,7 @@ import (
 )
 
 func TestFirstPageHandlerPDFSuccess(t *testing.T) {
-	path := filepath.Join("..", "..", "testdata", "pdf", "testPDF_Version.5.x.pdf")
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		t.Skip("testPDF_Version.5.x.pdf not found")
-	}
+	path := requirePDFSample(t, "standard-pdf20-utf8")
 
 	resolver := app.NewPhase1Resolver()
 	handler := NewFirstPageHandler(resolver)
@@ -54,10 +51,7 @@ func TestFirstPageHandlerPDFSuccess(t *testing.T) {
 }
 
 func TestFirstPageHandlerKnownBadPDF(t *testing.T) {
-	path := filepath.Join("..", "..", "testdata", "pdf", "testPDF_Version.8.x.pdf")
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		t.Skip("testPDF_Version.8.x.pdf not found")
-	}
+	path := requirePDFSample(t, "version-compat-v1.7")
 
 	resolver := app.NewPhase1Resolver()
 	handler := NewFirstPageHandler(resolver)
@@ -134,23 +128,21 @@ func TestFirstPageHandlerPDFMatrix(t *testing.T) {
 
 	samples := []struct {
 		name        string
-		path        string
+		key         string
 		wantSuccess bool
 	}{
-		{"pdf20-utf8", filepath.Join("..", "..", "testdata", "pdf", "pdf20-utf8-test.pdf"), true},
-		{"redhat-openshift", filepath.Join("..", "..", "testdata", "pdf", "Red_Hat_OpenShift_Serverless-1.35-Serverless_Logic-en-US.pdf"), true},
-		{"sample-local-pdf", filepath.Join("..", "..", "testdata", "pdf", "sample-local-pdf.pdf"), true},
-		{"testPDF-5x", filepath.Join("..", "..", "testdata", "pdf", "testPDF_Version.5.x.pdf"), true},
-		{"testPDF-8x", filepath.Join("..", "..", "testdata", "pdf", "testPDF_Version.8.x.pdf"), false},
+		{"standard-pdf20-utf8", "standard-pdf20-utf8", true},
+		{"version-compat-v1.4", "version-compat-v1.4", true},
+		{"standard-pdfa-archival", "standard-pdfa-archival", true},
+		{"version-compat-v1.7", "version-compat-v1.7", false},
+		{"error-corrupted", "error-corrupted", false},
 	}
 
 	for _, tc := range samples {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := os.Stat(tc.path); os.IsNotExist(err) {
-				t.Skipf("%s not found", tc.name)
-			}
+			path := requirePDFSample(t, tc.key)
 
-			input := FirstPageInfoInput{Path: tc.path}
+			input := FirstPageInfoInput{Path: path}
 			payload, _ := json.Marshal(input)
 
 			result, err := handler.Handle(context.Background(), ToolNameFirstPageInfo, payload)
@@ -176,10 +168,7 @@ func TestFirstPageHandlerPDFMatrix(t *testing.T) {
 }
 
 func TestDocumentInfoHandlerPDFWithMetadata(t *testing.T) {
-	path := filepath.Join("..", "..", "testdata", "pdf", "pdf20-utf8-test.pdf")
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		t.Skip("pdf20-utf8-test.pdf not found")
-	}
+	path := requirePDFSample(t, "standard-pdf20-utf8")
 
 	resolver := app.NewPhase1Resolver()
 	handler := NewDocumentInfoHandler(resolver)
