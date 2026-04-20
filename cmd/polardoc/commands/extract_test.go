@@ -38,8 +38,8 @@ func TestRunExtractOFD(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.ofd")
 	content := buildOFDPackage(t, map[string]string{
-		"OFD.xml":            "<ofd/>",
-		"Doc_0/Document.xml": "<document/>",
+		"OFD.xml":            "<OFD><DocRoot>Doc_0/Document.xml</DocRoot></OFD>",
+		"Doc_0/Document.xml": "<Document></Document>",
 	})
 	if err := os.WriteFile(path, content, 0o644); err != nil {
 		t.Fatalf("write sample OFD: %v", err)
@@ -51,11 +51,8 @@ func TestRunExtractOFD(t *testing.T) {
 		runErr = RunExtract(context.Background(), resolver, []string{path})
 	})
 
-	if runErr == nil {
-		t.Fatal("run extract OFD: expected error, got nil")
-	}
-	if !containsString(runErr.Error(), "not implemented") {
-		t.Fatalf("error = %q, want contains 'not implemented'", runErr.Error())
+	if runErr != nil {
+		t.Fatalf("run extract OFD: unexpected error: %v", runErr)
 	}
 }
 
@@ -119,8 +116,8 @@ func TestRunExtractWithFFlag(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.ofd")
 	content := buildOFDPackage(t, map[string]string{
-		"OFD.xml":            "<ofd/>",
-		"Doc_0/Document.xml": "<document/>",
+		"OFD.xml":            "<OFD><DocRoot>Doc_0/Document.xml</DocRoot></OFD>",
+		"Doc_0/Document.xml": "<Document></Document>",
 	})
 	if err := os.WriteFile(path, content, 0o644); err != nil {
 		t.Fatalf("write sample OFD: %v", err)
@@ -132,11 +129,8 @@ func TestRunExtractWithFFlag(t *testing.T) {
 		runErr = RunExtract(context.Background(), resolver, []string{"-f", path})
 	})
 
-	if runErr == nil {
-		t.Fatal("run extract with -f flag: expected error for OFD, got nil")
-	}
-	if !containsString(runErr.Error(), "not implemented") {
-		t.Fatalf("error = %q, want contains 'not implemented'", runErr.Error())
+	if runErr != nil {
+		t.Fatalf("run extract with -f flag: unexpected error: %v", runErr)
 	}
 }
 
