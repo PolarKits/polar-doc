@@ -12,7 +12,8 @@ import (
 
 func main() {
 	resolver := app.NewPhase1Resolver()
-	handler := mcp.NewFirstPageHandler(resolver)
+	firstPageHandler := mcp.NewFirstPageHandler(resolver)
+	docInfoHandler := mcp.NewDocumentInfoHandler(resolver)
 
 	dec := json.NewDecoder(os.Stdin)
 	enc := json.NewEncoder(os.Stdout)
@@ -30,7 +31,17 @@ func main() {
 			continue
 		}
 
-		result, err := handler.Handle(context.Background(), req.Tool, req.Payload)
+		var result []byte
+		var err error
+		switch req.Tool {
+		case mcp.ToolNameFirstPageInfo:
+			result, err = firstPageHandler.Handle(context.Background(), req.Tool, req.Payload)
+		case mcp.ToolNameDocumentInfo:
+			result, err = docInfoHandler.Handle(context.Background(), req.Tool, req.Payload)
+		default:
+			err = fmt.Errorf("unknown tool: %s", req.Tool)
+		}
+
 		if err != nil {
 			enc.Encode(struct {
 				Error string `json:"error"`

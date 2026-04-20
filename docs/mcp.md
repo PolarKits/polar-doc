@@ -1,5 +1,11 @@
 # MCP
 
+## Protocol Note
+
+**Current Implementation:** This MCP server uses JSON-over-stdin/stdout for communication. It does NOT use the official MCP protocol spec. The server reads JSON request objects from stdin and writes JSON response objects to stdout.
+
+**Planned:** Official MCP protocol support is a future capability.
+
 ## MCP Purpose
 
 The PolarDoc MCP server exposes document capabilities through a safe protocol surface.
@@ -38,7 +44,7 @@ Preview never mutates files.
 - validate preconditions before commit
 - return structured errors when checks fail
 
-## Available Tools
+## Implemented Tools
 
 ### pdf_first_page_info
 
@@ -79,12 +85,48 @@ Extracts structured first page information from a PDF document.
 - Inline resources in PDF show `resources.obj_num: 0`
 - Corrupted XRef PDFs return specific error messages
 
+### document_info
+
+Retrieves document-level metadata from a PDF or OFD document.
+
+**Input:**
+```json
+{
+  "path": "/path/to/document.pdf"
+}
+```
+
+**Output (success):**
+```json
+{
+  "format": "pdf",
+  "path": "/path/to/document.pdf",
+  "size_bytes": 1024,
+  "declared_version": "1.7",
+  "page_count": 1,
+  "file_identifiers": [],
+  "title": "Document Title",
+  "author": "Author Name",
+  "creator": "Creator",
+  "producer": "Producer"
+}
+```
+
+**Output (error):**
+```json
+{
+  "error": "error message"
+}
+```
+
+**Supported formats:** PDF and OFD.
+
 ## Compatibility Matrix
 
 ### `pdf_first_page_info` — testdata/pdf samples
 
 | Sample | Result | Notes |
-|--------|--------|-------|
+|--------|--------|--------|
 | `pdf20-utf8-test.pdf` | ✓ Success | PDF 2.0, UTF-8 text |
 | `Red_Hat_OpenShift_Serverless-1.35-Serverless_Logic-en-US.pdf` | ✓ Success | Commercial document |
 | `sample-local-pdf.pdf` | ✓ Success | Local sample |
@@ -102,3 +144,11 @@ When `pdf_first_page_info` is called on this file, it returns:
 ```
 
 This is expected behavior — the XRef table is damaged and the parser correctly reports the failure rather than returning incomplete data.
+
+## Planned But Not Yet Implemented
+
+- Official MCP protocol support (server lifecycle, discovery, capabilities)
+- Write tools (preview/commit workflow)
+- OFD text extraction
+- PDF validation and preview rendering
+- Multi-document batch operations
