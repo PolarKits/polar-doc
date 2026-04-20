@@ -10,11 +10,7 @@ import (
 )
 
 func TestRunCopyPDFSuccess(t *testing.T) {
-	src := filepath.Join("..", "..", "testdata", "pdf", "testPDF_Version.5.x.pdf")
-	if _, err := os.Stat(src); os.IsNotExist(err) {
-		t.Skip("testPDF_Version.5.x.pdf not found")
-	}
-
+	src := requirePDFSample(t, "version-compat-v1.4")
 	dst := filepath.Join(t.TempDir(), "copied.pdf")
 	resolver := app.NewPhase1Resolver()
 

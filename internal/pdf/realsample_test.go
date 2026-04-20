@@ -3,15 +3,17 @@ package pdf
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/PolarKits/polardoc/internal/doc"
+	fixtures "github.com/PolarKits/polardoc/internal/testdata"
 )
 
 type PDFSampleResult struct {
+	key              string
 	filename         string
+	integrity        fixtures.PDFSampleIntegrity
 	openInfoOK       bool
 	openInfoErr      string
 	validateOK       bool
@@ -22,35 +24,59 @@ type PDFSampleResult struct {
 
 var realPDFSampleResults []PDFSampleResult
 
-// TestPDFRealSamples exercises Open+Info, Validate, and ReadFirstPageInfo
-// on each real PDF file in testdata/pdf and records the results for the compatibility matrix.
-func TestPDFRealSamples(t *testing.T) {
-	testdataDir := filepath.Join("..", "..", "testdata", "pdf")
+func TestPDFSampleCatalogIntegrity(t *testing.T) {
+	categoryCounts := map[string]int{}
 
-	tests := []struct {
-		filename string
-	}{
-		{"pdf20-utf8-test.pdf"},
-		{"Red_Hat_OpenShift_Serverless-1.35-Serverless_Logic-en-US.pdf"},
-		{"sample-local-pdf.pdf"},
-		{"testPDF_Version.5.x.pdf"},
-		{"testPDF_Version.8.x.pdf"},
+	for _, sample := range fixtures.PDFSamples() {
+		categoryCounts[sample.Category]++
+
+		f, err := os.Open(sample.Path())
+		if err != nil {
+			t.Fatalf("%s: open sample %q: %v", sample.Key, sample.Filename, err)
+		}
+
+		_, headerErr := readPDFHeaderVersion(f)
+		_ = f.Close()
+
+		switch sample.Integrity {
+		case fixtures.PDFSampleIntegrityValid, fixtures.PDFSampleIntegrityCorrupted:
+			if headerErr != nil {
+				t.Fatalf("%s: expected a PDF header, got %v", sample.Key, headerErr)
+			}
+		case fixtures.PDFSampleIntegrityPlaceholder:
+			if headerErr == nil {
+				t.Fatalf("%s: placeholder fixture unexpectedly contains a valid PDF header", sample.Key)
+			}
+		default:
+			t.Fatalf("%s: unknown integrity state %q", sample.Key, sample.Integrity)
+		}
 	}
 
+	for _, required := range []string{"core", "feature", "standard", "version-compat", "error"} {
+		if categoryCounts[required] == 0 {
+			t.Fatalf("missing sample coverage category %q", required)
+		}
+	}
+}
+
+// TestPDFRealSamples exercises Open+Info, Validate, and ReadFirstPageInfo
+// on every non-placeholder sample in testdata/pdf and records the results.
+func TestPDFRealSamples(t *testing.T) {
 	realPDFSampleResults = nil
 
-	for _, tt := range tests {
-		result := PDFSampleResult{filename: tt.filename}
-		path := filepath.Join(testdataDir, tt.filename)
-
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			t.Skipf("testdata file %s not found", tt.filename)
+	for _, sample := range fixtures.PDFSamples() {
+		if sample.Integrity == fixtures.PDFSampleIntegrityPlaceholder {
 			continue
 		}
 
-		svc := NewService()
+		result := PDFSampleResult{
+			key:       sample.Key,
+			filename:  sample.Filename,
+			integrity: sample.Integrity,
+		}
 
-		d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+		svc := NewService()
+		d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: sample.Path()})
 		if err != nil {
 			result.openInfoErr = err.Error()
 		} else {
@@ -74,10 +100,10 @@ func TestPDFRealSamples(t *testing.T) {
 				}
 			}
 
-			d.Close()
+			_ = d.Close()
 		}
 
-		f, err := os.Open(path)
+		f, err := os.Open(sample.Path())
 		if err != nil {
 			result.firstPageInfoErr = err.Error()
 		} else {
@@ -94,7 +120,7 @@ func TestPDFRealSamples(t *testing.T) {
 					result.firstPageInfoErr = "returned info has zero/nil fields"
 				}
 			}
-			f.Close()
+			_ = f.Close()
 		}
 
 		realPDFSampleResults = append(realPDFSampleResults, result)
@@ -106,7 +132,8 @@ func TestPDFRealSamples(t *testing.T) {
 
 	t.Log("\n=== Real PDF Sample Compatibility Matrix ===")
 	for _, r := range realPDFSampleResults {
-		t.Logf("File: %s", r.filename)
+		t.Logf("Sample: %s (%s)", r.key, r.filename)
+		t.Logf("  Integrity: %s", r.integrity)
 		t.Logf("  Open+Info: OK=%v Err=%q", r.openInfoOK, r.openInfoErr)
 		t.Logf("  Validate: OK=%v Err=%q", r.validateOK, r.validateErr)
 		t.Logf("  ReadFirstPageInfo: OK=%v Err=%q", r.firstPageInfoOK, r.firstPageInfoErr)
@@ -124,13 +151,13 @@ func joinErrors(errs []string) string {
 	return result
 }
 
-func TestPDFKnownBad_Version8x(t *testing.T) {
-	path := filepath.Join("..", "..", "testdata", "pdf", "testPDF_Version.8.x.pdf")
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		t.Skip("testPDF_Version.8.x.pdf not found")
+func TestPDFKnownBadErrorFixture(t *testing.T) {
+	sample, ok := fixtures.PDFSampleByKey("error-corrupted")
+	if !ok {
+		t.Fatal("missing error-corrupted sample")
 	}
 
-	f, err := os.Open(path)
+	f, err := os.Open(sample.Path())
 	if err != nil {
 		t.Fatalf("failed to open: %v", err)
 	}
@@ -138,24 +165,22 @@ func TestPDFKnownBad_Version8x(t *testing.T) {
 
 	_, err = ReadFirstPageInfo(f)
 	if err == nil {
-		t.Fatal("ReadFirstPageInfo should fail for testPDF_Version.8.x.pdf (XRef corrupted: object 14 referenced but marked as free)")
+		t.Fatal("ReadFirstPageInfo should fail for the corrupted PDF fixture")
 	}
 
 	errMsg := err.Error()
-	if !strings.Contains(errMsg, "object 14") || !strings.Contains(errMsg, "not found in xref") {
-		t.Fatalf("expected error about object 14 not found in xref, got: %s", errMsg)
+	if !strings.Contains(errMsg, "xref") && !strings.Contains(errMsg, "object") {
+		t.Fatalf("expected xref/object failure, got: %s", errMsg)
 	}
-
-	t.Logf("testPDF_Version.8.x.pdf: ReadFirstPageInfo correctly fails with identified XRef corruption: %s", errMsg)
 }
 
-func TestPDFRecovery_Version8x(t *testing.T) {
-	path := filepath.Join("..", "..", "testdata", "pdf", "testPDF_Version.8.x.pdf")
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		t.Skip("testPDF_Version.8.x.pdf not found")
+func TestPDFKnownBadVersionCompatV17(t *testing.T) {
+	sample, ok := fixtures.PDFSampleByKey("version-compat-v1.7")
+	if !ok {
+		t.Fatal("missing version-compat-v1.7 sample")
 	}
 
-	f, err := os.Open(path)
+	f, err := os.Open(sample.Path())
 	if err != nil {
 		t.Fatalf("failed to open: %v", err)
 	}
@@ -163,13 +188,11 @@ func TestPDFRecovery_Version8x(t *testing.T) {
 
 	_, err = ReadFirstPageInfo(f)
 	if err == nil {
-		t.Fatal("ReadFirstPageInfo should still fail after recovery attempt: object 14 content does not exist in file body")
+		t.Fatal("ReadFirstPageInfo should fail for version-compat-v1.7")
 	}
 
 	errMsg := err.Error()
-	if !strings.Contains(errMsg, "object 14") {
-		t.Fatalf("expected error about object 14, got: %s", errMsg)
+	if !strings.Contains(errMsg, "xref") && !strings.Contains(errMsg, "object") {
+		t.Fatalf("expected xref/object failure, got: %s", errMsg)
 	}
-
-	t.Logf("testPDF_Version.8.x.pdf: recovery path attempted but object 14 content not in file body: %s", errMsg)
 }

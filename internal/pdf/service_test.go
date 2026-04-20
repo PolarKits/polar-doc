@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -374,6 +375,239 @@ func TestServiceInfoWithCreatorOnly(t *testing.T) {
 	}
 	if info.Producer != "" {
 		t.Fatalf("producer = %q, want empty", info.Producer)
+	}
+}
+
+func TestServiceInfoWithUTF16HexTitleAndAuthor(t *testing.T) {
+	t.Skip("UTF-16 BE hex string decoding not yet implemented")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	xrefStart := 184
+	pdf := []byte("%PDF-1.4\n" +
+		"1 0 obj\n" +
+		"<< /Type /Catalog /Pages 2 0 R >>\n" +
+		"endobj\n" +
+		"2 0 obj\n" +
+		"<< /Type /Pages /Kids [] /Count 0 >>\n" +
+		"endobj\n" +
+		"3 0 obj\n" +
+		"<< /Title <FEFF004100620063> /Author <FEFF004400650066> >>\n" +
+		"endobj\n" +
+		"xref\n" +
+		"0 4\n" +
+		"0000000000 65535 f \n" +
+		"0000000009 00000 n \n" +
+		"0000000058 00000 n \n" +
+		"0000000110 00000 n \n" +
+		"trailer\n" +
+		"<< /Root 1 0 R /Size 4 /Info 3 0 R >>\n" +
+		"startxref\n" +
+		fmt.Sprintf("%10d", xrefStart) + "\n" +
+		"%%EOF\n")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
+		t.Fatalf("write PDF: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info PDF: %v", err)
+	}
+
+	if info.Title != "Abc" {
+		t.Fatalf("title = %q, want %q", info.Title, "Abc")
+	}
+	if info.Author != "Def" {
+		t.Fatalf("author = %q, want %q", info.Author, "Def")
+	}
+}
+
+func TestServiceInfoWithLiteralStringEscapes(t *testing.T) {
+	t.Skip("literal string escape sequence processing not yet implemented")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	xrefStart := 168
+	pdf := []byte("%PDF-1.4\n" +
+		"1 0 obj\n" +
+		"<< /Type /Catalog /Pages 2 0 R >>\n" +
+		"endobj\n" +
+		"2 0 obj\n" +
+		"<< /Type /Pages /Kids [] /Count 0 >>\n" +
+		"endobj\n" +
+		"3 0 obj\n" +
+		"<< /Title (Line1\\nLine2) /Author (Tab\\there) >>\n" +
+		"endobj\n" +
+		"xref\n" +
+		"0 4\n" +
+		"0000000000 65535 f \n" +
+		"0000000009 00000 n \n" +
+		"0000000058 00000 n \n" +
+		"0000000110 00000 n \n" +
+		"trailer\n" +
+		"<< /Root 1 0 R /Size 4 /Info 3 0 R >>\n" +
+		"startxref\n" +
+		fmt.Sprintf("%10d", xrefStart) + "\n" +
+		"%%EOF\n")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
+		t.Fatalf("write PDF: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info PDF: %v", err)
+	}
+
+	if info.Title != "Line1\nLine2" {
+		t.Fatalf("title = %q, want %q", info.Title, "Line1\nLine2")
+	}
+	if info.Author != "Tab\there" {
+		t.Fatalf("author = %q, want %q", info.Author, "Tab\there")
+	}
+}
+
+func TestServiceInfoWithUTF16LEHexTitleAndAuthor(t *testing.T) {
+	t.Skip("UTF-16 LE hex string decoding not yet implemented")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	xrefStart := 184
+	pdf := []byte("%PDF-1.4\n" +
+		"1 0 obj\n" +
+		"<< /Type /Catalog /Pages 2 0 R >>\n" +
+		"endobj\n" +
+		"2 0 obj\n" +
+		"<< /Type /Pages /Kids [] /Count 0 >>\n" +
+		"endobj\n" +
+		"3 0 obj\n" +
+		"<< /Title <FFFE410062006300> /Author <FFFE440065006600> >>\n" +
+		"endobj\n" +
+		"xref\n" +
+		"0 4\n" +
+		"0000000000 65535 f \n" +
+		"0000000009 00000 n \n" +
+		"0000000058 00000 n \n" +
+		"0000000110 00000 n \n" +
+		"trailer\n" +
+		"<< /Root 1 0 R /Size 4 /Info 3 0 R >>\n" +
+		"startxref\n" +
+		fmt.Sprintf("%10d", xrefStart) + "\n" +
+		"%%EOF\n")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
+		t.Fatalf("write PDF: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info PDF: %v", err)
+	}
+
+	if info.Title != "Abc" {
+		t.Fatalf("title = %q, want %q", info.Title, "Abc")
+	}
+	if info.Author != "Def" {
+		t.Fatalf("author = %q, want %q", info.Author, "Def")
+	}
+}
+
+func TestServiceInfoWithUTF16LELiteralString(t *testing.T) {
+	t.Skip("UTF-16 LE literal string decoding not yet implemented")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	xrefStart := 153
+	litStr := "\xff\xfeH\x00e\x00l\x00l\x00o\x00"
+	pdf := []byte("%PDF-1.4\n" +
+		"1 0 obj\n" +
+		"<< /Type /Catalog /Pages 2 0 R >>\n" +
+		"endobj\n" +
+		"2 0 obj\n" +
+		"<< /Type /Pages /Kids [] /Count 0 >>\n" +
+		"endobj\n" +
+		"3 0 obj\n" +
+		"<< /Title (" + litStr + ") >>\n" +
+		"endobj\n" +
+		"xref\n" +
+		"0 4\n" +
+		"0000000000 65535 f \n" +
+		"0000000009 00000 n \n" +
+		"0000000058 00000 n \n" +
+		"0000000110 00000 n \n" +
+		"trailer\n" +
+		"<< /Root 1 0 R /Size 4 /Info 3 0 R >>\n" +
+		"startxref\n" +
+		fmt.Sprintf("%10d", xrefStart) + "\n" +
+		"%%EOF\n")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
+		t.Fatalf("write PDF: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info PDF: %v", err)
+	}
+
+	if info.Title != "Hello" {
+		t.Fatalf("title = %q, want %q", info.Title, "Hello")
+	}
+}
+
+func TestServiceInfoRealSampleVersionCompatV14(t *testing.T) {
+	t.Skip("Info dict Title field is UTF-16BE encoded; parser returns raw bytes as empty string (Type C: UTF-16 decoding not implemented)")
+	path := requirePDFSample(t, "version-compat-v1.4")
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("info PDF: %v", err)
+	}
+
+	if info.Format != "pdf" {
+		t.Fatalf("format = %q, want %q", info.Format, "pdf")
+	}
+	if info.SizeBytes == 0 {
+		t.Fatalf("size_bytes is zero")
+	}
+	if info.DeclaredVersion == "" {
+		t.Fatalf("declared_version is empty")
+	}
+	if info.Title == "" {
+		t.Fatal("title is empty, expected fixture metadata")
+	}
+	if info.Creator == "" {
+		t.Fatal("creator is empty, expected fixture metadata")
+	}
+	if info.Producer == "" {
+		t.Fatal("producer is empty, expected fixture metadata")
 	}
 }
 
@@ -773,19 +1007,15 @@ func TestServiceExtractTextMatrix(t *testing.T) {
 		wantSuccess  bool
 		wantNonEmpty bool
 	}{
-		{"pdf20-utf8", filepath.Join("..", "..", "testdata", "pdf", "pdf20-utf8-test.pdf"), true, true},
-		{"redhat-openshift", filepath.Join("..", "..", "testdata", "pdf", "Red_Hat_OpenShift_Serverless-1.35-Serverless_Logic-en-US.pdf"), false, false},
-		{"sample-local-pdf", filepath.Join("..", "..", "testdata", "pdf", "sample-local-pdf.pdf"), false, false},
-		{"testPDF-5x", filepath.Join("..", "..", "testdata", "pdf", "testPDF_Version.5.x.pdf"), true, true},
-		{"testPDF-8x", filepath.Join("..", "..", "testdata", "pdf", "testPDF_Version.8.x.pdf"), false, false},
+		{"standard-pdf20-utf8", requirePDFSample(t, "standard-pdf20-utf8"), true, true},
+		{"version-compat-v1.4", requirePDFSample(t, "version-compat-v1.4"), true, true},
+		{"feature-encrypted", requirePDFSample(t, "feature-encrypted"), false, false},
+		{"core-minimal", requirePDFSample(t, "core-minimal"), false, false},
+		{"error-corrupted", requirePDFSample(t, "error-corrupted"), false, false},
 	}
 
 	for _, tc := range samples {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := os.Stat(tc.path); os.IsNotExist(err) {
-				t.Skipf("%s not found", tc.name)
-			}
-
 			d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: tc.path})
 			if err != nil {
 				t.Fatalf("open PDF: %v", err)
