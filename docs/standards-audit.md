@@ -4,7 +4,7 @@
 
 This document audits PolarDoc's current implementation against its stated format standards and identifies gaps between the baseline standards and phase-1 code reality.
 
-**Current code reality: phase-1 bootstrap. Internal packages contain minimal stubs and structural checks. Do NOT read this document as claiming full standard compliance — it explicitly lists what is NOT covered.**
+**Current code reality: phase-1 bootstrap. Internal packages contain foundational read capabilities with partial text extraction for both PDF and OFD. Do NOT read this document as claiming full standard compliance — it explicitly lists what is NOT covered.**
 
 ---
 
@@ -19,7 +19,7 @@ This document audits PolarDoc's current implementation against its stated format
 
 ### Compatibility Goals (Read)
 
-- **PDF**: Read-only compatibility for PDF 2.0, 1.7, 1.4 files. "Compatible read" at phase-1 means: the file can be opened, its header declared version read, and for traditional xref-based PDFs, the Catalog→Pages→first Page chain can be traversed to extract minimum Page metadata (MediaBox, Resources, Contents, Rotate). Limitations: XRef streams, trailer /ID byte strings, and object streams are not yet supported. See internal/pdf Coverage Assessment for full details.
+- **PDF**: Read-only compatibility for PDF 2.0, 1.7, 1.4 files. "Compatible read" at phase-1 means: the file can be opened, its header declared version read, xref/XRef streams traversed (XRef stream format decoded, including recognition of ObjStm type entries), trailer /ID read, and Catalog→Pages→first Page chain traversed to extract Page metadata. Object stream (ObjStm) internal content is not parsed or decompressed. See internal/pdf Coverage Assessment for full details.
 - **OFD**: Read-only compatibility for OFD files conforming to GB/T 33190-2016.
 
 ### Compatibility Goals (Write / Upgrade)
@@ -60,10 +60,11 @@ Shared capability contracts (interfaces) and transport types. Defines what forma
 
 ### Gaps
 
-- `TextExtractor`: stub — returns empty TextResult{} for both PDF and OFD. No text extraction, ordering, or content completeness guarantees.
+- `TextExtractor`:
+  - **PDF**: partial implementation — extracts literal strings and hex strings from first-page content streams with FlateDecode decompression support. Not a complete text model (content operators not fully parsed, extraction limited to first page).
+  - **OFD**: implemented — traverses Document.xml page list and extracts TextCode elements from each page's Content.xml per GB/T 33190-2016 page block semantics.
 - `PreviewRenderer`: stub — returns error for both PDF and OFD. No rendering pipeline.
 - `Signer`: stub — not implemented for either format.
-- `InfoResult.DeclaredVersion`: For OFD this field is always empty (no declared version in OFD header equivalent).
 
 ### Notable
 
@@ -88,30 +89,31 @@ ISO 32000-2:2020 §7 (Document Structure), §8 (File Structure), §12.8 (Digital
 | Capability | What It Does | ISO 32000-2 Mapping |
 |------------|--------------|---------------------|
 | Open | Opens file handle | §7.1 (File Header / Header) |
-| Info | Reads header declared version (%PDF-X.Y) | §7.1 (Header) |
+| Info | Reads header version, trailer /ID, Info dict metadata, page count | §7.1, §7.7.2, §8.6, §8.7 |
 | Validate | Checks %PDF- prefix presence | §7.1 rule only |
 | ReadFirstPageInfo | Traverses Catalog→Pages→Page, extracts Page metadata | §7.7, §7.7.2, §7.8, §8.2 (partial) |
 | MediaBox inheritance | Reads /MediaBox from Page or ancestor Pages | §7.7 (inheritable attribute) |
 | Resources inheritance | Reads /Resources from Page or ancestor Pages | §7.7 (inheritable attribute) |
 | Rotate inheritance | Reads /Rotate from Page or ancestor Pages | §7.7 (inheritable attribute) |
+| ExtractText | Extracts literal/hex strings from first-page content streams (FlateDecode supported) | §8.5 (partial), §8.8 (partial), §14.8 (partial) |
 
 #### NOT Covered (Phase-1 + Future)
 
 | ISO 32000-2 Clause | Feature | Status |
 |--------------------|---------|--------|
-| §7.7 | Cross-reference table (xref) | Traditional xref + XRef stream decoding implemented; object stream decompression not implemented |
-| §7.7.2 | Trailer and trailer dictionary | Basic parsing only; /ID byte strings not handled |
-| §7.7.3 | Object streams | Partial: can locate stream objects, cannot decompress content |
+| §7.7 | Cross-reference table (xref) | Traditional xref + XRef stream decoding implemented; ObjStm entries recognized but not parsed |
+| §7.7.2 | Trailer and trailer dictionary | Basic parsing + /ID byte strings extracted |
+| §7.7.3 | Object streams | Not implemented — ObjStm type entries recognized in XRef, but object stream content is neither parsed nor decompressed |
 | §7.7.4 | Incremental updates | Not implemented |
 | §7.7.5 | Linearized PDF | Not implemented |
 | §7.8 | File trailer / startxref | startxref keyword parsing; XRef stream decoding implemented |
-| §8.2 | Object structure | Indirect object reading + XRef stream traversal; object stream content not parsed |
+| §8.2 | Object structure | Indirect object reading + XRef stream traversal; ObjStm compressed objects not readable |
 | §8.3 | Strings, numbers, booleans, arrays | Primitives parsed; byte strings in arrays not handled |
 | §8.4 | Names and dictionaries | Basic parsing only |
-| §8.5 | Streams and filters | Not implemented |
-| §8.6 | Document information dictionary | Not implemented |
-| §8.7 | File identifiers | Not implemented |
-| §8.8 | Content streams and operators | Not implemented |
+| §8.5 | Streams and filters | Partial — FlateDecode decompression for content streams; other filters not implemented |
+| §8.6 | Document information dictionary | Implemented — reads Title, Author, Creator, Producer from Info dictionary |
+| §8.7 | File identifiers | Implemented — reads /ID array from trailer (both traditional xref and XRef streams) |
+| §8.8 | Content streams and operators | Partial — content streams located and decompressed (FlateDecode); literal/hex string extraction implemented; full operator parsing and text layout not implemented |
 | §8.9 | Metadata streams | Not implemented |
 | §9.1–§9.6 | Color spaces | Not implemented |
 | §10.1–§10.10 | Graphics | Not implemented |
@@ -120,7 +122,7 @@ ISO 32000-2:2020 §7 (Document Structure), §8 (File Structure), §12.8 (Digital
 | **§12.8** | **Digital signatures** | **Not implemented** |
 | §13.1–§13.12 | Multimedia | Not implemented |
 | §14.1–§14.12 | Marked text / accessibility | Not implemented |
-| **§14.8** | **Text extraction** | **Not implemented** (stub returns empty) |
+| **§14.8** | **Text extraction** | **Partial** — literal/hex strings from content streams; not complete content operator parsing |
 
 ### Document Type Validation
 
@@ -130,14 +132,13 @@ This check was added to prevent silent failure on cross-format misuse.
 
 ### Gaps
 
-1. **Object stream content**: Cannot decompress content within object streams.
-2. **Trailer /ID byte strings**: Cannot parse trailer dictionaries containing byte string arrays in the /ID field.
-3. **Pages tree complexity**: Some PDFs have Pages trees that cannot be fully traversed with current parser.
-4. **No content extraction**: TextExtractor returns empty stub.
-5. **No preview rendering**: PreviewRenderer returns error.
-6. **No signing**: Signer capability is a stub.
-7. **No writer/upgrade pipeline**: Converting PDF 1.4 → PDF 2.0 is not implemented.
-8. **Known-bad samples**: Some PDFs have corrupted XRef but valid structure. These are handled via explicit test assertions (see TestPDFKnownBad_Version8x).
+1. **Object streams (ObjStm)**: Type 2 entries are recognized in XRef streams, but object stream content is neither decompressed nor parsed. Objects stored in ObjStm cannot be read.
+2. **Pages tree complexity**: Some PDFs have Pages trees that cannot be fully traversed with current parser.
+3. **Content stream limitations**: Only FlateDecode filter supported; full content operator parsing, font mapping, and text layout analysis not implemented.
+4. **No preview rendering**: PreviewRenderer returns error.
+5. **No signing**: Signer capability is a stub.
+6. **No writer/upgrade pipeline**: Converting PDF 1.4 → PDF 2.0 is not implemented.
+7. **Known-bad samples**: Some PDFs have corrupted XRef but valid structure. These are handled via explicit test assertions (see TestPDFKnownBad_Version8x).
 
 ### PDF Version Policy
 
@@ -161,21 +162,21 @@ The current code performs:
 - File body recovery scan: fallback scan for objects not found in XRef/XRef streams
 
 Limitations:
-- Does NOT decompress content within object streams
-- Does NOT interpret trailer /ID byte string arrays (they are parsed as PDFHexString but not semantically processed)
+- Object streams (ObjStm): Type 2 entries are recognized in XRef streams, but object stream content is neither decompressed nor parsed
 - Some Pages tree structures cannot be fully traversed
+- Content stream parsing is limited to literal/hex string extraction; full operator parsing and text layout not implemented
 - Known-bad samples with XRef corruption are explicitly handled via test assertions, not silently skipped
 
 #### Read Compatibility Scope
 
 | Version | Read Support | Scope |
 |---------|-------------|-------|
-| PDF 2.0 (ISO 32000-2:2020) | Header + xref/XRef stream + Page metadata | Header validated; xref traversed; XRef streams decoded; first Page metadata extracted |
-| PDF 1.7 (ISO 32000-1:2008) | Header + xref/XRef stream + Page metadata | Header validated; xref traversed; XRef streams decoded; first Page metadata extracted |
-| PDF 1.4 (ISO 32000-1:2005) | Header + xref + Page metadata | Header validated; xref traversed; first Page metadata extracted |
-| Pre-1.4 | Header + xref + Page metadata | Header validated; xref traversed; first Page metadata extracted |
+| PDF 2.0 (ISO 32000-2:2020) | Header + xref/XRef stream + trailer /ID + Info dict + Page metadata + first-page text extraction | Header validated; xref/XRef streams decoded; trailer /ID extracted; Info dict read; first Page metadata extracted; content stream text extraction (limited) |
+| PDF 1.7 (ISO 32000-1:2008) | Header + xref/XRef stream + trailer /ID + Info dict + Page metadata + first-page text extraction | Header validated; xref/XRef streams decoded; trailer /ID extracted; Info dict read; first Page metadata extracted; content stream text extraction (limited) |
+| PDF 1.4 (ISO 32000-1:2005) | Header + xref + trailer /ID + Info dict + Page metadata + first-page text extraction | Header validated; xref traversed; trailer /ID extracted; Info dict read; first Page metadata extracted; content stream text extraction (limited) |
+| Pre-1.4 | Header + xref + trailer /ID + Info dict + Page metadata + first-page text extraction | Header validated; xref traversed; trailer /ID extracted; Info dict read; first Page metadata extracted; content stream text extraction (limited) |
 
-"Read compatibility" at this phase means: for xref-based PDFs, the file can be opened and minimum Page metadata (MediaBox, Resources, Contents, Rotate) is extracted. XRef streams are supported for PDFs using cross-reference streams. Object stream content decompression is not yet supported. Full semantic compatibility with the respective ISO specification is NOT claimed. Known-bad samples with XRef corruption are explicitly handled via test assertions.
+"Read compatibility" at this phase means: for xref-based PDFs, the file can be opened and minimum Page metadata (MediaBox, Resources, Contents, Rotate) is extracted. XRef streams are supported (format decoded, ObjStm entries recognized). Object stream (ObjStm) content is not parsed or decompressed. Full semantic compatibility with the respective ISO specification is NOT claimed. Known-bad samples with XRef corruption are explicitly handled via test assertions.
 
 #### Write / Upgrade Strategy
 
@@ -211,16 +212,17 @@ GB/T 33190-2016 §4 (Document structure), §5 (Document body), §6 (Page descrip
 | Capability | What It Does | GB/T 33190-2016 Mapping |
 |------------|--------------|--------------------------|
 | Open | Opens ZIP package, acquires zip.Reader | §4.1 OFD package structure |
-| Validate | Checks OFD.xml and Document.xml entry presence | §4 package requirements only |
+| Validate | Checks OFD.xml and Document.xml entry presence; validates DocRoot points to existing file | §4 package requirements |
+| ExtractText | Traverses Document.xml page list, extracts TextCode elements from each page's Content.xml | §6 Page description, §5 Document body |
 
 #### NOT Covered (Phase-1 + Future)
 
 | GB/T 33190 Clause | Feature | Status |
 |-------------------|---------|--------|
-| §4.2 | OFD.xml structure and DocRoot | Not implemented |
-| §4.3 | Document.xml structure | Not implemented |
-| §5 | Document body / Doc_0 content model | Not implemented |
-| §6 | Page description language (page, template, content) | Not implemented |
+| §4.2 | OFD.xml structure and DocRoot | Partial — DocRoot extracted and validated |
+| §4.3 | Document.xml structure | Partial — page list traversal implemented for text extraction |
+| §5 | Document body / Doc_0 content model | Partial — page-level text extraction only |
+| §6 | Page description language (page, template, content) | Partial — TextCode extraction only |
 | §7 | Resource and mapping | Not implemented |
 | §8 | Font handling | Not implemented |
 | **§9** | **Digital signatures** | **Not implemented** |
@@ -232,16 +234,15 @@ Same as PDF: `ExtractText` and `RenderPreview` validate concrete `*ofd.document`
 
 ### Gaps
 
-1. **No XML model parsing**: OFD.xml and Document.xml are opened as ZIP entries but their XML content is not parsed. No page tree, no content objects, no resource mapping.
-2. **No text extraction**: TextExtractor returns empty stub.
-3. **No preview rendering**: PreviewRenderer returns error.
-4. **No signing**: Signer capability is a stub.
-5. **No writer pipeline**: Generating OFD from scratch or modifying existing OFD is not implemented.
+1. **Partial XML model parsing**: OFD.xml (DocRoot extraction/validation), Document.xml (page list traversal), and Content.xml (TextCode extraction) are parsed for text extraction. Full schema validation, resource mapping, font handling, and signature verification are not implemented.
+2. **No preview rendering**: PreviewRenderer returns error.
+3. **No signing**: Signer capability is a stub.
+4. **No writer pipeline**: Generating OFD from scratch or modifying existing OFD is not implemented.
 
 ### Implementation Risks
 
-- Current validation only checks two filenames exist inside the ZIP. A file named `Document.xml` but with garbage content passes validation.
-- No support for multi-page OFD (Doc_0/Document.xml may contain multiple Page nodes per GB/T 33190-2016 §5).
+- Validation checks OFD.xml and Document.xml entry presence, plus validates that DocRoot points to an existing file in the package. XML schema validation and content semantics are not verified.
+- Multi-page OFD is supported for text extraction (Document.xml page list traversal), but page rendering and complex page templates are not implemented.
 
 ---
 
@@ -289,19 +290,25 @@ Cryptographic signatures, trust, and policy concerns.
 
 **Q: Does the current internal code fully cover ISO 32000-2:2020 or GB/T 33190-2016?**
 
-**No. The internal code does NOT fully cover either standard. It covers only the following in phase-1:**
+**No. The internal code does NOT fully cover either standard. Phase-1 covers the following:**
 
-- PDF: file open + header version read + header presence validation (structural minimum)
-- OFD: ZIP package open + two entry name presence checks (structural minimum)
+- **PDF**: file open + header version read + header validation + xref/XRef stream traversal + trailer /ID extraction + Info dictionary (Title/Author/Creator/Producer) + first-page content stream text extraction (FlateDecode decompression, literal/hex string extraction)
+- **OFD**: ZIP package open + entry presence checks + OFD.xml DocRoot extraction/validation + Document.xml page list traversal + Content.xml TextCode extraction for all pages
 
-**All other standard clauses — content extraction, page rendering, signatures, writers, xref parsing, XML content model parsing — are not implemented.**
+**Partially implemented (functional but incomplete):**
+- PDF: Content streams (FlateDecode only, no other filters), text extraction (literal/hex strings only, no operator/layout model), XRef streams (format decoded, ObjStm entries recognized but not readable)
+- OFD: XML content model (DocRoot, page list, TextCode only; no resource mapping, fonts, or complex layouts)
+
+**Not implemented:**
+- PDF: Full content operator parsing, font handling, graphics, color spaces, interactive features, digital signatures, writer/upgrade pipeline, preview rendering, most stream filters beyond FlateDecode
+- OFD: Resource mapping, font handling, digital signatures, writer pipeline, preview rendering, full page layout engine
 
 ### Key Future Capabilities (Not Yet Implemented)
 
-1. **PDF text extraction** (ISO 32000-2 §14.8) — requires content stream parsing
+1. **Complete PDF text extraction** (ISO 32000-2 §14.8) — requires full content operator parsing, font mapping, and layout analysis
 2. **PDF preview rendering** — requires content stream + image decoding
 3. **PDF signing** (ISO 32000-2 §12.8) — requires cryptographic infrastructure
-4. **OFD text extraction** — requires XML content object model parsing
+4. **Complete OFD text extraction** — requires full content object model parsing (TextCode is partial only)
 5. **OFD preview rendering** — requires page description language support
 6. **OFD signing** (GB/T 33190-2016 §9) — requires cryptographic infrastructure
 7. **PDF version upgrade** (older → newer output) — requires writer pipeline
@@ -309,8 +316,8 @@ Cryptographic signatures, trust, and policy concerns.
 
 ### Priority Recommendations
 
-1. **High**: Implement PDF xref and trailer parsing to enable reliable document open for all compliant PDF files
-2. **High**: Implement PDF text extraction to fulfill the ExtractText capability contract
-3. **Medium**: OFD XML content model (at least Doc_0 structure) to enable proper validation beyond entry name checks
-4. **Medium**: Preview rendering pipeline (requires text extraction first)
+1. **High**: Complete PDF text extraction with full content operator parsing and font mapping
+2. **High**: Implement PDF object stream (ObjStm) parsing and decompression to read compressed objects
+3. **Medium**: Complete OFD XML content model with full resource mapping and font handling
+4. **Medium**: Preview rendering pipeline (requires complete text extraction and content parsing)
 5. **Low**: Signing infrastructure (depends on crypto provider decisions)
