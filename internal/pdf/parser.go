@@ -6,27 +6,47 @@ import (
 	"unicode"
 )
 
+// PDFObject is the common interface for all PDF data types.
+// It is used as a sum type for values parsed from PDF files.
 type PDFObject interface{}
 
+// PDFName represents a PDF name object (e.g., /Type, /Root).
+// Names are atomic identifiers used as dictionary keys and enumeration values.
 type PDFName string
 
+// PDFInteger represents a PDF integer numeric object.
 type PDFInteger int64
 
+// PDFReal represents a PDF real (floating-point) numeric object.
 type PDFReal float64
 
+// PDFRef represents a PDF indirect reference (e.g., "12 0 R").
+// It identifies an object by its object number and generation number.
 type PDFRef struct {
+	// ObjNum is the object number (positive integer) that uniquely identifies
+	// the object within the PDF file.
 	ObjNum int64
+	// GenNum is the generation number, typically 0 for new objects.
+	// Non-zero values indicate objects that have been replaced in incremental updates.
 	GenNum int64
 }
 
+// PDFArray represents a PDF array object (ordered collection of PDF objects).
 type PDFArray []PDFObject
 
+// PDFHexString represents a PDF hex string literal (e.g., <4A6F6E>).
+// The content is stored as raw characters, not decoded bytes.
 type PDFHexString string
 
+// PDFLiteralString represents a PDF literal string enclosed in parentheses.
+// The content is stored without the outer parentheses but retains escape sequences.
 type PDFLiteralString string
 
+// PDFBool represents a PDF boolean value (true or false).
 type PDFBool bool
 
+// PDFDict represents a PDF dictionary object (key-value map).
+// Keys are PDFName and values are any PDFObject.
 type PDFDict map[PDFName]PDFObject
 
 func parsePDFName(input string) (PDFName, string, error) {
@@ -329,6 +349,9 @@ func parsePDFObject(input string) (PDFObject, string, error) {
 	}
 }
 
+// ParseDictContent parses a PDF dictionary from its string representation.
+// It expects the input to start with "<<" and returns the parsed PDFDict.
+// Returns an error if the input is not a valid PDF dictionary.
 func ParseDictContent(content string) (PDFDict, error) {
 	obj, _, err := parsePDFObject(content)
 	if err != nil {
@@ -341,6 +364,9 @@ func ParseDictContent(content string) (PDFDict, error) {
 	return d, nil
 }
 
+// ParseArrayContent parses a PDF array from its string representation.
+// It expects the input to start with "[" and returns the parsed PDFArray.
+// Returns an error if the input is not a valid PDF array.
 func ParseArrayContent(content string) (PDFArray, error) {
 	obj, _, err := parsePDFObject(content)
 	if err != nil {
@@ -353,10 +379,14 @@ func ParseArrayContent(content string) (PDFArray, error) {
 	return arr, nil
 }
 
+// DictGet retrieves a value from the PDF dictionary by key.
+// Returns nil if the key does not exist.
 func DictGet(d PDFDict, key string) PDFObject {
 	return d[PDFName(key)]
 }
 
+// DictGetName retrieves a PDF name value from the dictionary by key.
+// The second return value reports whether the key exists and is of type PDFName.
 func DictGetName(d PDFDict, key string) (PDFName, bool) {
 	v, ok := d[PDFName(key)]
 	if !ok {
@@ -366,6 +396,8 @@ func DictGetName(d PDFDict, key string) (PDFName, bool) {
 	return name, ok
 }
 
+// DictGetRef retrieves an indirect reference (PDFRef) from the dictionary by key.
+// The second return value reports whether the key exists and is of type PDFRef.
 func DictGetRef(d PDFDict, key string) (PDFRef, bool) {
 	v, ok := d[PDFName(key)]
 	if !ok {
@@ -375,6 +407,8 @@ func DictGetRef(d PDFDict, key string) (PDFRef, bool) {
 	return ref, ok
 }
 
+// DictGetInt retrieves an integer value from the dictionary by key.
+// The second return value reports whether the key exists and is of type PDFInteger.
 func DictGetInt(d PDFDict, key string) (int64, bool) {
 	v, ok := d[PDFName(key)]
 	if !ok {
@@ -384,6 +418,8 @@ func DictGetInt(d PDFDict, key string) (int64, bool) {
 	return int64(i), ok
 }
 
+// DictGetArray retrieves an array value from the dictionary by key.
+// The second return value reports whether the key exists and is of type PDFArray.
 func DictGetArray(d PDFDict, key string) (PDFArray, bool) {
 	v, ok := d[PDFName(key)]
 	if !ok {
@@ -393,6 +429,8 @@ func DictGetArray(d PDFDict, key string) (PDFArray, bool) {
 	return arr, ok
 }
 
+// DictGetDict retrieves a nested dictionary value from the dictionary by key.
+// The second return value reports whether the key exists and is of type PDFDict.
 func DictGetDict(d PDFDict, key string) (PDFDict, bool) {
 	v, ok := d[PDFName(key)]
 	if !ok {
@@ -402,6 +440,8 @@ func DictGetDict(d PDFDict, key string) (PDFDict, bool) {
 	return dict, ok
 }
 
+// ArrayToRefs extracts all indirect references (PDFRef) from a PDF array.
+// Non-reference elements are silently skipped.
 func ArrayToRefs(arr PDFArray) []PDFRef {
 	var refs []PDFRef
 	for _, obj := range arr {
@@ -412,6 +452,8 @@ func ArrayToRefs(arr PDFArray) []PDFRef {
 	return refs
 }
 
+// RefToString formats a PDF indirect reference as its canonical string representation
+// (e.g., "12 0 R" for object 12, generation 0).
 func RefToString(ref PDFRef) string {
 	return fmt.Sprintf("%d %d R", ref.ObjNum, ref.GenNum)
 }

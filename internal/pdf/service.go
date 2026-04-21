@@ -15,15 +15,34 @@ import (
 )
 
 // FirstPageInfo holds raw PDF object references and attributes for the first page.
+//
+// This structure captures the structural information needed to render or extract
+// content from the first page of a PDF document, including:
+//   - References to the Pages tree and the specific Page object
+//   - MediaBox (page dimensions) in PDF user units
+//   - Resources dictionary (fonts, images, etc.) reference
+//   - Content stream references for page drawing commands
+//
+// All coordinates and dimensions are in the PDF coordinate system (points,
+// origin at bottom-left unless rotated).
 type FirstPageInfo struct {
-	PagesRef        PDFRef
-	PageRef         PDFRef
-	Parent          PDFRef
-	MediaBox        PDFArray
-	Resources       PDFRef
+	// PagesRef is the indirect reference to the root Pages tree object.
+	PagesRef PDFRef
+	// PageRef is the indirect reference to the first Page object.
+	PageRef PDFRef
+	// Parent is the indirect reference to the immediate parent (Pages node).
+	Parent PDFRef
+	// MediaBox is the page bounding box as a PDF array [x y width height].
+	MediaBox PDFArray
+	// Resources is the indirect reference to the Resources dictionary (if external).
+	Resources PDFRef
+	// InlineResources is the inline Resources dictionary (if present directly in the Page).
 	InlineResources PDFDict
-	Contents        []PDFRef
-	Rotate          *int64
+	// Contents is the list of indirect references to the page's content stream(s).
+	Contents []PDFRef
+	// Rotate is the page rotation angle in degrees (0, 90, 180, or 270).
+	// Nil means no rotation is specified; callers should default to 0.
+	Rotate *int64
 }
 
 type service struct{}

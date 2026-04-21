@@ -6,20 +6,40 @@ import "fmt"
 // Use the predefined constants (PDF14, PDF17, PDF20, etc.) rather than constructing
 // versions manually, to avoid accidental mismatches in comparison logic.
 type PDFVersion struct {
+	// Major is the major version number (e.g., 1 for PDF 1.7, 2 for PDF 2.0).
 	Major int
+	// Minor is the minor version number (e.g., 7 for PDF 1.7, 0 for PDF 2.0).
 	Minor int
 }
 
-// Predefined PDF version constants covering the range relevant to PolarDoc.
-var (
-	PDF10 = PDFVersion{1, 0}
-	PDF13 = PDFVersion{1, 3}
-	PDF14 = PDFVersion{1, 4}
-	PDF15 = PDFVersion{1, 5}
-	PDF16 = PDFVersion{1, 6}
-	PDF17 = PDFVersion{1, 7}
-	PDF20 = PDFVersion{2, 0}
-)
+// PDF10 represents PDF version 1.0.
+// PDF 1.0 was the first standardized version (1993), with basic imaging and text.
+var PDF10 = PDFVersion{1, 0}
+
+// PDF13 represents PDF version 1.3.
+// Introduced form XObjects, digital signatures, and better color management.
+var PDF13 = PDFVersion{1, 3}
+
+// PDF14 represents PDF version 1.4.
+// Added transparency, 128-bit RC4 encryption, and Tagged PDF support.
+var PDF14 = PDFVersion{1, 4}
+
+// PDF15 represents PDF version 1.5.
+// Introduced cross-reference streams, object streams, and 128-bit AES encryption.
+var PDF15 = PDFVersion{1, 5}
+
+// PDF16 represents PDF version 1.6.
+// Added support for advanced encryption and 3D content annotations.
+var PDF16 = PDFVersion{1, 6}
+
+// PDF17 represents PDF version 1.7 (ISO 32000-1).
+// Added AES-256 encryption, PDF portfolios, and enhanced multimedia support.
+// This is the most widely supported version among modern readers.
+var PDF17 = PDFVersion{1, 7}
+
+// PDF20 represents PDF version 2.0 (ISO 32000-2).
+// The current ISO standard; deprecates some legacy features and adds UTF-8 support.
+var PDF20 = PDFVersion{2, 0}
 
 // IsZero reports whether v is the zero value (unset).
 func (v PDFVersion) IsZero() bool { return v.Major == 0 && v.Minor == 0 }
@@ -88,10 +108,15 @@ const (
 // It abstracts the difference between traditional xref table entries and
 // cross-reference stream entries (ISO 32000-1 §7.5.8).
 type xrefLocation struct {
-	Kind       xrefKind
-	Offset     int64
-	ObjStmNum  int64
+	// Kind indicates how the object is stored (free, direct offset, or in object stream).
+	Kind xrefKind
+	// Offset is the byte offset in the file where the object begins (valid when Kind is direct).
+	Offset int64
+	// ObjStmNum is the object number of the containing object stream (valid when Kind is inObjStm).
+	ObjStmNum int64
+	// IndexInStm is the index within the object stream where this object is stored.
 	IndexInStm int
+	// Generation is the generation number for traditional xref entries (typically 0).
 	Generation int
 }
 
@@ -106,27 +131,42 @@ type PDFFeatureSet struct {
 	EffectiveVersion PDFVersion
 
 	// xref structure
-	HasTraditionalXRef bool // traditional xref table (PDF 1.0+)
-	HasXRefStream       bool // cross-reference stream (PDF 1.5+)
+	// HasTraditionalXRef is true when the document uses a traditional xref table.
+	// Traditional xref tables have been valid since PDF 1.0.
+	HasTraditionalXRef bool
+	// HasXRefStream is true when the document uses a cross-reference stream.
+	// XRef streams were introduced in PDF 1.5 as a more compact alternative.
+	HasXRefStream bool
 	// IsHybridXRef is true when both xref table and xref stream are present.
 	// This is a known generator bug. The xref stream takes precedence (ISO 32000-1 §C.2).
 	IsHybridXRef bool
 
 	// HasObjectStreams is true when at least one ObjStm entry was found in the xref index.
-	HasObjectStreams bool // object streams (PDF 1.5+)
+	// Object streams compress multiple objects into a single stream (PDF 1.5+).
+	HasObjectStreams bool
 
 	// document structure
-	HasIncrementalUpdates bool // more than one xref/trailer revision present
-	IsLinearized         bool // linearized (fast web view) layout
-	IsEncrypted           bool
+	// HasIncrementalUpdates is true when the document contains more than one
+	// xref/trailer revision, indicating it has been updated incrementally.
+	HasIncrementalUpdates bool
+	// IsLinearized is true when the document uses linearized (fast web view) layout,
+	// which allows the first page to be displayed before the entire file is downloaded.
+	IsLinearized bool
+	// IsEncrypted is true when the document has an /Encrypt dictionary.
+	// When true, the EncryptionAlgorithm field describes the encryption method.
+	IsEncrypted bool
 
 	// EncryptionAlgorithm describes the algorithm in the /Encrypt dictionary.
 	// Valid only when IsEncrypted is true.
 	EncryptionAlgorithm EncryptionAlgorithm
 
 	// metadata locations
-	HasInfoDict  bool // traditional /Info dictionary (PDF 1.0–1.7)
-	HasXMPStream bool // XMP metadata stream (PDF 1.4+; primary in PDF 2.0)
+	// HasInfoDict is true when the document contains a traditional /Info dictionary.
+	// The Info dictionary is deprecated in PDF 2.0 in favor of XMP metadata.
+	HasInfoDict bool
+	// HasXMPStream is true when the document contains an XMP metadata stream.
+	// XMP metadata is the preferred metadata format in PDF 2.0.
+	HasXMPStream bool
 }
 
 // CompatFix is a bitmask of known spec ambiguities and generator bugs that
@@ -170,6 +210,10 @@ const (
 
 // DefaultCompatFixes is the recommended fix set covering the most common real-world
 // generator defects catalogued by the PDF Association issue tracker.
+//
+// This combination enables the widely-needed compatibility workarounds while
+// remaining permissive for most real-world PDFs encountered in production.
+// Use this as the default when opening PDFs from unknown sources.
 var DefaultCompatFixes = FixHybridXRef |
 	FixBrokenStartxref |
 	FixMissingEOF |
