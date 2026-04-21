@@ -4,9 +4,13 @@ import "path/filepath"
 
 // OFDSample describes a single OFD fixture file.
 type OFDSample struct {
-	Key         string
-	Filename    string
-	Category    string
+	// Key is the unique identifier for this sample (used in tests and lookups).
+	Key string
+	// Filename is the actual file name in testdata/ofd/.
+	Filename string
+	// Category groups samples by purpose (core, feature, etc.).
+	Category string
+	// Description explains what this sample is meant to test.
 	Description string
 	// ExpectText is true when the fixture is expected to yield non-empty extracted text.
 	ExpectText bool

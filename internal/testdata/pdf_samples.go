@@ -5,34 +5,51 @@ import (
 	"runtime"
 )
 
+// PDFSampleIntegrity indicates the integrity status of a PDF sample fixture.
 type PDFSampleIntegrity string
 
 const (
-	PDFSampleIntegrityValid      PDFSampleIntegrity = "valid_pdf"
-	PDFSampleIntegrityCorrupted  PDFSampleIntegrity = "corrupted_pdf"
+	// PDFSampleIntegrityValid indicates the PDF is structurally valid.
+	PDFSampleIntegrityValid PDFSampleIntegrity = "valid_pdf"
+	// PDFSampleIntegrityCorrupted indicates the PDF is intentionally corrupted for error testing.
+	PDFSampleIntegrityCorrupted PDFSampleIntegrity = "corrupted_pdf"
+	// PDFSampleIntegrityPlaceholder indicates the file is not a real PDF (reserved for future use).
 	PDFSampleIntegrityPlaceholder PDFSampleIntegrity = "placeholder_non_pdf"
 )
 
+// PDFSample describes a single PDF fixture file and its test expectations.
 type PDFSample struct {
-	Key                 string
-	Filename            string
-	Category            string
-	Description         string
+	// Key is the unique identifier for this sample (used in tests and lookups).
+	Key string
+	// Filename is the actual file name in testdata/pdf/.
+	Filename string
+	// Category groups samples by purpose (core, feature, standard, version-compat, etc.).
+	Category string
+	// Description explains what this sample is meant to test.
+	Description string
+	// DeclaredVersionHint is the PDF version declared in the file header (for reference, not validated).
 	DeclaredVersionHint string
-	Integrity           PDFSampleIntegrity
+	// Integrity indicates whether this sample is valid, corrupted, or a placeholder.
+	Integrity PDFSampleIntegrity
+	// ExpectFirstPageInfo is true when the fixture is expected to support first-page info extraction.
 	ExpectFirstPageInfo bool
-	ExpectExtractText   bool
-	ExpectFileIDs       bool
+	// ExpectExtractText is true when the fixture is expected to yield non-empty extracted text.
+	ExpectExtractText bool
+	// ExpectFileIDs is true when the fixture is expected to have file identifiers in its trailer.
+	ExpectFileIDs bool
 }
 
+// Path returns the absolute path to the PDF fixture file.
 func (s PDFSample) Path() string {
 	return filepath.Join(repoRoot(), "testdata", "pdf", s.Filename)
 }
 
+// PDFSamples returns all registered PDF fixtures.
 func PDFSamples() []PDFSample {
 	return append([]PDFSample(nil), pdfSamples...)
 }
 
+// PDFSampleByKey returns the PDF fixture with the given key, or (zero, false) if not found.
 func PDFSampleByKey(key string) (PDFSample, bool) {
 	for _, sample := range pdfSamples {
 		if sample.Key == key {
