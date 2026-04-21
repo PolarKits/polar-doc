@@ -277,6 +277,98 @@ func TestDocumentInfoHandlerEmptyPath(t *testing.T) {
 	}
 }
 
+func TestDocumentValidateHandlerPDFSuccess(t *testing.T) {
+	path := requirePDFSample(t, "standard-pdf20-utf8")
+
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentValidateHandler(resolver)
+
+	input := DocumentValidateInput{Path: path}
+	payload, _ := json.Marshal(input)
+
+	result, err := handler.Handle(context.Background(), ToolNameDocumentValidate, payload)
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+
+	var output DocumentValidateOutput
+	if err := json.Unmarshal(result, &output); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if !output.Valid {
+		t.Fatalf("valid = false, want true; errors = %v", output.Errors)
+	}
+}
+
+func TestDocumentValidateHandlerOFDSuccess(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd><Version>1.0</Version><DocRoot>Doc_0/Document.xml</DocRoot></ofd>`,
+		"Doc_0/Document.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd:Document xmlns:ofd="http://www.ofd.cn/2016/F最低配"><ofd:Pages><ofd:Page ID="1"/></ofd:Pages></ofd:Document>`,
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write sample OFD: %v", err)
+	}
+
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentValidateHandler(resolver)
+
+	input := DocumentValidateInput{Path: path}
+	payload, _ := json.Marshal(input)
+
+	result, err := handler.Handle(context.Background(), ToolNameDocumentValidate, payload)
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+
+	var output DocumentValidateOutput
+	if err := json.Unmarshal(result, &output); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if !output.Valid {
+		t.Fatalf("valid = false, want true; errors = %v", output.Errors)
+	}
+}
+
+func TestDocumentValidateHandlerEmptyPath(t *testing.T) {
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentValidateHandler(resolver)
+
+	input := DocumentValidateInput{Path: ""}
+	payload, _ := json.Marshal(input)
+
+	_, err := handler.Handle(context.Background(), ToolNameDocumentValidate, payload)
+	if err == nil {
+		t.Fatal("handler should fail for empty path")
+	}
+}
+
+func TestDocumentValidateHandlerUnsupportedExtension(t *testing.T) {
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentValidateHandler(resolver)
+
+	input := DocumentValidateInput{Path: "/path/to/file.txt"}
+	payload, _ := json.Marshal(input)
+
+	_, err := handler.Handle(context.Background(), ToolNameDocumentValidate, payload)
+	if err == nil {
+		t.Fatal("handler should fail for unsupported extension")
+	}
+}
+
+func TestDocumentValidateHandlerUnknownTool(t *testing.T) {
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentValidateHandler(resolver)
+
+	_, err := handler.Handle(context.Background(), "unknown_tool", []byte("{}"))
+	if err == nil {
+		t.Fatal("handler should fail for unknown tool")
+	}
+}
+
 func TestDetectFormatByExtensionUppercase(t *testing.T) {
 	tests := []struct {
 		path    string

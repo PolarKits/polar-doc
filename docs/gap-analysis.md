@@ -41,7 +41,7 @@ It is not a roadmap or design document.
 - **关闭原因**: Format detection is now documented in docs/cli.md "Routing Rules" section
 
 ### G8 — `cmd/polardoc-mcp` status is unclear — **Closed / 已关闭** (2026-04-21)
-- `cmd/polardoc-mcp/main.go` is NOT empty; it implements a full JSON-over-stdin/stdout runtime with two MCP handlers: `pdf_first_page_info` and `document_info`
+- `cmd/polardoc-mcp/main.go` is NOT empty; it implements a full JSON-over-stdin/stdout runtime with three MCP handlers: `pdf_first_page_info`, `document_info`, and `document_validate`
 - docs/mcp.md lines 3-7 explicitly state "Current Implementation: JSON-over-stdin/stdout... does NOT use the official MCP protocol spec"
 - docs/current-status.md line 41 lists it under "Deferred: full MCP server runtime in cmd/polardoc-mcp (currently JSON-over-stdin/stdout only)"
 - **关闭原因**: cmd/polardoc-mcp/main.go is implemented (74 lines), but official MCP protocol remains unimplemented; current status is correctly documented in docs/mcp.md and docs/current-status.md

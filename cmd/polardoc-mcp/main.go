@@ -14,6 +14,7 @@ func main() {
 	resolver := app.NewPhase1Resolver()
 	firstPageHandler := mcp.NewFirstPageHandler(resolver)
 	docInfoHandler := mcp.NewDocumentInfoHandler(resolver)
+	validateHandler := mcp.NewDocumentValidateHandler(resolver)
 
 	dec := json.NewDecoder(os.Stdin)
 	enc := json.NewEncoder(os.Stdout)
@@ -38,6 +39,8 @@ func main() {
 			result, err = firstPageHandler.Handle(context.Background(), req.Tool, req.Payload)
 		case mcp.ToolNameDocumentInfo:
 			result, err = docInfoHandler.Handle(context.Background(), req.Tool, req.Payload)
+		case mcp.ToolNameDocumentValidate:
+			result, err = validateHandler.Handle(context.Background(), req.Tool, req.Payload)
 		default:
 			err = fmt.Errorf("unknown tool: %s", req.Tool)
 		}

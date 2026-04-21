@@ -102,6 +102,9 @@ func (h *FirstPageHandler) Handle(ctx context.Context, tool string, payload []by
 	return json.Marshal(output)
 }
 
+// ToolNameDocumentValidate is the MCP tool name for document validation.
+const ToolNameDocumentValidate = "document_validate"
+
 // DocumentInfoInput is the payload for the document_info tool.
 type DocumentInfoInput struct {
 	// Path is the file system path to the document.
@@ -193,6 +196,71 @@ func (h *DocumentInfoHandler) Handle(ctx context.Context, tool string, payload [
 	}
 
 	return json.Marshal(output)
+}
+
+// DocumentValidateInput is the payload for the document_validate tool.
+type DocumentValidateInput struct {
+	// Path is the file system path to the document.
+	Path string `json:"path"`
+}
+
+// DocumentValidateOutput is the result for the document_validate tool.
+type DocumentValidateOutput struct {
+	// Valid is true when the document passes basic structural checks for its format.
+	Valid bool `json:"valid"`
+	// Errors contains human-readable structural failure reasons.
+	// This is not an exhaustive list of standard violations.
+	Errors []string `json:"errors,omitempty"`
+}
+
+// DocumentValidateHandler handles the document_validate MCP tool.
+type DocumentValidateHandler struct {
+	resolver app.ServiceResolver
+}
+
+// NewDocumentValidateHandler creates a handler for the document_validate tool.
+func NewDocumentValidateHandler(resolver app.ServiceResolver) *DocumentValidateHandler {
+	return &DocumentValidateHandler{resolver: resolver}
+}
+
+// Handle implements the ToolHandler interface for the document_validate tool.
+// It validates the structural integrity of a PDF or OFD document.
+func (h *DocumentValidateHandler) Handle(ctx context.Context, tool string, payload []byte) ([]byte, error) {
+	if tool != ToolNameDocumentValidate {
+		return nil, fmt.Errorf("unknown tool: %s", tool)
+	}
+
+	var input DocumentValidateInput
+	if err := json.Unmarshal(payload, &input); err != nil {
+		return nil, fmt.Errorf("invalid input JSON: %w", err)
+	}
+
+	if input.Path == "" {
+		return nil, fmt.Errorf("path is required")
+	}
+
+	format, err := detectFormatByExtension(input.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	svc, ok := h.resolver.ByFormat(format)
+	if !ok {
+		return nil, fmt.Errorf("no service for format %q", format)
+	}
+
+	d, err := svc.Open(ctx, doc.DocumentRef{Format: format, Path: input.Path})
+	if err != nil {
+		return nil, fmt.Errorf("open document: %w", err)
+	}
+	defer d.Close()
+
+	report, err := svc.Validate(ctx, d)
+	if err != nil {
+		return nil, fmt.Errorf("validate document: %w", err)
+	}
+
+	return json.Marshal(report)
 }
 
 func detectFormatByExtension(path string) (doc.Format, error) {

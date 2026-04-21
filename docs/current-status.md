@@ -25,6 +25,7 @@ PolarDoc currently focuses on explicit PDF and OFD document capabilities in a Go
 - MCP handlers implemented in-process:
   - `pdf_first_page_info`
   - `document_info`
+  - `document_validate`
 
 ## Recently Delivered (Post Stage 1-9)
 
