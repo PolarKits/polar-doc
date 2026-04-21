@@ -19,7 +19,8 @@ type Service interface {
 	FirstPageInfoProvider
 }
 
-// FirstPageInfoProvider returns an error since OFD does not support first page info extraction.
+// FirstPageInfoProvider defines the interface for extracting first page information.
+// OFD does not support this operation; implementations always return an error.
 type FirstPageInfoProvider interface {
 	FirstPageInfo(ctx context.Context, d doc.Document) (*doc.FirstPageInfoResult, error)
 }

@@ -13,12 +13,15 @@ import (
 	"github.com/PolarKits/polardoc/internal/doc"
 )
 
+// service implements Service with phase-1 OFD capabilities.
 type service struct{}
 
+// document holds an opened OFD package handle.
+// It maintains the zip reader and metadata needed for Info/Validate operations.
 type document struct {
-	ref       doc.DocumentRef
-	zipReader *zip.ReadCloser
-	sizeBytes int64
+	ref       doc.DocumentRef // original reference used to open the document
+	zipReader *zip.ReadCloser // handle to the OFD ZIP package
+	sizeBytes int64           // total size of the OFD file in bytes
 }
 
 // NewService returns the OFD service used by phase-1 CLI flows.
@@ -26,10 +29,13 @@ func NewService() Service {
 	return &service{}
 }
 
+// Ref returns the document reference used to open this document.
 func (d *document) Ref() doc.DocumentRef {
 	return d.ref
 }
 
+// Close releases the OFD package handle.
+// It is safe to call Close multiple times; subsequent calls are no-ops.
 func (d *document) Close() error {
 	if d.zipReader == nil {
 		return nil
@@ -37,6 +43,8 @@ func (d *document) Close() error {
 	return d.zipReader.Close()
 }
 
+// Open opens an OFD package from the given reference.
+// It validates the format matches OFD and returns a document handle.
 func (s *service) Open(_ context.Context, ref doc.DocumentRef) (doc.Document, error) {
 	if ref.Format != doc.FormatOFD {
 		return nil, fmt.Errorf("format mismatch: expected %q, got %q", doc.FormatOFD, ref.Format)
@@ -59,6 +67,8 @@ func (s *service) Open(_ context.Context, ref doc.DocumentRef) (doc.Document, er
 	}, nil
 }
 
+// Info extracts metadata from an opened OFD document.
+// It retrieves format, path, size, version, and page count (if Document.xml is present).
 func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error) {
 	ofdDoc, ok := d.(*document)
 	if !ok {
@@ -80,6 +90,8 @@ func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error
 	return info, nil
 }
 
+// Validate checks the OFD package structure and returns a validation report.
+// It verifies OFD.xml and Document.xml presence, and validates DocRoot references.
 func (s *service) Validate(_ context.Context, d doc.Document) (doc.ValidationReport, error) {
 	ofdDoc, ok := d.(*document)
 	if !ok {
@@ -127,6 +139,8 @@ func (s *service) Validate(_ context.Context, d doc.Document) (doc.ValidationRep
 	return report, nil
 }
 
+// ExtractText extracts text content from all pages in the OFD document.
+// It walks through each page's Content.xml and collects TextCode elements.
 func (s *service) ExtractText(_ context.Context, d doc.Document) (doc.TextResult, error) {
 	ofdDoc, ok := d.(*document)
 	if !ok {
@@ -275,6 +289,8 @@ func extractTextCodesFromPage(data []byte) string {
 	return strings.Join(parts, " ")
 }
 
+// RenderPreview returns an error indicating preview is not implemented for OFD.
+// This is a phase-1 limitation; full preview rendering is planned for future phases.
 func (s *service) RenderPreview(_ context.Context, d doc.Document, _ doc.PreviewRequest) (doc.PreviewResult, error) {
 	ofdDoc, ok := d.(*document)
 	if !ok {
@@ -285,6 +301,8 @@ func (s *service) RenderPreview(_ context.Context, d doc.Document, _ doc.Preview
 	return doc.PreviewResult{}, fmt.Errorf("preview is not implemented for %q", doc.FormatOFD)
 }
 
+// FirstPageInfo returns an error indicating first page info is not supported for OFD.
+// This operation is intentionally not implemented for OFD format.
 func (s *service) FirstPageInfo(_ context.Context, d doc.Document) (*doc.FirstPageInfoResult, error) {
 	_, ok := d.(*document)
 	if !ok {
@@ -293,6 +311,8 @@ func (s *service) FirstPageInfo(_ context.Context, d doc.Document) (*doc.FirstPa
 	return nil, fmt.Errorf("first page info not supported for OFD")
 }
 
+// validateOFDEntries checks for mandatory OFD.xml and Document.xml entries.
+// Returns a list of validation error messages for missing entries.
 func validateOFDEntries(files []*zip.File) []string {
 	hasRoot := false
 	hasDocument := false
@@ -318,6 +338,8 @@ func validateOFDEntries(files []*zip.File) []string {
 	return errs
 }
 
+// getDocRoot extracts the DocRoot path from OFD.xml.
+// It locates the OFD.xml entry and parses the DocRoot element value.
 func getDocRoot(files []*zip.File) (string, error) {
 	for _, f := range files {
 		name := strings.TrimPrefix(f.Name, "./")
@@ -361,6 +383,8 @@ func getDocRoot(files []*zip.File) (string, error) {
 	return "", fmt.Errorf("OFD.xml not found")
 }
 
+// getVersion extracts the Version from OFD.xml.
+// It checks both Version attribute (real OFD format) and Version element (simplified test format).
 func getVersion(files []*zip.File) (string, error) {
 	for _, f := range files {
 		name := strings.TrimPrefix(f.Name, "./")
@@ -413,6 +437,8 @@ func getVersion(files []*zip.File) (string, error) {
 	return "", fmt.Errorf("OFD.xml not found")
 }
 
+// validateDocRoot verifies that the DocRoot path points to an existing file in the package.
+// Returns validation errors if DocRoot is empty or points to a non-existent file.
 func validateDocRoot(files []*zip.File, docRoot string) []string {
 	if docRoot == "" {
 		return []string{"DocRoot element is missing or empty in OFD.xml"}
@@ -436,6 +462,8 @@ func validateDocRoot(files []*zip.File, docRoot string) []string {
 	return nil
 }
 
+// getPageCount counts the number of Page elements in Document.xml.
+// Returns 0 if Document.xml cannot be located or parsed (graceful degradation).
 func getPageCount(files []*zip.File) (int, error) {
 	docRoot, err := getDocRoot(files)
 	if err != nil {
