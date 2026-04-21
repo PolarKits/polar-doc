@@ -10,6 +10,7 @@ coverage.out
 # AI context files
 CLAUDE.md
 TASKRESULT.md
+opencode.json
 
 # Build artifacts
 polardoc-mcp
