@@ -38,7 +38,7 @@ type DocumentRef struct {
 //   - Format, Path, SizeBytes: populated for both PDF and OFD
 //   - DeclaredVersion: PDF reads %PDF-X.Y header; OFD reads Version attribute from OFD.xml root element
 //   - PageCount: PDF populated from /Count in root /Pages dict; OFD from Document.xml <Page> count
-//   - FileIdentifiers: Phase-2 reserved; PDF populates from trailer /ID; OFD stub
+//   - FileIdentifiers: PDF populates from trailer /ID array (Phase-1); OFD is unused (no FileIdentifiers equivalent in GB/T 33190-2016)
 //   - Title, Author, Creator, Producer: PDF populates from InfoDict; OFD does not
 //
 // Empty string on optional fields means the metadata is not available.
@@ -58,23 +58,23 @@ type InfoResult struct {
 	// PDF: populated from /Count in the root /Pages dictionary. OFD: populated from Document.xml.
 	PageCount int
 
-	// FileIdentifiers: PDF populates from trailer /ID array; OFD is unused (Phase-1 stub).
+	// FileIdentifiers: PDF populates from trailer /ID array; OFD is unused (no FileIdentifiers equivalent in GB/T 33190-2016).
 	// Empty slice means no file identifiers are available.
 	FileIdentifiers []string
 
-	// Title: PDF populates from InfoDict /Title; OFD does not populate (stub).
+	// Title: PDF populates from InfoDict /Title; OFD does not populate.
 	// Empty string means title is not available.
 	Title string
 
-	// Author: PDF populates from InfoDict /Author; OFD does not populate (stub).
+	// Author: PDF populates from InfoDict /Author; OFD does not populate.
 	// Empty string means author is not available.
 	Author string
 
-	// Creator: PDF populates from InfoDict /Creator; OFD does not populate (stub).
+	// Creator: PDF populates from InfoDict /Creator; OFD does not populate.
 	// Empty string means creator is not available.
 	Creator string
 
-	// Producer: PDF populates from InfoDict /Producer; OFD does not populate (stub).
+	// Producer: PDF populates from InfoDict /Producer; OFD does not populate.
 	// Empty string means producer is not available.
 	Producer string
 }
@@ -85,8 +85,8 @@ type InfoResult struct {
 // Errors are human-readable strings derived from format-specific rules;
 // they are NOT a complete enumeration of all possible standard violations.
 //
-// Phase-1 coverage for PDF: only the header presence rule from ISO 32000-2.
-// Phase-1 coverage for OFD: only the package entry presence rules from GB/T 33190-2016.
+// Phase-1 coverage for PDF: header presence check (%PDF- prefix format) per ISO 32000-2.
+// Phase-1 coverage for OFD: package entry presence and DocRoot integrity per GB/T 33190-2016.
 //
 // All fields are structural checks only. Semantic validation (e.g., font licensing,
 // accessibility requirements, digital signature validity) is not performed in phase-1.
