@@ -22,8 +22,10 @@ const (
 // This type does not represent a fully parsed document structure.
 // It is analogous to a file path + format tag, not a document object graph.
 type DocumentRef struct {
+	// Format is the document format domain (PDF or OFD).
 	Format Format
-	Path   string
+	// Path is the file system path to the document.
+	Path string
 }
 
 // InfoResult is minimal document metadata returned by the info command.
@@ -42,9 +44,14 @@ type DocumentRef struct {
 // Empty string on optional fields means the metadata is not available.
 // Zero PageCount means page count is unknown or not yet implemented.
 type InfoResult struct {
-	Format          Format
-	Path            string
-	SizeBytes       int64
+	// Format is the document format domain (PDF or OFD).
+	Format Format
+	// Path is the file system path to the document.
+	Path string
+	// SizeBytes is the file size in bytes.
+	SizeBytes int64
+	// DeclaredVersion is the format version declared in the document header.
+	// PDF: from %PDF-X.Y header; OFD: from Version attribute in OFD.xml.
 	DeclaredVersion string
 
 	// PageCount holds the document page count.
@@ -97,8 +104,10 @@ type ValidationReport struct {
 // Page and DPI are hints. Format-specific implementations may interpret these
 // differently or ignore them if unsupported.
 type PreviewRequest struct {
+	// Page is the requested page number (1-indexed). Zero means no specific page requested.
 	Page int
-	DPI  int
+	// DPI is the requested resolution in dots per inch. Zero means use format default.
+	DPI int
 }
 
 // PreviewResult describes produced preview metadata.
@@ -106,8 +115,10 @@ type PreviewRequest struct {
 // MediaType is a MIME type string (e.g. "image/png"). Data is the raw payload.
 // Phase-1: this is a stub; preview rendering is not implemented.
 type PreviewResult struct {
+	// MediaType is the MIME type of the preview data (e.g. "image/png", "image/jpeg").
 	MediaType string
-	Data      []byte
+	// Data is the raw preview payload bytes.
+	Data []byte
 }
 
 // TextResult describes extracted text output.
@@ -124,6 +135,8 @@ type PreviewResult struct {
 // is a planned capability. It requires a writer pipeline that does not yet exist.
 // The current TextExtractor interface does not distinguish input version from output version.
 type TextResult struct {
+	// Text is the extracted text content. Format-specific extraction rules determine
+	// ordering and completeness. Empty string means no text was extracted.
 	Text string
 }
 
@@ -136,8 +149,12 @@ type TextResult struct {
 // Phase-1 coverage: signing is not implemented. The fields below represent
 // capability-layer reservations for Phase-2 signature and timestamp support.
 type SignRequest struct {
+	// Profile is the format-specific signature profile identifier.
+	// For PDF: maps to ISO 32000-2 approval/certification signatures.
+	// For OFD: maps to GB/T 33190-2016 digital signature rules.
 	Profile string
 
+	// Reason is the human-readable reason for signing.
 	Reason string
 
 	// HashAlgorithm reserves the hash algorithm identifier for Phase-2.
@@ -165,7 +182,9 @@ type SignRequest struct {
 // Phase-1 coverage: signing is not implemented. The fields below represent
 // capability-layer reservations for Phase-2 signature and timestamp support.
 type SignResult struct {
-	Method    string
+	// Method is the cryptographic algorithm used for signing (e.g. "RSA", "ECDSA").
+	Method string
+	// Signature is the raw signature bytes.
 	Signature []byte
 
 	// CertDigest reserves the SHA-256 digest of the signing certificate for Phase-2.
@@ -192,18 +211,28 @@ type SignResult struct {
 // page's declared bounding box. Resources and Contents are indirect reference
 // chains that may fail to resolve for some PDF structures (parser limitations).
 type FirstPageInfoResult struct {
-	Path      string
-	PagesRef  RefInfo
-	PageRef   RefInfo
-	Parent    RefInfo
-	MediaBox  []float64
+	// Path is the file path of the document.
+	Path string
+	// PagesRef is the indirect reference to the root Pages object (/Type /Pages).
+	PagesRef RefInfo
+	// PageRef is the indirect reference to the first page object (/Type /Page).
+	PageRef RefInfo
+	// Parent is the indirect reference to the parent Pages object containing this page.
+	Parent RefInfo
+	// MediaBox is the page media box rectangle [llx, lly, urx, ury] in default user space units.
+	MediaBox []float64
+	// Resources is the indirect reference to the resource dictionary for this page.
 	Resources RefInfo
-	Contents  []RefInfo
-	Rotate    *int64
+	// Contents is a slice of indirect references to content streams for this page.
+	Contents []RefInfo
+	// Rotate is the page rotation in degrees (0, 90, 180, 270). Nil means no rotation specified.
+	Rotate *int64
 }
 
 // RefInfo is a minimal indirect reference representation.
 type RefInfo struct {
+	// ObjNum is the object number (e.g. the "N" in "N 0 R" indirect reference).
 	ObjNum int64
+	// GenNum is the generation number (e.g. the "0" in "N 0 R" indirect reference).
 	GenNum int64
 }
