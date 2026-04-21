@@ -8,6 +8,7 @@ import (
 
 // StaticResolver resolves services from a fixed set.
 type StaticResolver struct {
+	// services is the wired format service set used for resolution.
 	services ServiceSet
 }
 

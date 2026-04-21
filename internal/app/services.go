@@ -58,7 +58,9 @@ type PDFSaver interface {
 // ServiceSet is a simple struct-based composition; it contains no routing
 // logic or standard semantics.
 type ServiceSet struct {
+	// PDF is the PDF format service implementation.
 	PDF FormatService
+	// OFD is the OFD format service implementation.
 	OFD FormatService
 }
 
