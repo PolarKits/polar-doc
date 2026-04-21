@@ -1,0 +1,297 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Regression test for status --counts
+# Covers: exit code 0, five state counts, filtering semantics
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN_DIR="$SCRIPT_DIR/../bin"
+source "$BIN_DIR/common.sh"
+
+TEST_SESSION="${TEST_SESSION:-test-status-counts}"
+TEST_WORKDIR="${TEST_WORKDIR:-$(mktemp -d)}"
+CLEANUP="${CLEANUP:-false}"
+
+SESSION_DIR="$RUNTIME_DIR/$TEST_SESSION"
+TASKS_DIR="$SESSION_DIR/tasks"
+RESULTS_DIR="$SESSION_DIR/results"
+ARCHIVE_TASKS_DIR="$SESSION_DIR/archive/tasks"
+ARCHIVE_RESULTS_DIR="$SESSION_DIR/archive/results"
+
+if [[ "$CLEANUP" == "true" ]]; then
+    rm -rf "$TEST_WORKDIR"
+    rm -rf "$SESSION_DIR"
+    echo "Cleanup complete."
+    exit 0
+fi
+
+setup_session() {
+    rm -rf "$SESSION_DIR"
+    mkdir -p "$TASKS_DIR" "$RESULTS_DIR" "$ARCHIVE_TASKS_DIR" "$ARCHIVE_RESULTS_DIR"
+    printf 'SESSION_NAME=%s\nLEFT_PANE=test-session:0.0\nRIGHT_PANE=test-session:0.1\nWORKDIR=%s\nROOT_DIR=%s\nLEFT_CMD=codex-plus\nRIGHT_CMD=opencode\n' \
+        "$TEST_SESSION" "$TEST_WORKDIR" "$ROOT_DIR" > "$SESSION_DIR/session.env"
+}
+
+create_task() {
+    local task_id="$1"
+    local title="${2:-test task}"
+    printf '# %s\n\ntask_id: %s\n' "$title" "$task_id" > "$TASKS_DIR/$task_id.md"
+}
+
+create_archive_task() {
+    local task_id="$1"
+    local title="${2:-archived task}"
+    printf '# %s\n\ntask_id: %s\n' "$title" "$task_id" > "$ARCHIVE_TASKS_DIR/$task_id.md"
+}
+
+create_empty_result() {
+    local task_id="$1"
+    local dir="${2:-$RESULTS_DIR}"
+    touch "$dir/$task_id.md"
+}
+
+create_result() {
+    local task_id="$1"
+    local content="${2:-summary: done}"
+    local dir="${3:-$RESULTS_DIR}"
+    printf '# %s result\n\n%s\n' "$task_id" "$content" > "$dir/$task_id.md"
+}
+
+create_review_marker() {
+    local task_id="$1"
+    local dir="${2:-$RESULTS_DIR}"
+    cat > "$dir/$task_id.review" <<EOF
+task_id: $task_id
+handed_off_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+session: $TEST_SESSION
+result_file: $dir/$task_id.md
+EOF
+}
+
+create_orphan_result() {
+    local task_id="$1"
+    # Orphan result: result file exists but no corresponding task file
+    printf '# %s result\n\nsummary: orphan result without task file\n' "$task_id" > "$RESULTS_DIR/$task_id.md"
+}
+
+run_status_counts() {
+    local extra_args="${1:-}"
+    if [[ -n "$extra_args" ]]; then
+        "$BIN_DIR/status" --session "$TEST_SESSION" --counts $extra_args 2>&1
+    else
+        "$BIN_DIR/status" --session "$TEST_SESSION" --counts 2>&1
+    fi
+}
+
+echo "=== Status --counts Regression Test ==="
+echo "Test session: $TEST_SESSION"
+echo "Test workdir: $TEST_WORKDIR"
+echo
+echo "ARTIFACTS PRESERVED at:"
+echo "  $SESSION_DIR"
+echo "  (session.env, tasks/, results/, archive/)"
+echo
+echo "To clean up artifacts when done: CLEANUP=true $0"
+echo
+
+setup_session
+
+echo "--- Constructing Test Artifacts ---"
+
+# pending: task exists, no result
+TASK_PENDING="TASK-20260420-888001"
+create_task "$TASK_PENDING" "pending task"
+
+# abandoned: task exists, empty result, no review marker
+TASK_ABANDONED="TASK-20260420-888002"
+create_task "$TASK_ABANDONED" "abandoned task"
+create_empty_result "$TASK_ABANDONED"
+
+# ready: task exists, non-empty result, no review marker
+TASK_READY="TASK-20260420-888003"
+create_task "$TASK_READY" "ready task"
+create_result "$TASK_READY" "summary: task completed"
+
+# awaiting_review: task exists, non-empty result, has review marker
+TASK_AWAITING="TASK-20260420-888004"
+create_task "$TASK_AWAITING" "awaiting review task"
+create_result "$TASK_AWAITING" "summary: done, waiting for review"
+create_review_marker "$TASK_AWAITING"
+
+# orphan-result: result exists, but no task file (neither in active nor archive)
+TASK_ORPHAN="TASK-20260420-888005"
+create_orphan_result "$TASK_ORPHAN"
+# Ensure no task file exists
+rm -f "$TASKS_DIR/$TASK_ORPHAN.md" "$ARCHIVE_TASKS_DIR/$TASK_ORPHAN.md"
+
+# Additional archive tasks for --include-archive testing
+# Note: task_review_state() only looks in results/, not archive/results/
+# So we put the result in results/ and task in archive/tasks/
+TASK_ARCHIVED_READY="TASK-20260420-888101"
+create_archive_task "$TASK_ARCHIVED_READY" "archived ready task"
+# Result must be in results/ for task_review_state to find it
+create_result "$TASK_ARCHIVED_READY" "summary: archived task completed" "$RESULTS_DIR"
+
+echo "Created artifacts:"
+echo "  - $TASK_PENDING: pending (no result)"
+echo "  - $TASK_ABANDONED: abandoned (empty result)"
+echo "  - $TASK_READY: ready (result without .review)"
+echo "  - $TASK_AWAITING: awaiting_review (result with .review)"
+echo "  - $TASK_ORPHAN: orphan-result (result without task file)"
+echo "  - $TASK_ARCHIVED_READY: ready in archive/tasks/ but result in results/ (task_review_state looks in results/ only)"
+echo
+
+echo "--- Test A: --counts returns exit code 0 with all five state counts ---"
+
+set +e
+output=$(run_status_counts)
+rc=$?
+set -e
+
+if [[ "$rc" -eq 0 ]]; then
+    echo "PASS: status --counts returns exit code 0"
+else
+    echo "FAIL: status --counts returned exit code $rc (expected 0)"
+    exit 1
+fi
+
+# Check all five states appear in output
+for state in pending abandoned ready awaiting_review orphan-result; do
+    if echo "$output" | grep -qE "^${state}\s+[0-9]+"; then
+        echo "PASS: output contains $state count"
+    else
+        echo "FAIL: output missing $state count"
+        echo "Output was:"
+        echo "$output"
+        exit 1
+    fi
+done
+
+# Extract and verify counts
+count_pending=$(echo "$output" | grep "^pending" | awk '{print $2}')
+count_abandoned=$(echo "$output" | grep "^abandoned" | awk '{print $2}')
+count_ready=$(echo "$output" | grep "^ready" | awk '{print $2}')
+count_awaiting=$(echo "$output" | grep "^awaiting_review" | awk '{print $2}')
+count_orphan=$(echo "$output" | grep "^orphan-result" | awk '{print $2}')
+
+echo "  Counts: pending=$count_pending, abandoned=$count_abandoned, ready=$count_ready, awaiting_review=$count_awaiting, orphan-result=$count_orphan"
+
+# Verify expected counts (default: active tasks only, not including archive)
+# pending:1 (TASK_PENDING), abandoned:1 (TASK_ABANDONED), ready:1 (TASK_READY),
+# awaiting_review:1 (TASK_AWAITING), orphan-result:1 (TASK_ORPHAN)
+# Note: TASK_ARCHIVED_READY has task in archive/tasks/ so not counted in active
+if [[ "$count_pending" -eq 1 && "$count_abandoned" -eq 1 && "$count_ready" -eq 1 && "$count_awaiting" -eq 1 && "$count_orphan" -eq 1 ]]; then
+    echo "PASS: all counts match expected values (active tasks only, archive task not included)"
+else
+    echo "FAIL: counts don't match expected"
+    echo "  Expected: pending=1, abandoned=1, ready=1, awaiting_review=1, orphan-result=1"
+    echo "  Got: pending=$count_pending, abandoned=$count_abandoned, ready=$count_ready, awaiting_review=$count_awaiting, orphan-result=$count_orphan"
+    exit 1
+fi
+
+echo
+echo "--- Test B: --state filtering with --counts ---"
+
+set +e
+output=$(run_status_counts "--state awaiting_review")
+rc=$?
+set -e
+
+if [[ "$rc" -eq 0 ]]; then
+    echo "PASS: --state awaiting_review --counts returns exit code 0"
+else
+    echo "FAIL: --state awaiting_review --counts returned exit code $rc"
+    exit 1
+fi
+
+# When filtering by state, only that state's tasks should be counted
+count_pending=$(echo "$output" | grep "^pending" | awk '{print $2}')
+count_abandoned=$(echo "$output" | grep "^abandoned" | awk '{print $2}')
+count_ready=$(echo "$output" | grep "^ready" | awk '{print $2}')
+count_awaiting=$(echo "$output" | grep "^awaiting_review" | awk '{print $2}')
+count_orphan=$(echo "$output" | grep "^orphan-result" | awk '{print $2}')
+
+echo "  Filtered counts: pending=$count_pending, abandoned=$count_abandoned, ready=$count_ready, awaiting_review=$count_awaiting, orphan-result=$count_orphan"
+
+# When filtering by awaiting_review, only awaiting_review should be counted
+# (the filter applies to task selection, but the output still shows all state rows)
+# Actually, looking at status script: it filters tasks by state, then counts by state
+# So if --state awaiting_review, only awaiting_review tasks enter the count
+if [[ "$count_awaiting" -eq 1 ]]; then
+    echo "PASS: --state awaiting_review shows correct awaiting_review count"
+else
+    echo "FAIL: --state awaiting_review awaiting_review count is $count_awaiting (expected 1)"
+    exit 1
+fi
+
+echo
+echo "--- Test C: --state orphan-result with --counts ---"
+
+set +e
+output=$(run_status_counts "--state orphan-result")
+rc=$?
+set -e
+
+if [[ "$rc" -eq 0 ]]; then
+    echo "PASS: --state orphan-result --counts returns exit code 0"
+else
+    echo "FAIL: --state orphan-result --counts returned exit code $rc"
+    exit 1
+fi
+
+count_orphan=$(echo "$output" | grep "^orphan-result" | awk '{print $2}')
+echo "  orphan-result count: $count_orphan"
+
+if [[ "$count_orphan" -eq 1 ]]; then
+    echo "PASS: --state orphan-result shows correct orphan-result count"
+else
+    echo "FAIL: --state orphan-result count is $count_orphan (expected 1)"
+    exit 1
+fi
+
+echo
+echo "--- Test D: --state ready --include-archive --counts ---"
+
+set +e
+output=$(run_status_counts "--state ready --include-archive")
+rc=$?
+set -e
+
+if [[ "$rc" -eq 0 ]]; then
+    echo "PASS: --state ready --include-archive --counts returns exit code 0"
+else
+    echo "FAIL: --state ready --include-archive --counts returned exit code $rc"
+    exit 1
+fi
+
+count_ready=$(echo "$output" | grep "^ready" | awk '{print $2}')
+echo "  ready count (with archive): $count_ready"
+
+# With --include-archive, we should see both active and archive ready tasks
+if [[ "$count_ready" -eq 2 ]]; then
+    echo "PASS: --include-archive includes both active and archive ready tasks"
+else
+    echo "FAIL: ready count with archive is $count_ready (expected 2: 1 active + 1 archive)"
+    exit 1
+fi
+
+echo
+echo "=== All tests passed ==="
+echo
+echo "ARTIFACTS PRESERVED at:"
+echo "  $SESSION_DIR"
+echo
+echo "Key files for audit:"
+echo "  $SESSION_DIR/session.env"
+echo "  $TASKS_DIR/"
+echo "  $RESULTS_DIR/"
+echo "  $ARCHIVE_TASKS_DIR/"
+echo "  $ARCHIVE_RESULTS_DIR/"
+echo
+echo "Verification commands:"
+echo "  $BIN_DIR/status --session $TEST_SESSION --counts"
+echo "  $BIN_DIR/status --session $TEST_SESSION --state awaiting_review --counts"
+echo "  $BIN_DIR/status --session $TEST_SESSION --state orphan-result --counts"
+echo
+echo "To clean up artifacts:"
+echo "  CLEANUP=true $0"
