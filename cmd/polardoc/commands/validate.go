@@ -9,8 +9,11 @@ import (
 	"github.com/PolarKits/polardoc/internal/doc"
 )
 
+// ErrValidationFailed indicates document validation failed.
 var ErrValidationFailed = errors.New("validation failed")
 
+// RunValidate runs the validate command to check document structural integrity.
+// It supports PDF and OFD formats, with optional JSON output.
 func RunValidate(ctx context.Context, resolver app.ServiceResolver, args []string) error {
 	input, err := parseCommandInput("validate", args)
 	if err != nil {
@@ -44,10 +47,7 @@ func RunValidate(ctx context.Context, resolver app.ServiceResolver, args []strin
 	}
 
 	if input.json {
-		err := writeJSON(struct {
-			Valid  bool     `json:"valid"`
-			Errors []string `json:"errors"`
-		}{
+		err := writeJSON(validateResponse{
 			Valid:  report.Valid,
 			Errors: report.Errors,
 		})
@@ -69,4 +69,12 @@ func RunValidate(ctx context.Context, resolver app.ServiceResolver, args []strin
 		return ErrValidationFailed
 	}
 	return nil
+}
+
+// validateResponse is the JSON response structure for the validate command.
+type validateResponse struct {
+	// Valid indicates whether the document passed validation.
+	Valid bool `json:"valid"`
+	// Errors contains validation error messages if Valid is false.
+	Errors []string `json:"errors"`
 }

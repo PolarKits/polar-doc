@@ -33,6 +33,8 @@ type copyInput struct {
 	dst string
 }
 
+// RunCopy runs the cp command to copy a PDF document to a destination path.
+// This command is only supported for PDF format (via CopyFile).
 func RunCopy(ctx context.Context, resolver app.ServiceResolver, args []string) error {
 	input, err := parseCopyInput(args)
 	if err != nil {

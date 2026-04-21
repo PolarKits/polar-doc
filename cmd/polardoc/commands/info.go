@@ -17,19 +17,29 @@ type infoInput struct {
 }
 
 type pageRef struct {
+	// ObjNum is the object number of the indirect reference.
 	ObjNum int64 `json:"obj_num"`
+	// GenNum is the generation number of the indirect reference.
 	GenNum int64 `json:"gen_num"`
 }
 
 type pageInfoOutput struct {
-	Path      string    `json:"path"`
-	PagesRef  pageRef   `json:"pages_ref"`
-	PageRef   pageRef   `json:"page_ref"`
-	Parent    pageRef   `json:"parent"`
-	MediaBox  []float64 `json:"media_box"`
-	Resources pageRef   `json:"resources"`
-	Contents  []pageRef `json:"contents"`
-	Rotate    *int64    `json:"rotate,omitempty"`
+	// Path is the file system path to the document.
+	Path string `json:"path"`
+	// PagesRef is the indirect reference to the root Pages object.
+	PagesRef pageRef `json:"pages_ref"`
+	// PageRef is the indirect reference to the first page object.
+	PageRef pageRef `json:"page_ref"`
+	// Parent is the indirect reference to the parent Pages object.
+	Parent pageRef `json:"parent"`
+	// MediaBox is the page media box rectangle [llx, lly, urx, ury].
+	MediaBox []float64 `json:"media_box"`
+	// Resources is the indirect reference to the resource dictionary.
+	Resources pageRef `json:"resources"`
+	// Contents is a slice of indirect references to content streams.
+	Contents []pageRef `json:"contents"`
+	// Rotate is the page rotation in degrees (0, 90, 180, 270). Nil if not specified.
+	Rotate *int64 `json:"rotate,omitempty"`
 }
 
 func parseInfoInput(args []string) (infoInput, error) {
@@ -63,6 +73,8 @@ func parseInfoInput(args []string) (infoInput, error) {
 	}, nil
 }
 
+// RunInfo runs the info command to retrieve document metadata.
+// It supports PDF and OFD formats, with optional JSON output and first page info for PDF.
 func RunInfo(ctx context.Context, resolver app.ServiceResolver, args []string) error {
 	input, err := parseInfoInput(args)
 	if err != nil {
@@ -103,18 +115,7 @@ func RunInfo(ctx context.Context, resolver app.ServiceResolver, args []string) e
 	}
 
 	if input.json {
-		return writeJSON(struct {
-			Format          doc.Format `json:"format"`
-			Path            string     `json:"path"`
-			SizeBytes       int64      `json:"size_bytes"`
-			DeclaredVersion string     `json:"declared_version,omitempty"`
-			PageCount       int        `json:"page_count,omitempty"`
-			FileIdentifiers []string    `json:"file_identifiers,omitempty"`
-			Title           string     `json:"title,omitempty"`
-			Author          string     `json:"author,omitempty"`
-			Creator         string     `json:"creator,omitempty"`
-			Producer        string     `json:"producer,omitempty"`
-		}{
+		return writeJSON(infoResponse{
 			Format:          info.Format,
 			Path:            info.Path,
 			SizeBytes:       info.SizeBytes,
@@ -135,6 +136,30 @@ func RunInfo(ctx context.Context, resolver app.ServiceResolver, args []string) e
 		fmt.Printf("declared_version: %s\n", info.DeclaredVersion)
 	}
 	return nil
+}
+
+// infoResponse is the JSON response structure for the info command.
+type infoResponse struct {
+	// Format is the document format domain (PDF or OFD).
+	Format doc.Format `json:"format"`
+	// Path is the file system path to the document.
+	Path string `json:"path"`
+	// SizeBytes is the file size in bytes.
+	SizeBytes int64 `json:"size_bytes"`
+	// DeclaredVersion is the format version declared in the document header.
+	DeclaredVersion string `json:"declared_version,omitempty"`
+	// PageCount is the number of pages in the document.
+	PageCount int `json:"page_count,omitempty"`
+	// FileIdentifiers is the list of file identifiers (PDF only).
+	FileIdentifiers []string `json:"file_identifiers,omitempty"`
+	// Title is the document title from metadata (PDF only).
+	Title string `json:"title,omitempty"`
+	// Author is the document author from metadata (PDF only).
+	Author string `json:"author,omitempty"`
+	// Creator is the document creator from metadata (PDF only).
+	Creator string `json:"creator,omitempty"`
+	// Producer is the document producer from metadata (PDF only).
+	Producer string `json:"producer,omitempty"`
 }
 
 func runInfoPage(input infoInput, resolver app.ServiceResolver) error {
