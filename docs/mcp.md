@@ -46,6 +46,8 @@ Preview never mutates files.
 
 ## Implemented Tools
 
+Current MCP implementation provides **read-only tools** (2 total). No write tools are implemented.
+
 ### pdf_first_page_info
 
 Extracts structured first page information from a PDF document.
@@ -121,6 +123,8 @@ Retrieves document-level metadata from a PDF or OFD document.
 
 **Supported formats:** PDF and OFD.
 
+**Note:** Both implemented tools are read-only. Write tools (preview/commit workflow) are not implemented in MCP.
+
 ## Compatibility Matrix
 
 ### `pdf_first_page_info` — testdata/pdf samples
@@ -145,10 +149,17 @@ When `pdf_first_page_info` is called on this file, it returns:
 
 This is expected behavior — the XRef table is damaged and the parser correctly reports the failure rather than returning incomplete data.
 
-## Planned But Not Yet Implemented
+## Not Yet Implemented
 
-- Official MCP protocol support (server lifecycle, discovery, capabilities)
-- Write tools (preview/commit workflow)
-- OFD text extraction
-- PDF validation and preview rendering
+### Protocol Layer
+- Official MCP protocol support (server lifecycle, discovery, capabilities negotiation)
+- MCP-compliant transport (currently JSON-over-stdin/stdout only, not official MCP spec)
+- Tool registration and capability advertisement
+
+### Tools
+- OFD text extraction tool (not exposed via MCP; available only in CLI)
+- PDF validation tool (validate exists in CLI but not exposed via MCP)
+- Text extraction tool for PDF or OFD (extract exists in CLI but not exposed via MCP)
+- Write tools (preview/commit workflow) — no write tools implemented in MCP
+- PDF preview rendering tool
 - Multi-document batch operations

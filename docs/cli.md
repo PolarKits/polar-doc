@@ -55,7 +55,12 @@ Current compatibility (testdata/pdf):
 | Red_Hat_OpenShift_Serverless...pdf | ✗ zlib: invalid header |
 | testPDF_Version.8.x.pdf | ✗ XRef: object not found |
 
-**OFD:** Not implemented. Returns exit code 1 with error message `text extraction is not implemented for OFD`.
+**OFD:** Text extraction is implemented. It traverses the Document.xml page list and extracts TextCode elements from each page's Content.xml. Scope and limitations:
+
+- Extracts text from TextCode elements in page content streams
+- Multi-page documents are supported; text from each page is joined with newlines
+- Text extraction is limited to TextCode elements only; other text objects or complex layouts are not processed
+- XML structure is not fully validated; malformed content may be skipped silently
 
 When `--json` is used, `extract` emits:
 

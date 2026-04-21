@@ -48,7 +48,8 @@ PolarDoc currently focuses on explicit PDF and OFD document capabilities in a Go
 ## Working Facts
 
 - `go test ./...` passes (as of 2026-04-21)
-- worktree clean, synchronized with origin/main
+- worktree has uncommitted changes: docs/cli.md (reviewed but not committed), docs/current-status.md (this file)
+- git status shows "main...origin/main [ahead 1]" due to stale local tracking ref; actual remote main HEAD is 095c3a4 (same as local HEAD)
 
 ## Stage 1-9 Completion Summary (2026-04-20 Evening)
 
@@ -79,7 +80,7 @@ PolarDoc currently focuses on explicit PDF and OFD document capabilities in a Go
 
 1. **PDF xref fixture generation**: BuildMinimalPDF helpers fail with xref offset issues. Next action: Debug buf.Len() tracking during PDF construction, or use external valid PDF fixtures from testdata/pdf/
 
-2. **OFD text extraction**: Declared Phase-2. Next action: Implement XML text path extraction from CT_PageBlock elements if Phase-2 scope is prioritized
+2. **OFD text extraction**: ~~Declared Phase-2~~ **DELIVERED** (TextCode extraction implemented). Remaining boundaries: text extraction limited to TextCode elements only; complex layouts and other text objects not processed
 
 3. **MCP official protocol**: Currently JSON-over-stdin/stdout only. Next action: Implement MCP server lifecycle and discovery if official MCP support is needed
 
@@ -88,7 +89,7 @@ PolarDoc currently focuses on explicit PDF and OFD document capabilities in a Go
 | Risk | Impact |解除条件 |
 |------|--------|----------|
 | PDF fixture generation with correct xref offsets | Tests cannot validate edge cases | Debug builder.Len() tracking, or use existing valid PDFs |
-| OFD text extraction complexity | Cannot extract text for search/analytics | Implement XML traversal across Pages/Content.xml files |
+| ~~OFD text extraction complexity~~ | ~~Cannot extract text for search/analytics~~ | ~~IMPLEMENTED~~ — TextCode extraction delivered; complex text objects remain future work |
 | MCP transport layer not implemented | MCP server unusable by official clients | Implement MCP protocol spec or document JSON-over-stdin limitation |
 | PDF incremental update writer pipeline | Cannot preserve incremental updates | Design writer pipeline architecture first |
 
