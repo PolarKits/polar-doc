@@ -64,17 +64,18 @@ PolarOffice should consume PolarDoc as an internal platform dependency, while Po
 
 This repository is in a phase-1 partial-delivery state rather than a documentation-only bootstrap.
 
-Implemented today:
+Implemented:
 
 - CLI command routing for `info`, `validate`, `extract`, and `cp`
-- PDF open, basic metadata inspection, first-page inspection, minimal validation, text extraction, and copy/save flow
-- OFD open, basic metadata inspection, page counting, and package validation
+- PDF open, metadata inspection, first-page inspection, minimal validation, text extraction, copy/save, and single-revision rewrite
+- OFD open, metadata inspection (version, page count), package validation, and full text extraction from page Content.xml
 - application-layer format resolution through `internal/app`
 - MCP read handlers in `internal/mcp` for `pdf_first_page_info` and `document_info`
+- `cmd/polardoc-mcp` runnable via JSON-over-stdin/stdout transport
 
 Not yet complete:
 
-- `cmd/polardoc-mcp` is still a placeholder entry point rather than a full runnable MCP server
-- PDF validation, extraction, and writing are still narrow and phase-1 scoped
-- OFD extraction, preview, and first-page inspection are not implemented
+- PDF validation is still shallow (header presence only; no xref/object integrity checks)
+- OFD preview and first-page inspection not implemented
+- `cmd/polardoc-mcp` does not yet implement official MCP transport protocol
 - `internal/render` and `internal/security` remain interface-oriented placeholders

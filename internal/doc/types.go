@@ -35,7 +35,7 @@ type DocumentRef struct {
 // Field population by format:
 //   - Format, Path, SizeBytes: populated for both PDF and OFD
 //   - DeclaredVersion: PDF reads %PDF-X.Y header; OFD reads Version attribute from OFD.xml root element
-//   - PageCount: PDF zero (Phase-2); OFD populated from Document.xml <Page> element count
+//   - PageCount: PDF populated from /Count in root /Pages dict; OFD from Document.xml <Page> count
 //   - FileIdentifiers: Phase-2 reserved; PDF populates from trailer /ID; OFD stub
 //   - Title, Author, Creator, Producer: PDF populates from InfoDict; OFD does not
 //
@@ -48,7 +48,7 @@ type InfoResult struct {
 	DeclaredVersion string
 
 	// PageCount holds the document page count.
-	// PDF: zero (page traversal not yet implemented). OFD: populated from Document.xml.
+	// PDF: populated from /Count in the root /Pages dictionary. OFD: populated from Document.xml.
 	PageCount int
 
 	// FileIdentifiers: PDF populates from trailer /ID array; OFD is unused (Phase-1 stub).

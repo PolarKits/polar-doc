@@ -604,6 +604,39 @@ func TestServiceInfoRealSampleVersionCompatV14(t *testing.T) {
 	if info.Producer == "" {
 		t.Fatal("producer is empty, expected fixture metadata")
 	}
+	if info.PageCount == 0 {
+		t.Fatal("page_count is 0, expected non-zero for real PDF")
+	}
+}
+
+func TestReadPageCount(t *testing.T) {
+	tests := []struct {
+		key           string
+		wantPageCount int
+	}{
+		{"core-multipage", 3},
+		{"standard-pdf20-utf8", 1},
+		{"version-compat-v1.4", 1},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.key, func(t *testing.T) {
+			path := requirePDFSample(t, tc.key)
+			f, err := os.Open(path)
+			if err != nil {
+				t.Fatalf("open file: %v", err)
+			}
+			defer f.Close()
+
+			count, err := ReadPageCount(f)
+			if err != nil {
+				t.Fatalf("ReadPageCount: %v", err)
+			}
+			if count != tc.wantPageCount {
+				t.Fatalf("page count = %d, want %d", count, tc.wantPageCount)
+			}
+		})
+	}
 }
 
 func TestServiceValidateValidPDF(t *testing.T) {

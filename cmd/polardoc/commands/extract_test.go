@@ -283,6 +283,54 @@ func TestRunExtractJSONMissingFile(t *testing.T) {
 	}
 }
 
+func TestRunExtractRealOFDHelloWorld(t *testing.T) {
+	path := requireOFDSample(t, "core-helloworld")
+	resolver := app.NewPhase1Resolver()
+	output := captureStdout(t, func() {
+		if err := RunExtract(context.Background(), resolver, []string{path}); err != nil {
+			t.Fatalf("RunExtract hello-world OFD: %v", err)
+		}
+	})
+
+	if output == "" {
+		t.Fatal("expected non-empty text output from hello-world OFD")
+	}
+}
+
+func TestRunExtractRealOFDKeywordSearch(t *testing.T) {
+	path := requireOFDSample(t, "feature-keyword-search")
+	resolver := app.NewPhase1Resolver()
+	output := captureStdout(t, func() {
+		if err := RunExtract(context.Background(), resolver, []string{path}); err != nil {
+			t.Fatalf("RunExtract keyword-search OFD: %v", err)
+		}
+	})
+
+	if output == "" {
+		t.Fatal("expected non-empty text output from keyword-search OFD")
+	}
+}
+
+func TestRunExtractRealOFDJSONSuccess(t *testing.T) {
+	path := requireOFDSample(t, "core-helloworld")
+	resolver := app.NewPhase1Resolver()
+	output := captureStdout(t, func() {
+		if err := RunExtract(context.Background(), resolver, []string{"--json", path}); err != nil {
+			t.Fatalf("RunExtract --json OFD: %v", err)
+		}
+	})
+
+	var got struct {
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal([]byte(output), &got); err != nil {
+		t.Fatalf("unmarshal JSON output %q: %v", output, err)
+	}
+	if got.Text == "" {
+		t.Fatal("expected non-empty text in JSON output")
+	}
+}
+
 func containsString(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstring(s, substr))
 }

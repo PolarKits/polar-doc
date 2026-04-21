@@ -178,7 +178,7 @@ func TestRunInfoJSONPDFWithMetadata(t *testing.T) {
 		t.Fatalf("declared_version = %q, want %q", got.DeclaredVersion, "1.4")
 	}
 	if got.PageCount != 0 {
-		t.Fatalf("page_count = %d, want 0 (not implemented for PDF)", got.PageCount)
+		t.Fatalf("page_count = %d, want 0 (fixture has /Count 0 in Pages dict)", got.PageCount)
 	}
 	if len(got.FileIdentifiers) != 2 {
 		t.Fatalf("file_identifiers length = %d, want 2", len(got.FileIdentifiers))
@@ -421,5 +421,37 @@ func TestRunInfoJSONPDFRealSample(t *testing.T) {
 	}
 	if got.Producer == "" {
 		t.Fatal("producer is empty, expected fixture metadata")
+	}
+}
+
+func TestRunInfoPDFPageCountRealSample(t *testing.T) {
+	tests := []struct {
+		key           string
+		wantPageCount int
+	}{
+		{"core-multipage", 3},
+		{"standard-pdf20-utf8", 1},
+		{"version-compat-v1.4", 1},
+	}
+
+	resolver := app.NewPhase1Resolver()
+	for _, tc := range tests {
+		t.Run(tc.key, func(t *testing.T) {
+			path := requirePDFSample(t, tc.key)
+			output := captureStdout(t, func() {
+				if err := RunInfo(context.Background(), resolver, []string{"--json", path}); err != nil {
+					t.Fatalf("RunInfo: %v", err)
+				}
+			})
+
+			var got struct {
+				PageCount int `json:"page_count"`
+			}
+			mustUnmarshalJSON(t, output, &got)
+
+			if got.PageCount != tc.wantPageCount {
+				t.Fatalf("page_count = %d, want %d", got.PageCount, tc.wantPageCount)
+			}
+		})
 	}
 }

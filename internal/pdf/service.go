@@ -117,6 +117,9 @@ func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error
 			info.Creator = creator
 			info.Producer = producer
 		}
+		if count, err := ReadPageCount(pdfDoc.file); err == nil {
+			info.PageCount = count
+		}
 	}
 
 	return info, nil
@@ -2104,4 +2107,46 @@ func parseRefString(refStr string) PDFRef {
 		return PDFRef{ObjNum: objNum, GenNum: genNum}
 	}
 	return PDFRef{}
+}
+
+// ReadPageCount returns the declared total page count from the PDF page tree root.
+// It reads the /Count entry from the root /Pages dictionary referenced by the Catalog.
+// Returns 0 and an error if the count cannot be determined.
+func ReadPageCount(f *os.File) (int, error) {
+	xrefOffset, err := readStartxref(f)
+	if err != nil {
+		return 0, fmt.Errorf("ReadPageCount: %w", err)
+	}
+
+	rootRefStr, err := readTrailerRootRef(f, xrefOffset)
+	if err != nil {
+		return 0, fmt.Errorf("ReadPageCount: %w", err)
+	}
+
+	catalogObj, err := readObject(f, rootRefStr)
+	if err != nil {
+		return 0, fmt.Errorf("ReadPageCount: %w", err)
+	}
+
+	pagesRefStr, err := readPagesRefFromCatalog(catalogObj)
+	if err != nil {
+		return 0, fmt.Errorf("ReadPageCount: %w", err)
+	}
+
+	pagesObj, err := readObject(f, pagesRefStr)
+	if err != nil {
+		return 0, fmt.Errorf("ReadPageCount: %w", err)
+	}
+
+	d, err := extractDictFromObject(pagesObj)
+	if err != nil {
+		return 0, fmt.Errorf("ReadPageCount: %w", err)
+	}
+
+	count, ok := DictGetInt(d, "Count")
+	if !ok {
+		return 0, fmt.Errorf("ReadPageCount: /Count not found in Pages dict")
+	}
+
+	return int(count), nil
 }
