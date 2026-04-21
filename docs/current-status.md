@@ -47,12 +47,8 @@ PolarDoc currently focuses on explicit PDF and OFD document capabilities in a Go
 
 ## Working Facts
 
-- `go test ./...` passes as of 2026-04-21
-- existing local modifications observed during inspection:
-  - `cmd/polardoc/commands/info_test.go`
-  - `internal/mcp/handler_test.go`
-  - `internal/pdf/service.go`
-  - `internal/pdf/service_test.go`
+- `go test ./...` passes (as of 2026-04-21)
+- worktree clean, synchronized with origin/main
 
 ## Stage 1-9 Completion Summary (2026-04-20 Evening)
 
