@@ -31,19 +31,23 @@ PolarDoc currently focuses on explicit PDF and OFD document capabilities in a Go
 - PDF write pipeline: `RewriteFile` — normalizes incremental PDFs to single-revision output
 - PDF metadata: `parsePDFName` delimiter fix enabling correct Info dict key parsing
 - PDF xref: Prev chain traversal for incremental/linearized PDFs
+- PDF page count: `ReadPageCount` reads /Count from root /Pages dict; now populated in `Info`
 - OFD text extraction: full implementation traversing Document.xml → page Content.xml → TextCode elements
+- OFD sample registry: `internal/testdata/ofd_samples.go` mirrors PDF fixture registry
+- CLI: real OFD extraction tests (hello-world, keyword-search, JSON output)
 
 ## Deferred
 
-- full MCP server runtime in `cmd/polardoc-mcp`
-- deep PDF validation and robust full-document extraction
+- full MCP server runtime in `cmd/polardoc-mcp` (currently JSON-over-stdin/stdout only)
+- deep PDF validation (header presence only; no xref/object integrity)
+- full-document PDF text extraction (currently first-page only)
 - OFD preview and first-page inspection
 - rendering implementations in `internal/render`
 - signing and trust implementations in `internal/security`
 
 ## Working Facts
 
-- `go test ./...` passes in the repository state inspected on 2026-04-20
+- `go test ./...` passes as of 2026-04-21
 - existing local modifications observed during inspection:
   - `cmd/polardoc/commands/info_test.go`
   - `internal/mcp/handler_test.go`
