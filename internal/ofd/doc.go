@@ -8,33 +8,38 @@
 // 《电子文件存储与交换格式 版式文档》.
 //
 // Compatibility target: reading OFD files conforming to GB/T 33190-2016.
-// Read-only compatibility is guaranteed for compliant OFD files.
+// The current implementation provides read-oriented partial coverage (see Phase-1
+// scope below). It does not guarantee full read-only compatibility for all
+// compliant OFD files.
 // Write-back / version upgrade is a future capability and is NOT yet implemented.
 //
 // # Phase-1 Implementation Scope
 //
-// Phase-1 coverage is intentionally minimal and structural only.
+// Implemented (phase-1):
+//   - Open: acquires ZIP archive handle, reads Version from OFD.xml Version attribute,
+//     parses DocRoot path, validates Document.xml entry presence
+//   - Info: provides DeclaredVersion (from OFD.xml), PageCount (from Document.xml Page elements),
+//     SizeBytes, Format
+//   - Validate: checks OFD.xml and Document.xml entry presence; validates DocRoot
+//     path resolves to an existing file in the package
+//   - ExtractText: traverses Document.xml page list and extracts TextCode elements
+//     from each page's Content.xml across all pages
 //
-// Covered (phase-1):
-//   - OFD package open (ZIP archive handle acquisition)
-//   - OFD.xml entry presence check (root document container)
-//   - Document.xml entry presence check (primary document entry)
-//
-// NOT covered (phase-1 or future):
-//   - OFD XML object model parsing (Doc_0/*.xml body elements)
-//   - Page structure, template pages, public/residents
-//   - Text, image, path, pen, brush content objects
-//   - ID and reference resolution across OFD XML entries
-//   - Signatures and security (GB/T 33190-2016 §9)
-//   - Digital signature verification
+// Not implemented in phase-1 (future work):
+//   - Complete OFD XML object model (Doc_0/*.xml body elements beyond page list and TextCode)
+//   - Resource mapping and resolution (Resources.xml)
+//   - Signature structure parsing and validation (Signatures.xml, Seal files)
 //   - Writer / package generation pipeline
 //   - OFD version upgrade (older OFD → newer OFD output)
+//   - Preview rendering and first page inspection
+//   - Complex layout, font handling, and content objects beyond TextCode
 //
 // # What This Package Does NOT Claim
 //
 // This package does NOT claim to implement GB/T 33190-2016 fully or faithfully.
-// The current phase-1 only opens the ZIP package and checks two entry names.
-// All content model, page description, and security features are not implemented.
+// The current phase-1 covers ZIP open, Version/DocRoot, page count, DocRoot integrity,
+// and TextCode extraction. Full schema validation, resource mapping, signatures,
+// and writing are not implemented.
 //
 // The comments in this package use "phase-1" and "not implemented" to clearly
 // mark the current boundary between intent and reality.
