@@ -17,19 +17,28 @@ const ToolNameDocumentInfo = "document_info"
 
 // FirstPageInfoInput is the payload for the pdf_first_page_info tool.
 type FirstPageInfoInput struct {
+	// Path is the file system path to the PDF document.
 	Path string `json:"path"`
 }
 
 // FirstPageInfoOutput is the result for the pdf_first_page_info tool.
 type FirstPageInfoOutput struct {
-	Path      string        `json:"path"`
-	PagesRef  doc.RefInfo   `json:"pages_ref"`
-	PageRef   doc.RefInfo   `json:"page_ref"`
-	Parent    doc.RefInfo   `json:"parent"`
-	MediaBox  []float64     `json:"media_box"`
-	Resources doc.RefInfo   `json:"resources"`
-	Contents  []doc.RefInfo `json:"contents"`
-	Rotate    *int64        `json:"rotate,omitempty"`
+	// Path is the file system path to the document.
+	Path string `json:"path"`
+	// PagesRef is the indirect reference to the root Pages object.
+	PagesRef doc.RefInfo `json:"pages_ref"`
+	// PageRef is the indirect reference to the first page object.
+	PageRef doc.RefInfo `json:"page_ref"`
+	// Parent is the indirect reference to the parent Pages object.
+	Parent doc.RefInfo `json:"parent"`
+	// MediaBox is the page media box rectangle [llx, lly, urx, ury].
+	MediaBox []float64 `json:"media_box"`
+	// Resources is the indirect reference to the resource dictionary.
+	Resources doc.RefInfo `json:"resources"`
+	// Contents is a slice of indirect references to content streams.
+	Contents []doc.RefInfo `json:"contents"`
+	// Rotate is the page rotation in degrees (0, 90, 180, 270). Nil if not specified.
+	Rotate *int64 `json:"rotate,omitempty"`
 }
 
 // FirstPageHandler handles the pdf_first_page_info MCP tool.
@@ -42,6 +51,8 @@ func NewFirstPageHandler(resolver app.ServiceResolver) *FirstPageHandler {
 	return &FirstPageHandler{resolver: resolver}
 }
 
+// Handle implements the ToolHandler interface for the pdf_first_page_info tool.
+// It extracts first page structure information from a PDF document.
 func (h *FirstPageHandler) Handle(ctx context.Context, tool string, payload []byte) ([]byte, error) {
 	if tool != ToolNameFirstPageInfo {
 		return nil, fmt.Errorf("unknown tool: %s", tool)
@@ -93,21 +104,32 @@ func (h *FirstPageHandler) Handle(ctx context.Context, tool string, payload []by
 
 // DocumentInfoInput is the payload for the document_info tool.
 type DocumentInfoInput struct {
+	// Path is the file system path to the document.
 	Path string `json:"path"`
 }
 
 // DocumentInfoOutput is the result for the document_info tool.
 type DocumentInfoOutput struct {
-	Format          doc.Format  `json:"format"`
-	Path            string      `json:"path"`
-	SizeBytes       int64       `json:"size_bytes"`
-	DeclaredVersion string      `json:"declared_version,omitempty"`
-	PageCount       int         `json:"page_count,omitempty"`
-	FileIdentifiers []string    `json:"file_identifiers,omitempty"`
-	Title           string     `json:"title,omitempty"`
-	Author          string     `json:"author,omitempty"`
-	Creator         string     `json:"creator,omitempty"`
-	Producer        string     `json:"producer,omitempty"`
+	// Format is the document format domain (PDF or OFD).
+	Format doc.Format `json:"format"`
+	// Path is the file system path to the document.
+	Path string `json:"path"`
+	// SizeBytes is the file size in bytes.
+	SizeBytes int64 `json:"size_bytes"`
+	// DeclaredVersion is the format version declared in the document header.
+	DeclaredVersion string `json:"declared_version,omitempty"`
+	// PageCount is the number of pages in the document.
+	PageCount int `json:"page_count,omitempty"`
+	// FileIdentifiers is the list of file identifiers (PDF only; OFD returns empty).
+	FileIdentifiers []string `json:"file_identifiers,omitempty"`
+	// Title is the document title from metadata (PDF only; OFD returns empty).
+	Title string `json:"title,omitempty"`
+	// Author is the document author from metadata (PDF only; OFD returns empty).
+	Author string `json:"author,omitempty"`
+	// Creator is the document creator from metadata (PDF only; OFD returns empty).
+	Creator string `json:"creator,omitempty"`
+	// Producer is the document producer from metadata (PDF only; OFD returns empty).
+	Producer string `json:"producer,omitempty"`
 }
 
 // DocumentInfoHandler handles the document_info MCP tool.
@@ -120,6 +142,8 @@ func NewDocumentInfoHandler(resolver app.ServiceResolver) *DocumentInfoHandler {
 	return &DocumentInfoHandler{resolver: resolver}
 }
 
+// Handle implements the ToolHandler interface for the document_info tool.
+// It extracts document-level metadata from PDF or OFD documents.
 func (h *DocumentInfoHandler) Handle(ctx context.Context, tool string, payload []byte) ([]byte, error) {
 	if tool != ToolNameDocumentInfo {
 		return nil, fmt.Errorf("unknown tool: %s", tool)
