@@ -198,7 +198,6 @@ func TestRunExtractRealPDFSuccess5x(t *testing.T) {
 }
 
 func TestRunExtractRealPDFErrorRedHat(t *testing.T) {
-	t.Skip("error message contains 'Object' (capital O) in 'parsePDFObject', but test expects lowercase 'object'/'encrypt'/'xref'; containsString is case-sensitive; Type A test expectation mismatch")
 	path := requirePDFSample(t, "feature-encrypted")
 	resolver := app.NewPhase1Resolver()
 	var runErr error
@@ -210,7 +209,9 @@ func TestRunExtractRealPDFErrorRedHat(t *testing.T) {
 		t.Fatal("run extract PDF: expected error for encrypted PDF, got nil")
 	}
 	errStr := runErr.Error()
-	if !containsString(errStr, "encrypt") && !containsString(errStr, "xref") && !containsString(errStr, "object") {
+	// encrypted PDFs surface 'Object' (capital O) in parsePDFObject errors or 'unexpected token'
+	// rather than the lowercase 'object'/'encrypt'/'xref' the original test anticipated
+	if !containsString(errStr, "encrypt") && !containsString(errStr, "xref") && !containsString(errStr, "object") && !containsString(errStr, "Object") && !containsString(errStr, "unexpected") {
 		t.Fatalf("error = %q, want contains encryption or parser failure details", errStr)
 	}
 }
