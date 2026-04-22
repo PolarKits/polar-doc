@@ -260,7 +260,14 @@ func (h *DocumentValidateHandler) Handle(ctx context.Context, tool string, paylo
 		return nil, fmt.Errorf("validate document: %w", err)
 	}
 
-	return json.Marshal(report)
+	// Map to DocumentValidateOutput so JSON keys match the API contract
+	// (doc.ValidationReport has no JSON tags, so direct marshal would
+	// produce uppercase keys like {"Valid":true,"Errors":null}).
+	output := DocumentValidateOutput{
+		Valid:  report.Valid,
+		Errors: report.Errors,
+	}
+	return json.Marshal(output)
 }
 
 func detectFormatByExtension(path string) (doc.Format, error) {

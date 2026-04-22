@@ -301,6 +301,31 @@ func TestDocumentValidateHandlerPDFSuccess(t *testing.T) {
 	}
 }
 
+func TestDocumentValidateHandlerJSONFieldNames(t *testing.T) {
+	path := requirePDFSample(t, "standard-pdf20-utf8")
+
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentValidateHandler(resolver)
+
+	input := DocumentValidateInput{Path: path}
+	payload, _ := json.Marshal(input)
+
+	result, err := handler.Handle(context.Background(), ToolNameDocumentValidate, payload)
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+
+	// Verify the raw JSON uses lowercase keys per the API contract.
+	// doc.ValidationReport has no JSON tags, so a direct marshal would
+	// emit {"Valid":...,"Errors":...}; we must ensure that does not happen.
+	if bytes.Contains(result, []byte("\"Valid\"")) {
+		t.Fatalf("JSON contains uppercase \"Valid\", want lowercase: %s", string(result))
+	}
+	if !bytes.Contains(result, []byte("\"valid\"")) {
+		t.Fatalf("JSON missing lowercase \"valid\": %s", string(result))
+	}
+}
+
 func TestDocumentValidateHandlerOFDSuccess(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.ofd")
