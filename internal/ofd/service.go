@@ -13,6 +13,17 @@ import (
 	"github.com/PolarKits/polardoc/internal/doc"
 )
 
+// maxZipEntries is the maximum number of files allowed inside an OFD ZIP package.
+const maxZipEntries = 10000
+
+// maxDecompressedSize is the maximum total uncompressed size allowed for all
+// entries in an OFD ZIP package (512 MiB) to mitigate ZIP bomb attacks.
+const maxDecompressedSize = 512 * 1024 * 1024 // 512 MiB
+
+// maxXMLReadSize is the maximum size allowed when reading individual XML files
+// from an OFD package (32 MiB) to prevent OOM.
+const maxXMLReadSize = 32 * 1024 * 1024 // 32 MiB
+
 // service implements Service with phase-1 OFD capabilities.
 type service struct{}
 
@@ -58,6 +69,13 @@ func (s *service) Open(_ context.Context, ref doc.DocumentRef) (doc.Document, er
 	zr, err := zip.OpenReader(ref.Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open OFD package: %w", err)
+	}
+
+	// Reject ZIP bombs by enforcing entry count and total uncompressed size limits.
+	if err := validateZipSafety(zr); err != nil {
+		// The validation error is the primary failure reason; close error can be ignored.
+		_ = zr.Close()
+		return nil, fmt.Errorf("OFD package safety check failed: %w", err)
 	}
 
 	return &document{
@@ -185,10 +203,9 @@ func extractOFDText(files []*zip.File) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("extractOFDText: open Document.xml: %w", err)
 	}
-	docData, err := io.ReadAll(rc)
-	rc.Close()
+	docData, err := readLimited(rc, maxXMLReadSize, "Document.xml")
 	if err != nil {
-		return "", fmt.Errorf("extractOFDText: read Document.xml: %w", err)
+		return "", fmt.Errorf("extractOFDText: %w", err)
 	}
 
 	// docRoot's directory is the base for relative page paths.
@@ -212,8 +229,7 @@ func extractOFDText(files []*zip.File) (string, error) {
 		if err != nil {
 			continue
 		}
-		pageData, err := io.ReadAll(cr)
-		cr.Close()
+		pageData, err := readLimited(cr, maxXMLReadSize, "Content.xml")
 		if err != nil {
 			continue
 		}
@@ -348,10 +364,9 @@ func getDocRoot(files []*zip.File) (string, error) {
 			if err != nil {
 				return "", fmt.Errorf("failed to open OFD.xml: %w", err)
 			}
-			data, err := io.ReadAll(rc)
-			rc.Close()
+			data, err := readLimited(rc, maxXMLReadSize, "OFD.xml")
 			if err != nil {
-				return "", fmt.Errorf("failed to read OFD.xml: %w", err)
+				return "", err
 			}
 
 			// Use streaming decoder to find DocRoot regardless of nesting depth.
@@ -393,10 +408,9 @@ func getVersion(files []*zip.File) (string, error) {
 			if err != nil {
 				return "", fmt.Errorf("failed to open OFD.xml: %w", err)
 			}
-			data, err := io.ReadAll(rc)
-			rc.Close()
+			data, err := readLimited(rc, maxXMLReadSize, "OFD.xml")
 			if err != nil {
-				return "", fmt.Errorf("failed to read OFD.xml: %w", err)
+				return "", err
 			}
 
 			// Use streaming decoder to handle both:
@@ -489,11 +503,9 @@ func getPageCount(files []*zip.File) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to open Document.xml: %w", err)
 	}
-	defer rc.Close()
-
-	data, err := io.ReadAll(rc)
+	data, err := readLimited(rc, maxXMLReadSize, "Document.xml")
 	if err != nil {
-		return 0, fmt.Errorf("failed to read Document.xml: %w", err)
+		return 0, err
 	}
 
 	decoder := xml.NewDecoder(bytes.NewReader(data))
@@ -516,4 +528,36 @@ func getPageCount(files []*zip.File) (int, error) {
 	}
 
 	return pageCount, nil
+}
+
+// validateZipSafety checks the ZIP file for potential decompression bombs.
+// It limits the number of entries and the total uncompressed size.
+func validateZipSafety(zr *zip.ReadCloser) error {
+	if len(zr.File) > maxZipEntries {
+		return fmt.Errorf("ZIP file contains %d entries, exceeding the maximum allowed %d", len(zr.File), maxZipEntries)
+	}
+
+	var totalUncompressed int64
+	for _, f := range zr.File {
+		totalUncompressed += int64(f.UncompressedSize64)
+		if totalUncompressed > maxDecompressedSize {
+			return fmt.Errorf("total uncompressed size exceeds maximum allowed %d bytes", maxDecompressedSize)
+		}
+	}
+	return nil
+}
+
+// readLimited reads all data from rc with a size limit to prevent OOM attacks.
+// It closes rc before returning. If the data reaches the limit, it returns an error
+// indicating the content was truncated.
+func readLimited(rc io.ReadCloser, limit int64, name string) ([]byte, error) {
+	defer rc.Close()
+	data, err := io.ReadAll(io.LimitReader(rc, limit))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %s: %w", name, err)
+	}
+	if int64(len(data)) >= limit {
+		return nil, fmt.Errorf("%s exceeds maximum allowed size (%d bytes) and was truncated", name, limit)
+	}
+	return data, nil
 }

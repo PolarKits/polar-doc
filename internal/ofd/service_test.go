@@ -4,10 +4,13 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/PolarKits/polardoc/internal/doc"
 	"github.com/PolarKits/polardoc/internal/pdf"
@@ -88,7 +91,7 @@ func TestServiceValidateInvalidOFD(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.ofd")
 	content := buildOFDPackage(t, map[string]string{
-		"OFD.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd><Version>1.0</Version><DocRoot>Doc_99/Document.xml</DocRoot></ofd>`,
+		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd><Version>1.0</Version><DocRoot>Doc_99/Document.xml</DocRoot></ofd>`,
 		"Doc_0/Document.xml": "<document/>",
 	})
 	if err := os.WriteFile(path, content, 0o644); err != nil {
@@ -491,3 +494,153 @@ func TestServiceInfoMalformedOfdXml(t *testing.T) {
 		t.Fatalf("declared version = %q, want empty (graceful degradation)", info.DeclaredVersion)
 	}
 }
+
+// TestValidateZipSafetyTooManyEntries verifies that validateZipSafety rejects
+// a ZIP archive whose entry count exceeds maxZipEntries.
+func TestValidateZipSafetyTooManyEntries(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "too_many.zip")
+
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create zip: %v", err)
+	}
+	zw := zip.NewWriter(f)
+	for i := 0; i <= maxZipEntries; i++ {
+		w, err := zw.Create(fmt.Sprintf("file%d.txt", i))
+		if err != nil {
+			t.Fatalf("create entry: %v", err)
+		}
+		if _, err := w.Write([]byte("x")); err != nil {
+			t.Fatalf("write entry: %v", err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("close zip: %v", err)
+	}
+	f.Close()
+
+	zr, err := zip.OpenReader(path)
+	if err != nil {
+		t.Fatalf("open zip: %v", err)
+	}
+	defer zr.Close()
+
+	if err := validateZipSafety(zr); err == nil {
+		t.Fatal("validateZipSafety: expected error for too many entries, got nil")
+	}
+}
+
+// TestValidateZipSafetyTooLarge verifies that validateZipSafety rejects a ZIP
+// archive whose total uncompressed size exceeds maxDecompressedSize.
+func TestValidateZipSafetyTooLarge(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "too_large.zip")
+
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create zip: %v", err)
+	}
+	zw := zip.NewWriter(f)
+
+	// Create a fake entry with huge UncompressedSize64 to simulate a ZIP bomb
+	// without writing actual gigabytes of data.
+	header := &zip.FileHeader{
+		Name:   "large.txt",
+		Method: zip.Store,
+	}
+	header.SetModTime(time.Now())
+	header.UncompressedSize64 = maxDecompressedSize + 1
+	w, err := zw.CreateRaw(header)
+	if err != nil {
+		t.Fatalf("CreateRaw: %v", err)
+	}
+	if _, err := w.Write([]byte("")); err != nil {
+		t.Fatalf("write raw: %v", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("close zip: %v", err)
+	}
+	f.Close()
+
+	zr, err := zip.OpenReader(path)
+	if err != nil {
+		t.Fatalf("open zip: %v", err)
+	}
+	defer zr.Close()
+
+	if err := validateZipSafety(zr); err == nil {
+		t.Fatal("validateZipSafety: expected error for oversized uncompressed data, got nil")
+	}
+}
+
+// TestValidateZipSafetyOK verifies that validateZipSafety accepts a normal
+// ZIP archive with a small number of entries and modest uncompressed size.
+func TestValidateZipSafetyOK(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ok.zip")
+
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create zip: %v", err)
+	}
+	zw := zip.NewWriter(f)
+	w, err := zw.Create("OFD.xml")
+	if err != nil {
+		t.Fatalf("create entry: %v", err)
+	}
+	if _, err := w.Write([]byte("<ofd/>")); err != nil {
+		t.Fatalf("write entry: %v", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("close zip: %v", err)
+	}
+	f.Close()
+
+	zr, err := zip.OpenReader(path)
+	if err != nil {
+		t.Fatalf("open zip: %v", err)
+	}
+	defer zr.Close()
+
+	if err := validateZipSafety(zr); err != nil {
+		t.Fatalf("validateZipSafety: unexpected error: %v", err)
+	}
+}
+
+// TestReadLimitedTruncation verifies that readLimited returns an error when
+// the input stream exceeds the configured size limit.
+func TestReadLimitedTruncation(t *testing.T) {
+	// Create a reader that yields more than maxXMLReadSize bytes.
+	largeData := make([]byte, maxXMLReadSize+1)
+	rc := &nopCloser{Reader: bytes.NewReader(largeData)}
+
+	_, err := readLimited(rc, maxXMLReadSize, "test.xml")
+	if err == nil {
+		t.Fatal("readLimited: expected error for truncated data, got nil")
+	}
+	if !strings.Contains(err.Error(), "truncated") {
+		t.Fatalf("error = %q, want contains %q", err.Error(), "truncated")
+	}
+}
+
+// TestReadLimitedOK verifies that readLimited returns the full data without
+// error when the input stream is smaller than the configured size limit.
+func TestReadLimitedOK(t *testing.T) {
+	data := []byte("<ofd/>")
+	rc := &nopCloser{Reader: bytes.NewReader(data)}
+
+	result, err := readLimited(rc, maxXMLReadSize, "test.xml")
+	if err != nil {
+		t.Fatalf("readLimited: unexpected error: %v", err)
+	}
+	if !bytes.Equal(result, data) {
+		t.Fatalf("result = %q, want %q", result, data)
+	}
+}
+
+type nopCloser struct {
+	io.Reader
+}
+
+func (n *nopCloser) Close() error { return nil }
