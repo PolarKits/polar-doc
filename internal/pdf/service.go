@@ -64,6 +64,7 @@ type document struct {
 	file            *os.File
 	sizeBytes       int64
 	declaredVersion string
+	xrefIdx         xrefIndex // unified xref index (lazy-loaded on first access)
 }
 
 // NewService returns the PDF service used by phase-1 CLI flows.
@@ -84,6 +85,24 @@ func (d *document) Close() error {
 
 func (d *document) getFile() *os.File {
 	return d.file
+}
+
+// getXRefIndex returns the unified xref index for this document.
+// The index is lazily loaded on first access and cached for subsequent calls.
+func (d *document) getXRefIndex() (xrefIndex, error) {
+	if d.xrefIdx != nil {
+		return d.xrefIdx, nil
+	}
+	xrefOffset, err := readStartxref(d.file)
+	if err != nil {
+		return nil, err
+	}
+	idx, err := buildXRefIndex(d.file, xrefOffset)
+	if err != nil {
+		return nil, err
+	}
+	d.xrefIdx = idx
+	return idx, nil
 }
 
 func (s *service) Open(_ context.Context, ref doc.DocumentRef) (doc.Document, error) {
@@ -1179,18 +1198,57 @@ func readTrailerDict(rd *bufio.Reader) (string, error) {
 	return dict.String(), nil
 }
 
+// readObject reads a PDF object using the unified xref index.
+// For backward compatibility, if the object is not found in the index,
+// it falls back to the legacy findObjectOffsetInXref method.
 func readObject(f *os.File, ref string) (string, error) {
 	parts := strings.Fields(ref)
 	if len(parts) < 3 || parts[2] != "R" {
 		return "", fmt.Errorf("invalid object ref %q", ref)
 	}
-	objNum := parts[0]
+	objNumStr := parts[0]
 	genNum := parts[1]
+	objNum, _ := strconv.ParseInt(objNumStr, 10, 64)
 
+	// Build xref index for this file (cached if called multiple times)
 	xrefOffset, err := readStartxref(f)
 	if err != nil {
 		return "", fmt.Errorf("readStartxref for object lookup: %w", err)
 	}
+	idx, err := buildXRefIndex(f, xrefOffset)
+	if err != nil {
+		// Fallback to legacy method if index build fails
+		return readObjectLegacy(f, ref, xrefOffset)
+	}
+
+	// Resolve object from index
+	objData, err := resolveObject(f, idx, objNum)
+	if err != nil {
+		// Fallback to legacy method
+		return readObjectLegacy(f, ref, xrefOffset)
+	}
+
+	// Validate that the object header matches expected
+	objStr := string(objData)
+	lines := strings.Split(objStr, "\n")
+	if len(lines) > 0 {
+		expectedPrefix := objNumStr + " " + genNum + " obj"
+		headerLineTrimmed := strings.TrimRight(lines[0], "\r\n")
+		if !strings.HasPrefix(headerLineTrimmed, expectedPrefix) {
+			// The resolved object might not have the header (e.g., from ObjStm)
+			// Wrap it with the proper header
+			return expectedPrefix + "\n<<" + objStr + ">>\nendobj\n", nil
+		}
+	}
+
+	return objStr, nil
+}
+
+// readObjectLegacy uses the legacy xref lookup method for backward compatibility.
+func readObjectLegacy(f *os.File, ref string, xrefOffset int64) (string, error) {
+	parts := strings.Fields(ref)
+	objNum := parts[0]
+	genNum := parts[1]
 
 	objOffset, err := findObjectOffsetInXref(f, xrefOffset, objNum)
 	if err != nil {
