@@ -908,6 +908,56 @@ func decodePDFString(raw string) string {
 	return ""
 }
 
+// derefStringValue resolves an indirect object reference to its string content.
+// If the object is a PDFRef, it reads the referenced object and extracts the
+// PDF string or name literal from it. If the object is already a direct
+// PDFLiteralString or PDFHexString, it is decoded and returned unchanged.
+func derefStringValue(f *os.File, obj PDFObject) string {
+	ref, ok := obj.(PDFRef)
+	if !ok {
+		if ls, ok := obj.(PDFLiteralString); ok {
+			return decodePDFString(string(ls))
+		}
+		if hs, ok := obj.(PDFHexString); ok {
+			return decodeHexString(string(hs))
+		}
+		return ""
+	}
+
+	refStr := RefToString(ref)
+	objStr, err := readObject(f, refStr)
+	if err != nil {
+		return ""
+	}
+
+	return extractStringFromObjContent(objStr)
+}
+
+// extractStringFromObjContent extracts a PDF string or name from raw object content.
+// The object content format is "N G obj\n<content>\nendobj".
+// It handles literal strings (...), hex strings <...>, and name literals /Name.
+func extractStringFromObjContent(objStr string) string {
+	lines := strings.Split(objStr, "\n")
+	if len(lines) < 2 {
+		return ""
+	}
+	content := strings.TrimSpace(lines[1])
+	if len(content) == 0 {
+		return ""
+	}
+
+	if len(content) >= 2 && content[0] == '(' && content[len(content)-1] == ')' {
+		return decodePDFString(content[1 : len(content)-1])
+	}
+	if len(content) >= 2 && content[0] == '<' && content[len(content)-1] == '>' {
+		return decodeHexString(content[1 : len(content)-1])
+	}
+	if len(content) >= 1 && content[0] == '/' {
+		return content[1:]
+	}
+	return ""
+}
+
 func readInfoMetadata(f *os.File, xrefOffset int64) (title, author, creator, producer string) {
 	infoRef, err := readTrailerInfoRef(f, xrefOffset)
 	if err != nil || infoRef == "" {
@@ -925,35 +975,19 @@ func readInfoMetadata(f *os.File, xrefOffset int64) (title, author, creator, pro
 	}
 
 	if obj := DictGet(infoDict, "Title"); obj != nil {
-		if ls, ok := obj.(PDFLiteralString); ok {
-			title = decodePDFString(string(ls))
-		} else if hs, ok := obj.(PDFHexString); ok {
-			title = decodeHexString(string(hs))
-		}
+		title = derefStringValue(f, obj)
 	}
 
 	if obj := DictGet(infoDict, "Author"); obj != nil {
-		if ls, ok := obj.(PDFLiteralString); ok {
-			author = decodePDFString(string(ls))
-		} else if hs, ok := obj.(PDFHexString); ok {
-			author = decodeHexString(string(hs))
-		}
+		author = derefStringValue(f, obj)
 	}
 
 	if obj := DictGet(infoDict, "Creator"); obj != nil {
-		if ls, ok := obj.(PDFLiteralString); ok {
-			creator = decodePDFString(string(ls))
-		} else if hs, ok := obj.(PDFHexString); ok {
-			creator = decodeHexString(string(hs))
-		}
+		creator = derefStringValue(f, obj)
 	}
 
 	if obj := DictGet(infoDict, "Producer"); obj != nil {
-		if ls, ok := obj.(PDFLiteralString); ok {
-			producer = decodePDFString(string(ls))
-		} else if hs, ok := obj.(PDFHexString); ok {
-			producer = decodeHexString(string(hs))
-		}
+		producer = derefStringValue(f, obj)
 	}
 
 	return title, author, creator, producer

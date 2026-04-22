@@ -381,7 +381,6 @@ func TestRunInfoPageOFDUnsupported(t *testing.T) {
 }
 
 func TestRunInfoJSONPDFRealSample(t *testing.T) {
-	t.Skip("fixture core-multipage stores Info dict fields as indirect references (Title 34 0 R); parser returns unresolved ref instead of dereferenced string")
 	path := requirePDFSample(t, "core-multipage")
 	resolver := app.NewPhase1Resolver()
 	output := captureStdout(t, func() {
