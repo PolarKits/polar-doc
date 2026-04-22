@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	"github.com/PolarKits/polardoc/internal/app"
 	"github.com/PolarKits/polardoc/internal/doc"
@@ -65,6 +67,11 @@ func (h *FirstPageHandler) Handle(ctx context.Context, tool string, payload []by
 
 	if input.Path == "" {
 		return nil, fmt.Errorf("path is required")
+	}
+
+	// Reject path traversal attempts before accessing the file system.
+	if err := validateInputPath(input.Path); err != nil {
+		return nil, err
 	}
 
 	format, err := detectFormatByExtension(input.Path)
@@ -161,6 +168,11 @@ func (h *DocumentInfoHandler) Handle(ctx context.Context, tool string, payload [
 		return nil, fmt.Errorf("path is required")
 	}
 
+	// Reject path traversal attempts before accessing the file system.
+	if err := validateInputPath(input.Path); err != nil {
+		return nil, err
+	}
+
 	format, err := detectFormatByExtension(input.Path)
 	if err != nil {
 		return nil, err
@@ -239,6 +251,11 @@ func (h *DocumentValidateHandler) Handle(ctx context.Context, tool string, paylo
 		return nil, fmt.Errorf("path is required")
 	}
 
+	// Reject path traversal attempts before accessing the file system.
+	if err := validateInputPath(input.Path); err != nil {
+		return nil, err
+	}
+
 	format, err := detectFormatByExtension(input.Path)
 	if err != nil {
 		return nil, err
@@ -272,4 +289,20 @@ func (h *DocumentValidateHandler) Handle(ctx context.Context, tool string, paylo
 
 func detectFormatByExtension(path string) (doc.Format, error) {
 	return doc.DetectFormatByExtension(path)
+}
+
+// validateInputPath rejects paths that contain directory traversal components
+// (e.g. "..") which could escape the intended file system boundary.
+// It uses filepath.Clean to normalize the path, then checks each component.
+func validateInputPath(path string) error {
+	clean := filepath.Clean(path)
+	// filepath.Clean resolves ".." segments that can be eliminated (e.g.
+	// "/foo/bar/../baz" → "/foo/baz"), but paths that truly escape upward
+	// (e.g. "../../etc/passwd") still contain ".." components after cleaning.
+	for _, part := range strings.Split(filepath.ToSlash(clean), "/") {
+		if part == ".." {
+			return fmt.Errorf("invalid path: traversal not allowed")
+		}
+	}
+	return nil
 }

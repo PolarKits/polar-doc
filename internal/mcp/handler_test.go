@@ -394,6 +394,45 @@ func TestDocumentValidateHandlerUnknownTool(t *testing.T) {
 	}
 }
 
+// TestValidateInputPathRejectsTraversal verifies that a path containing ".."
+// traversal components is rejected by the MCP handlers before any file access.
+func TestValidateInputPathRejectsTraversal(t *testing.T) {
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentValidateHandler(resolver)
+
+	input := DocumentValidateInput{Path: "../../etc/passwd.pdf"}
+	payload, _ := json.Marshal(input)
+
+	_, err := handler.Handle(context.Background(), ToolNameDocumentValidate, payload)
+	if err == nil {
+		t.Fatal("expected error for path traversal, got nil")
+	}
+	if !strings.Contains(err.Error(), "traversal") {
+		t.Fatalf("error = %q, want contains %q", err.Error(), "traversal")
+	}
+}
+
+// TestValidateInputPathAcceptsNormalPaths verifies that benign paths without
+// traversal components are accepted by validateInputPath.
+func TestValidateInputPathAcceptsNormalPaths(t *testing.T) {
+	tests := []struct {
+		path string
+	}{
+		{"/home/user/doc.pdf"},
+		{"./doc.pdf"},
+		{"/foo/bar/../baz.pdf"}, // Clean resolves this to /foo/baz, so it is safe
+		{"testdata/sample.ofd"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.path, func(t *testing.T) {
+			if err := validateInputPath(tc.path); err != nil {
+				t.Fatalf("validateInputPath(%q): unexpected error: %v", tc.path, err)
+			}
+		})
+	}
+}
+
 func TestDetectFormatByExtensionUppercase(t *testing.T) {
 	tests := []struct {
 		path    string
