@@ -8,7 +8,6 @@ coverage.out
 .tmux-agents/
 
 # AI context files
-CLAUDE.md
 TASKRESULT.md
 opencode.json
 
