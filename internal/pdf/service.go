@@ -45,6 +45,18 @@ type FirstPageInfo struct {
 	Rotate *int64
 }
 
+const (
+	// maxPageTreeDepth limits recursion when traversing the PDF Pages tree
+	// to prevent stack overflow from maliciously deep or cyclic trees.
+	maxPageTreeDepth = 64
+	// maxAncestorLookupDepth limits recursion when looking up inherited
+	// page attributes (MediaBox, Resources, Rotate) through ancestor Pages.
+	maxAncestorLookupDepth = 64
+	// maxStreamLength caps the size of a single content stream buffer to
+	// prevent OOM when a PDF declares an abnormally large /Length.
+	maxStreamLength = 64 * 1024 * 1024 // 64 MiB
+)
+
 type service struct{}
 
 type document struct {
@@ -326,6 +338,11 @@ func readContentStream(f *os.File, ref PDFRef) ([]byte, error) {
 
 	streamBuf := make([]byte, 0, 4096)
 	if length > 0 {
+		// Guard against malicious or corrupt /Length values that would
+		// cause an unbounded allocation and potential OOM.
+		if length > maxStreamLength {
+			return nil, fmt.Errorf("stream length %d exceeds maximum %d bytes", length, maxStreamLength)
+		}
 		streamBuf = make([]byte, length)
 		n, err := io.ReadFull(rd, streamBuf)
 		if err != nil && err != io.ErrUnexpectedEOF {
@@ -1299,7 +1316,22 @@ func readPageFromKids(f *os.File, kidRef string) (string, error) {
 	return objStr, nil
 }
 
+// readFirstPageFromPages traverses the PDF Pages tree to locate the first
+// leaf /Type /Page object. It is a thin wrapper around readFirstPageFromPagesDepth
+// that preserves the public signature while enforcing a recursion depth limit.
 func readFirstPageFromPages(f *os.File, pagesRef string) (string, error) {
+	return readFirstPageFromPagesDepth(f, pagesRef, 0)
+}
+
+// readFirstPageFromPagesDepth is the internal recursive implementation of
+// readFirstPageFromPages. depth tracks how many levels of the Pages tree have
+// already been visited; if it exceeds maxPageTreeDepth the function returns an
+// error to prevent stack overflow from maliciously deep trees.
+func readFirstPageFromPagesDepth(f *os.File, pagesRef string, depth int) (string, error) {
+	if depth > maxPageTreeDepth {
+		return "", fmt.Errorf("readFirstPageFromPages: pages tree depth exceeds maximum %d", maxPageTreeDepth)
+	}
+
 	pagesObj, err := readObject(f, pagesRef)
 	if err != nil {
 		return "", fmt.Errorf("readFirstPageFromPages: %w", err)
@@ -1347,7 +1379,7 @@ func readFirstPageFromPages(f *os.File, pagesRef string) (string, error) {
 		}
 
 		if kidType == "Pages" {
-			page, err := readFirstPageFromPages(f, refStr)
+			page, err := readFirstPageFromPagesDepth(f, refStr, depth+1)
 			if err == nil {
 				return page, nil
 			}
@@ -1947,7 +1979,25 @@ func readFirstPageInfoFromPagesObj(f *os.File, pagesObjStr string, pagesRefVal P
 	return nil, fmt.Errorf("no /Type /Page found in pages tree under %s", RefToString(pagesRefVal))
 }
 
+// lookupMediaBoxFromAncestors searches upward through the page tree for an
+// inherited /MediaBox entry. It is a wrapper that enforces both a recursion
+// depth limit and cycle detection via a visited map.
 func lookupMediaBoxFromAncestors(pageRefStr string, f *os.File) (PDFArray, error) {
+	return lookupMediaBoxFromAncestorsDepth(pageRefStr, f, 0, map[string]struct{}{})
+}
+
+// lookupMediaBoxFromAncestorsDepth is the internal recursive implementation.
+// depth tracks recursion depth against maxAncestorLookupDepth; visited
+// records page references already seen to detect cyclic /Parent chains.
+func lookupMediaBoxFromAncestorsDepth(pageRefStr string, f *os.File, depth int, visited map[string]struct{}) (PDFArray, error) {
+	if depth > maxAncestorLookupDepth {
+		return nil, fmt.Errorf("lookupMediaBoxFromAncestors: ancestor lookup depth exceeds maximum %d", maxAncestorLookupDepth)
+	}
+	if _, seen := visited[pageRefStr]; seen {
+		return nil, fmt.Errorf("lookupMediaBoxFromAncestors: cyclic /Parent reference detected at %s", pageRefStr)
+	}
+	visited[pageRefStr] = struct{}{}
+
 	objStr, err := readObject(f, pageRefStr)
 	if err != nil {
 		return nil, fmt.Errorf("lookupMediaBoxFromAncestors: %w", err)
@@ -1971,7 +2021,7 @@ func lookupMediaBoxFromAncestors(pageRefStr string, f *os.File) (PDFArray, error
 		if !ok {
 			return nil, fmt.Errorf("lookupMediaBoxFromAncestors: /MediaBox not found and no /Parent in Page")
 		}
-		return lookupMediaBoxFromAncestors(RefToString(parent), f)
+		return lookupMediaBoxFromAncestorsDepth(RefToString(parent), f, depth+1, visited)
 	}
 
 	if typ == "Pages" {
@@ -1982,13 +2032,31 @@ func lookupMediaBoxFromAncestors(pageRefStr string, f *os.File) (PDFArray, error
 		if !ok {
 			return nil, fmt.Errorf("lookupMediaBoxFromAncestors: /MediaBox not found and no /Parent in Pages")
 		}
-		return lookupMediaBoxFromAncestors(RefToString(parent), f)
+		return lookupMediaBoxFromAncestorsDepth(RefToString(parent), f, depth+1, visited)
 	}
 
 	return nil, fmt.Errorf("lookupMediaBoxFromAncestors: object is /Type /%s, expected /Page or /Pages", typ)
 }
 
+// lookupResourcesFromAncestors searches upward through the page tree for an
+// inherited /Resources entry. It is a wrapper that enforces both a recursion
+// depth limit and cycle detection via a visited map.
 func lookupResourcesFromAncestors(pageRefStr string, f *os.File) (PDFRef, error) {
+	return lookupResourcesFromAncestorsDepth(pageRefStr, f, 0, map[string]struct{}{})
+}
+
+// lookupResourcesFromAncestorsDepth is the internal recursive implementation.
+// depth tracks recursion depth against maxAncestorLookupDepth; visited
+// records page references already seen to detect cyclic /Parent chains.
+func lookupResourcesFromAncestorsDepth(pageRefStr string, f *os.File, depth int, visited map[string]struct{}) (PDFRef, error) {
+	if depth > maxAncestorLookupDepth {
+		return PDFRef{}, fmt.Errorf("lookupResourcesFromAncestors: ancestor lookup depth exceeds maximum %d", maxAncestorLookupDepth)
+	}
+	if _, seen := visited[pageRefStr]; seen {
+		return PDFRef{}, fmt.Errorf("lookupResourcesFromAncestors: cyclic /Parent reference detected at %s", pageRefStr)
+	}
+	visited[pageRefStr] = struct{}{}
+
 	objStr, err := readObject(f, pageRefStr)
 	if err != nil {
 		return PDFRef{}, fmt.Errorf("lookupResourcesFromAncestors: %w", err)
@@ -2015,7 +2083,7 @@ func lookupResourcesFromAncestors(pageRefStr string, f *os.File) (PDFRef, error)
 		if !ok {
 			return PDFRef{}, fmt.Errorf("lookupResourcesFromAncestors: /Resources not found and no /Parent in Page")
 		}
-		return lookupResourcesFromAncestors(RefToString(parent), f)
+		return lookupResourcesFromAncestorsDepth(RefToString(parent), f, depth+1, visited)
 	}
 
 	if typ == "Pages" {
@@ -2029,13 +2097,31 @@ func lookupResourcesFromAncestors(pageRefStr string, f *os.File) (PDFRef, error)
 		if !ok {
 			return PDFRef{}, fmt.Errorf("lookupResourcesFromAncestors: /Resources not found and no /Parent in Pages")
 		}
-		return lookupResourcesFromAncestors(RefToString(parent), f)
+		return lookupResourcesFromAncestorsDepth(RefToString(parent), f, depth+1, visited)
 	}
 
 	return PDFRef{}, fmt.Errorf("lookupResourcesFromAncestors: object is /Type /%s, expected /Page or /Pages", typ)
 }
 
+// lookupRotateFromAncestors searches upward through the page tree for an
+// inherited /Rotate entry. It is a wrapper that enforces both a recursion
+// depth limit and cycle detection via a visited map.
 func lookupRotateFromAncestors(pageRefStr string, f *os.File) (*int64, error) {
+	return lookupRotateFromAncestorsDepth(pageRefStr, f, 0, map[string]struct{}{})
+}
+
+// lookupRotateFromAncestorsDepth is the internal recursive implementation.
+// depth tracks recursion depth against maxAncestorLookupDepth; visited
+// records page references already seen to detect cyclic /Parent chains.
+func lookupRotateFromAncestorsDepth(pageRefStr string, f *os.File, depth int, visited map[string]struct{}) (*int64, error) {
+	if depth > maxAncestorLookupDepth {
+		return nil, fmt.Errorf("lookupRotateFromAncestors: ancestor lookup depth exceeds maximum %d", maxAncestorLookupDepth)
+	}
+	if _, seen := visited[pageRefStr]; seen {
+		return nil, fmt.Errorf("lookupRotateFromAncestors: cyclic /Parent reference detected at %s", pageRefStr)
+	}
+	visited[pageRefStr] = struct{}{}
+
 	objStr, err := readObject(f, pageRefStr)
 	if err != nil {
 		return nil, fmt.Errorf("lookupRotateFromAncestors: %w", err)
@@ -2064,7 +2150,7 @@ func lookupRotateFromAncestors(pageRefStr string, f *os.File) (*int64, error) {
 		if !ok {
 			return nil, nil
 		}
-		return lookupRotateFromAncestors(RefToString(parent), f)
+		return lookupRotateFromAncestorsDepth(RefToString(parent), f, depth+1, visited)
 	}
 
 	if typ == "Pages" {
@@ -2080,7 +2166,7 @@ func lookupRotateFromAncestors(pageRefStr string, f *os.File) (*int64, error) {
 		if !ok {
 			return nil, nil
 		}
-		return lookupRotateFromAncestors(RefToString(parent), f)
+		return lookupRotateFromAncestorsDepth(RefToString(parent), f, depth+1, visited)
 	}
 
 	return nil, fmt.Errorf("lookupRotateFromAncestors: object is /Type /%s, expected /Page or /Pages", typ)
