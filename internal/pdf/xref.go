@@ -592,10 +592,10 @@ func resolveFromObjStm(f *os.File, idx xrefIndex, objStmNum int64, indexInStm in
 	if streamIdx < 0 {
 		return nil, fmt.Errorf("object stream %d: stream marker not found", objStmNum)
 	}
-	dataStart := streamIdx + 8
-	if stmStr[dataStart] == '\n' {
+	dataStart := streamIdx + 9
+	if dataStart < len(stmStr) && stmStr[dataStart] == '\n' {
 		dataStart++
-	} else if stmStr[dataStart] == '\r' {
+	} else if dataStart < len(stmStr) && stmStr[dataStart] == '\r' {
 		dataStart++
 		if dataStart < len(stmStr) && stmStr[dataStart] == '\n' {
 			dataStart++
