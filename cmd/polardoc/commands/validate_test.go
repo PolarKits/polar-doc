@@ -11,6 +11,32 @@ import (
 	"github.com/PolarKits/polardoc/internal/app"
 )
 
+// TestRunValidateInvalidPDF verifies that a corrupted PDF file returns
+// valid:false and a specific error message about the PDF being invalid.
+func TestRunValidateInvalidPDF(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "corrupted.pdf")
+	// Write a file that has no valid PDF header - just random bytes.
+	// The PDF service validates by checking for "%PDF-" header, so this
+	// should fail validation since it's not a valid PDF file.
+	if err := os.WriteFile(path, []byte("not a pdf file at all"), 0o644); err != nil {
+		t.Fatalf("write corrupted PDF: %v", err)
+	}
+
+	resolver := app.NewPhase1Resolver()
+	var runErr error
+	output := captureStdout(t, func() {
+		runErr = RunValidate(context.Background(), resolver, []string{path})
+	})
+
+	// The validation should fail with an error about invalid PDF structure
+	if runErr == nil {
+		t.Fatal("run validate corrupted PDF: expected error, got nil")
+	}
+	mustContain(t, output, "valid: false")
+	mustContain(t, output, "error:")
+}
+
 func TestRunValidatePDF(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")

@@ -16,6 +16,35 @@ import (
 	"github.com/PolarKits/polardoc/internal/pdf"
 )
 
+// TestServiceFirstPageInfoUnsupported verifies that FirstPageInfo returns
+// an error for OFD format since this operation is not implemented for OFD.
+func TestServiceFirstPageInfoUnsupported(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd><Version>1.0</Version><DocRoot>Doc_0/Document.xml</DocRoot></ofd>`,
+		"Doc_0/Document.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd:Document xmlns:ofd="http://www.ofd.cn/2016/F最低配"><ofd:Pages><ofd:Page ID="1"/></ofd:Pages></ofd:Document>`,
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write sample OFD: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: path})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	_, err = svc.FirstPageInfo(context.Background(), d)
+	if err == nil {
+		t.Fatal("FirstPageInfo: expected error for OFD, got nil")
+	}
+	if !strings.Contains(err.Error(), "not supported") {
+		t.Fatalf("error = %q, want contains 'not supported'", err.Error())
+	}
+}
+
 func TestServiceOpenAndInfo(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.ofd")

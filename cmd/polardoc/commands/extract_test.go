@@ -11,6 +11,25 @@ import (
 	"github.com/PolarKits/polardoc/internal/app"
 )
 
+// TestRunExtractOFDMissingDocumentXml verifies that extracting from an OFD
+// package missing Document.xml returns an appropriate error.
+func TestRunExtractOFDMissingDocumentXml(t *testing.T) {
+	path := writeInvalidOFD(t)
+	resolver := app.NewPhase1Resolver()
+	var runErr error
+	captureStdout(t, func() {
+		runErr = RunExtract(context.Background(), resolver, []string{path})
+	})
+
+	if runErr == nil {
+		t.Fatal("run extract OFD missing Document.xml: expected error, got nil")
+	}
+	errStr := runErr.Error()
+	if !strings.Contains(errStr, "Document.xml") && !strings.Contains(errStr, "not found") && !strings.Contains(errStr, "open") {
+		t.Fatalf("error = %q, want contains 'Document.xml' or 'not found' or 'open'", errStr)
+	}
+}
+
 func TestRunExtractPDF(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")
