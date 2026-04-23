@@ -351,6 +351,145 @@ func (s *service) FirstPageInfo(_ context.Context, d doc.Document) (*doc.FirstPa
 	return nil, fmt.Errorf("first page info not supported for OFD")
 }
 
+// ofdPageIterator provides sequential streaming access to OFD pages.
+// It uses the page location list derived from Document.xml.
+type ofdPageIterator struct {
+	doc       *document
+	locations []string
+	index     int
+	fileIndex map[string]*zip.File
+}
+
+// newOFDPageIterator creates a new OFD page iterator for the given document.
+func newOFDPageIterator(d *document) (*ofdPageIterator, error) {
+	fileIndex := make(map[string]*zip.File, len(d.zipReader.File))
+	for _, f := range d.zipReader.File {
+		name := strings.TrimPrefix(f.Name, "./")
+		fileIndex[name] = f
+	}
+
+	docRoot, err := getDocRoot(d.zipReader.File)
+	if err != nil {
+		return nil, fmt.Errorf("newOFDPageIterator: %w", err)
+	}
+	docRoot = strings.TrimPrefix(docRoot, "./")
+
+	docFile, ok := fileIndex[docRoot]
+	if !ok {
+		return nil, fmt.Errorf("newOFDPageIterator: Document.xml not found at %q", docRoot)
+	}
+
+	rc, err := docFile.Open()
+	if err != nil {
+		return nil, fmt.Errorf("newOFDPageIterator: open Document.xml: %w", err)
+	}
+	docData, err := readLimited(rc, maxXMLReadSize, "Document.xml")
+	if err != nil {
+		return nil, fmt.Errorf("newOFDPageIterator: %w", err)
+	}
+
+	docDir := ""
+	if slash := strings.LastIndex(docRoot, "/"); slash >= 0 {
+		docDir = docRoot[:slash+1]
+	}
+
+	relLocations := ofdPageLocations(docData)
+	locations := make([]string, len(relLocations))
+	for i, relLoc := range relLocations {
+		locations[i] = docDir + strings.TrimPrefix(relLoc, "./")
+	}
+
+	return &ofdPageIterator{
+		doc:       d,
+		locations: locations,
+		index:     0,
+		fileIndex: fileIndex,
+	}, nil
+}
+
+// Next returns the next page data or io.EOF when exhausted.
+func (it *ofdPageIterator) Next(ctx context.Context) (doc.PageData, error) {
+	if it.index >= len(it.locations) {
+		return doc.PageData{}, io.EOF
+	}
+	absLoc := it.locations[it.index]
+	contentFile, ok := it.fileIndex[absLoc]
+	if !ok {
+		return doc.PageData{}, fmt.Errorf("Next: Content.xml not found at %q", absLoc)
+	}
+	rc, err := contentFile.Open()
+	if err != nil {
+		return doc.PageData{}, fmt.Errorf("Next: open Content.xml: %w", err)
+	}
+	data, err := readLimited(rc, maxXMLReadSize, "Content.xml")
+	if err != nil {
+		return doc.PageData{}, fmt.Errorf("Next: read Content.xml: %w", err)
+	}
+	pageNum := it.index + 1
+	it.index++
+	return doc.PageData{Number: pageNum, ObjRef: absLoc, MediaBox: nil, Content: data}, nil
+}
+
+// Reset restarts the iterator from the first page.
+func (it *ofdPageIterator) Reset() {
+	it.index = 0
+}
+
+// ofdNavigator provides random-access to OFD page content via Content.xml paths.
+type ofdNavigator struct {
+	doc       *document
+	fileIndex map[string]*zip.File
+	locations []string
+}
+
+// GoTo resolves a page object reference and returns its content.
+// The ref is an absolute zip path to a Content.xml file.
+func (nav *ofdNavigator) GoTo(ctx context.Context, ref string) (doc.PageData, error) {
+	contentFile, ok := nav.fileIndex[ref]
+	if !ok {
+		return doc.PageData{}, fmt.Errorf("GoTo: Content.xml not found at %q", ref)
+	}
+	rc, err := contentFile.Open()
+	if err != nil {
+		return doc.PageData{}, fmt.Errorf("GoTo: open Content.xml: %w", err)
+	}
+	data, err := readLimited(rc, maxXMLReadSize, "Content.xml")
+	if err != nil {
+		return doc.PageData{}, fmt.Errorf("GoTo: read Content.xml: %w", err)
+	}
+	pageNum := 0
+	for i, loc := range nav.locations {
+		if loc == ref {
+			pageNum = i + 1
+			break
+		}
+	}
+	// pageNum remains 0 if ref was not found in locations (unknown page).
+	return doc.PageData{Number: pageNum, ObjRef: ref, MediaBox: nil, Content: data}, nil
+}
+
+// NewPageIterator implements doc.PageIteratorProvider.
+func (s *service) NewPageIterator(ctx context.Context, d doc.Document) (doc.PageIterator, error) {
+	ofdDoc, ok := d.(*document)
+	if !ok {
+		return nil, fmt.Errorf("NewPageIterator: unsupported document type %T", d)
+	}
+	return newOFDPageIterator(ofdDoc)
+}
+
+// NewNavigator implements doc.NavigatorProvider.
+func (s *service) NewNavigator(ctx context.Context, d doc.Document) (doc.Navigator, error) {
+	ofdDoc, ok := d.(*document)
+	if !ok {
+		return nil, fmt.Errorf("NewNavigator: unsupported document type %T", d)
+	}
+	iter, err := newOFDPageIterator(ofdDoc)
+	if err != nil {
+		return nil, err
+	}
+	return &ofdNavigator{doc: ofdDoc, fileIndex: iter.fileIndex, locations: iter.locations}, nil
+}
+
 func (s *service) Sign(_ context.Context, d doc.Document, _ doc.SignRequest) (doc.SignResult, error) {
 	ofdDoc, ok := d.(*document)
 	if !ok {

@@ -711,3 +711,111 @@ type nopCloser struct {
 }
 
 func (n *nopCloser) Close() error { return nil }
+
+func TestNewPageIterator_BasicIteration(t *testing.T) {
+	const multiPath = "../../testdata/ofd/test_core_multipage.ofd"
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: multiPath})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("Info: %v", err)
+	}
+
+	iter, err := svc.NewPageIterator(context.Background(), d)
+	if err != nil {
+		t.Fatalf("NewPageIterator: %v", err)
+	}
+
+	var pages []doc.PageData
+	for {
+		pd, err := iter.Next(context.Background())
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("Next: %v", err)
+		}
+		pages = append(pages, pd)
+	}
+
+	if len(pages) != info.PageCount {
+		t.Fatalf("page count = %d, want %d", len(pages), info.PageCount)
+	}
+	for i, pd := range pages {
+		if pd.Number != i+1 {
+			t.Fatalf("pages[%d].Number = %d, want %d", i, pd.Number, i+1)
+		}
+		if pd.ObjRef == "" {
+			t.Fatalf("pages[%d].ObjRef is empty", i)
+		}
+		if len(pd.Content) == 0 {
+			t.Fatalf("pages[%d].Content is empty", i)
+		}
+	}
+}
+
+func TestNewPageIterator_Reset(t *testing.T) {
+	const multiPath = "../../testdata/ofd/test_core_multipage.ofd"
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: multiPath})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	iter, err := svc.NewPageIterator(context.Background(), d)
+	if err != nil {
+		t.Fatalf("NewPageIterator: %v", err)
+	}
+
+	if _, err := iter.Next(context.Background()); err != nil {
+		t.Fatalf("first Next: %v", err)
+	}
+	iter.Reset()
+
+	pd, err := iter.Next(context.Background())
+	if err != nil {
+		t.Fatalf("Next after Reset: %v", err)
+	}
+	if pd.Number != 1 {
+		t.Fatalf("after Reset: Number = %d, want 1", pd.Number)
+	}
+}
+
+func TestNewNavigator_GoTo(t *testing.T) {
+	const multiPath = "../../testdata/ofd/test_core_multipage.ofd"
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: multiPath})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	iter, err := svc.NewPageIterator(context.Background(), d)
+	if err != nil {
+		t.Fatalf("NewPageIterator: %v", err)
+	}
+	firstPage, err := iter.Next(context.Background())
+	if err != nil {
+		t.Fatalf("iter.Next: %v", err)
+	}
+	ref := firstPage.ObjRef
+
+	nav, err := svc.NewNavigator(context.Background(), d)
+	if err != nil {
+		t.Fatalf("NewNavigator: %v", err)
+	}
+
+	pd, err := nav.GoTo(context.Background(), ref)
+	if err != nil {
+		t.Fatalf("GoTo: %v", err)
+	}
+	if pd.Number < 1 {
+		t.Fatalf("GoTo(%q).Number = %d, want >= 1", ref, pd.Number)
+	}
+}

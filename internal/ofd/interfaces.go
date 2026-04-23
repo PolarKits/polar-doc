@@ -16,6 +16,8 @@ type Service interface {
 	doc.Validator
 	doc.TextExtractor
 	doc.PreviewRenderer
+	doc.PageIteratorProvider
+	doc.NavigatorProvider
 	FirstPageInfoProvider
 }
 
