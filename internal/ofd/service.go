@@ -327,6 +327,16 @@ func (s *service) FirstPageInfo(_ context.Context, d doc.Document) (*doc.FirstPa
 	return nil, fmt.Errorf("first page info not supported for OFD")
 }
 
+func (s *service) Sign(_ context.Context, d doc.Document, _ doc.SignRequest) (doc.SignResult, error) {
+	ofdDoc, ok := d.(*document)
+	if !ok {
+		return doc.SignResult{}, fmt.Errorf("unsupported document type %T", d)
+	}
+
+	_ = ofdDoc
+	return doc.SignResult{}, fmt.Errorf("signing is not implemented for %q", doc.FormatOFD)
+}
+
 // validateOFDEntries checks for mandatory OFD.xml and Document.xml entries.
 // Returns a list of validation error messages for missing entries.
 func validateOFDEntries(files []*zip.File) []string {

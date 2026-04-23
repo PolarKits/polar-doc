@@ -709,6 +709,16 @@ func (s *service) Save(_ context.Context, ref doc.DocumentRef, dst string) error
 	return CopyFile(ref.Path, dst)
 }
 
+func (s *service) Sign(_ context.Context, d doc.Document, _ doc.SignRequest) (doc.SignResult, error) {
+	pdfDoc, ok := d.(*document)
+	if !ok {
+		return doc.SignResult{}, fmt.Errorf("unsupported document type %T", d)
+	}
+
+	_ = pdfDoc
+	return doc.SignResult{}, fmt.Errorf("signing is not implemented for %q", doc.FormatPDF)
+}
+
 func readPDFHeaderVersion(r io.Reader) (string, error) {
 	line, err := bufio.NewReader(r).ReadString('\n')
 	if err != nil && err != io.EOF {
