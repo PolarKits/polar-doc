@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/PolarKits/polar-doc/internal/doc"
 	"github.com/PolarKits/polar-doc/internal/ofd"
+	testfixtures "github.com/PolarKits/polar-doc/internal/testdata"
 )
 
 func TestServiceOpenAndInfo(t *testing.T) {
@@ -3403,6 +3405,138 @@ func TestValidateDeepInvalidCatalog(t *testing.T) {
 	err = ValidateDeep(f)
 	if err == nil {
 		t.Fatal("ValidateDeep: expected error for invalid catalog type, got nil")
+	}
+}
+
+func TestNewPageIterator_BasicIteration(t *testing.T) {
+	sample, ok := testfixtures.PDFSampleByKey("core-multipage")
+	if !ok {
+		t.Fatal("core-multipage sample not found")
+	}
+
+	svc := NewService()
+	ctx := context.Background()
+
+	d, err := svc.Open(ctx, doc.DocumentRef{Format: doc.FormatPDF, Path: sample.Path()})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	info, err := svc.Info(ctx, d)
+	if err != nil {
+		t.Fatalf("info PDF: %v", err)
+	}
+	expectedCount := info.PageCount
+	if expectedCount == 0 {
+		t.Fatal("page count is 0, expected > 0")
+	}
+
+	iter, err := svc.NewPageIterator(ctx, d)
+	if err != nil {
+		t.Fatalf("NewPageIterator: %v", err)
+	}
+
+	var pageNum int
+	var prevNum int
+	for {
+		pd, err := iter.Next(ctx)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("iterator Next: %v", err)
+		}
+		pageNum = pd.Number
+		if pageNum <= prevNum {
+			t.Fatalf("page number %d is not greater than previous %d", pageNum, prevNum)
+		}
+		prevNum = pageNum
+	}
+
+	if pageNum != expectedCount {
+		t.Fatalf("final page number %d != expected %d", pageNum, expectedCount)
+	}
+}
+
+func TestNewPageIterator_Reset(t *testing.T) {
+	sample, ok := testfixtures.PDFSampleByKey("core-multipage")
+	if !ok {
+		t.Fatal("core-multipage sample not found")
+	}
+
+	svc := NewService()
+	ctx := context.Background()
+
+	d, err := svc.Open(ctx, doc.DocumentRef{Format: doc.FormatPDF, Path: sample.Path()})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	iter, err := svc.NewPageIterator(ctx, d)
+	if err != nil {
+		t.Fatalf("NewPageIterator: %v", err)
+	}
+
+	// Advance at least 1 page
+	_, err = iter.Next(ctx)
+	if err != nil && err != io.EOF {
+		t.Fatalf("first Next: %v", err)
+	}
+
+	// Reset the iterator
+	iter.Reset()
+
+	// Next should return first page again
+	pd, err := iter.Next(ctx)
+	if err != nil {
+		t.Fatalf("Next after Reset: %v", err)
+	}
+	if pd.Number != 1 {
+		t.Fatalf("page number after reset = %d, want 1", pd.Number)
+	}
+}
+
+func TestNewNavigator_GoTo(t *testing.T) {
+	sample, ok := testfixtures.PDFSampleByKey("core-multipage")
+	if !ok {
+		t.Fatal("core-multipage sample not found")
+	}
+
+	svc := NewService()
+	ctx := context.Background()
+
+	d, err := svc.Open(ctx, doc.DocumentRef{Format: doc.FormatPDF, Path: sample.Path()})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	// Get first page info to obtain a valid ObjRef
+	info, err := svc.FirstPageInfo(ctx, d)
+	if err != nil {
+		t.Fatalf("FirstPageInfo: %v", err)
+	}
+
+	nav, err := svc.NewNavigator(ctx, d)
+	if err != nil {
+		t.Fatalf("NewNavigator: %v", err)
+	}
+
+	// Build ObjRef string from first page info
+	objRef := fmt.Sprintf("%d %d R", info.PageRef.ObjNum, info.PageRef.GenNum)
+
+	pd, err := nav.GoTo(ctx, objRef)
+	if err != nil {
+		t.Fatalf("Navigator GoTo: %v", err)
+	}
+
+	if pd.Number < 1 {
+		t.Fatalf("page number = %d, want >= 1", pd.Number)
+	}
+	if pd.ObjRef == "" {
+		t.Fatal("ObjRef is empty")
 	}
 }
 

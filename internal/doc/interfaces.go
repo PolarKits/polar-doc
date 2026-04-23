@@ -128,3 +128,14 @@ type PageCounter interface {
 	// PageCount returns the total number of pages in the document.
 	PageCount(ctx context.Context) (int, error)
 }
+
+// PageIteratorProvider creates a sequential page iterator for the given document.
+// Each call returns a fresh iterator positioned before the first page.
+type PageIteratorProvider interface {
+	NewPageIterator(ctx context.Context, d Document) (PageIterator, error)
+}
+
+// NavigatorProvider creates a random-access navigator for the given document.
+type NavigatorProvider interface {
+	NewNavigator(ctx context.Context, d Document) (Navigator, error)
+}

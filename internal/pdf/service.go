@@ -906,6 +906,28 @@ func (s *service) FirstPageInfo(_ context.Context, d doc.Document) (*doc.FirstPa
 	return toFirstPageInfoResult(info), nil
 }
 
+// NewPageIterator implements doc.PageIteratorProvider.
+func (s *service) NewPageIterator(ctx context.Context, d doc.Document) (doc.PageIterator, error) {
+	pdfDoc, ok := d.(*document)
+	if !ok {
+		return nil, fmt.Errorf("NewPageIterator: unsupported document type %T", d)
+	}
+	iter, err := newPageIterator(pdfDoc)
+	if err != nil {
+		return nil, err
+	}
+	return &pdfPageIterator{iter: iter}, nil
+}
+
+// NewNavigator implements doc.NavigatorProvider.
+func (s *service) NewNavigator(ctx context.Context, d doc.Document) (doc.Navigator, error) {
+	pdfDoc, ok := d.(*document)
+	if !ok {
+		return nil, fmt.Errorf("NewNavigator: unsupported document type %T", d)
+	}
+	return newPDFNavigator(pdfDoc), nil
+}
+
 func toFirstPageInfoResult(info *FirstPageInfo) *doc.FirstPageInfoResult {
 	contents := make([]doc.RefInfo, len(info.Contents))
 	for i, c := range info.Contents {
