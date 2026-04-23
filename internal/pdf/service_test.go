@@ -1070,6 +1070,35 @@ func TestServiceExtractTextMatrix(t *testing.T) {
 	}
 }
 
+func TestServiceExtractTextMultiPage(t *testing.T) {
+	svc := NewService()
+	path := requirePDFSample(t, "core-multipage")
+
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	defer d.Close()
+
+	result, err := svc.ExtractText(context.Background(), d)
+	if err != nil {
+		t.Fatalf("ExtractText multi-page: %v", err)
+	}
+	if result.Text == "" {
+		t.Fatal("ExtractText returned empty text for multi-page PDF")
+	}
+
+	info, err := svc.Info(context.Background(), d)
+	if err != nil {
+		t.Fatalf("Info: %v", err)
+	}
+	if info.PageCount != 3 {
+		t.Fatalf("page count = %d, want 3", info.PageCount)
+	}
+
+	t.Logf("Multi-page ExtractText: %q", result.Text)
+}
+
 func TestServiceReadTrailerRootAtObject3(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")

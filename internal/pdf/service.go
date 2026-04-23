@@ -205,30 +205,171 @@ func (s *service) Validate(_ context.Context, d doc.Document) (doc.ValidationRep
 	return report, nil
 }
 
+// PageInfo holds raw PDF object references and attributes for a single page.
+type PageInfo struct {
+	PageRef  PDFRef
+	Parent   PDFRef
+	MediaBox PDFArray
+	Resources PDFRef
+	InlineResources PDFDict
+	Contents []PDFRef
+	Rotate   *int64
+}
+
+// readAllPages traverses the PDF Pages tree and collects info for every page.
+func readAllPages(f *os.File, pagesRef string) ([]PageInfo, error) {
+	return readAllPagesDepth(f, pagesRef, 0, map[string]struct{}{})
+}
+
+func readAllPagesDepth(f *os.File, pagesRef string, depth int, visited map[string]struct{}) ([]PageInfo, error) {
+	if depth > maxPageTreeDepth {
+		return nil, fmt.Errorf("readAllPages: pages tree depth exceeds maximum %d", maxPageTreeDepth)
+	}
+
+	pagesObj, err := readObject(f, pagesRef)
+	if err != nil {
+		return nil, fmt.Errorf("readAllPages: %w", err)
+	}
+
+	pagesDict, err := extractDictFromObject(pagesObj)
+	if err != nil {
+		return nil, fmt.Errorf("readAllPages: %w", err)
+	}
+
+	typ, ok := DictGetName(pagesDict, "Type")
+	if !ok {
+		return nil, fmt.Errorf("readAllPages: /Type key not found in pages object %s", pagesRef)
+	}
+	if typ != "Pages" {
+		return nil, fmt.Errorf("readAllPages: object %s is /Type /%s, expected /Type /Pages", pagesRef, typ)
+	}
+
+	kidsArr, ok := DictGetArray(pagesDict, "Kids")
+	if !ok {
+		return nil, fmt.Errorf("readAllPages: /Kids not found in pages object %s", pagesRef)
+	}
+
+	refs := ArrayToRefs(kidsArr)
+	if len(refs) == 0 {
+		return nil, fmt.Errorf("readAllPages: pages object %s has empty /Kids", pagesRef)
+	}
+
+	var result []PageInfo
+	for _, ref := range refs {
+		refStr := RefToString(ref)
+		if _, seen := visited[refStr]; seen {
+			continue
+		}
+		visited[refStr] = struct{}{}
+
+		kidObj, err := readObject(f, refStr)
+		if err != nil {
+			continue
+		}
+
+		kidDict, err := extractDictFromObject(kidObj)
+		if err != nil {
+			continue
+		}
+
+		kidType, ok := DictGetName(kidDict, "Type")
+		if !ok {
+			continue
+		}
+
+		if kidType == "Pages" {
+			pages, err := readAllPagesDepth(f, refStr, depth+1, visited)
+			if err == nil {
+				result = append(result, pages...)
+			}
+			continue
+		}
+
+		if kidType == "Page" {
+			parent, ok := DictGetRef(kidDict, "Parent")
+			if !ok {
+				continue
+			}
+
+			mediaBox, ok := DictGetArray(kidDict, "MediaBox")
+			if !ok {
+				mediaBox, _ = lookupMediaBoxFromAncestors(refStr, f)
+			}
+
+			resources, ok := DictGetRef(kidDict, "Resources")
+			inlineResources, hasInline := DictGetDict(kidDict, "Resources")
+			if !ok && !hasInline {
+				resources, _ = lookupResourcesFromAncestors(refStr, f)
+			}
+
+			contents, err := readPageContentsRefs(kidDict)
+			if err != nil || len(contents) == 0 {
+				continue
+			}
+
+			rotate, _ := lookupRotateFromAncestors(refStr, f)
+
+			result = append(result, PageInfo{
+				PageRef:         ref,
+				Parent:          parent,
+				MediaBox:        mediaBox,
+				Resources:       resources,
+				InlineResources: inlineResources,
+				Contents:        contents,
+				Rotate:          rotate,
+			})
+		}
+	}
+
+	return result, nil
+}
+
 func (s *service) ExtractText(_ context.Context, d doc.Document) (doc.TextResult, error) {
 	pdfDoc, ok := d.(*document)
 	if !ok {
 		return doc.TextResult{}, fmt.Errorf("unsupported document type %T", d)
 	}
 
-	info, err := s.FirstPageInfo(context.Background(), d)
+	xrefOffset, err := readStartxref(pdfDoc.file)
+	if err != nil {
+		return doc.TextResult{}, fmt.Errorf("text extraction: %w", err)
+	}
+
+	rootRefStr, err := readTrailerRootRef(pdfDoc.file, xrefOffset)
+	if err != nil {
+		return doc.TextResult{}, fmt.Errorf("text extraction: %w", err)
+	}
+
+	catalogObj, err := readObject(pdfDoc.file, rootRefStr)
+	if err != nil {
+		return doc.TextResult{}, fmt.Errorf("text extraction: %w", err)
+	}
+
+	pagesRefStr, err := readPagesRefFromCatalog(catalogObj)
+	if err != nil {
+		return doc.TextResult{}, fmt.Errorf("text extraction: %w", err)
+	}
+
+	pages, err := readAllPages(pdfDoc.file, pagesRefStr)
 	if err != nil {
 		return doc.TextResult{}, fmt.Errorf("text extraction: %w", err)
 	}
 
 	var text strings.Builder
 	var lastErr error
-	for _, contentRef := range info.Contents {
-		ref := PDFRef{ObjNum: contentRef.ObjNum, GenNum: contentRef.GenNum}
-		streamData, err := readContentStream(pdfDoc.file, ref)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		extracted := extractLiteralStrings(streamData)
-		if extracted != "" {
-			text.WriteString(extracted)
-			text.WriteString(" ")
+	for _, page := range pages {
+		for _, contentRef := range page.Contents {
+			ref := PDFRef{ObjNum: contentRef.ObjNum, GenNum: contentRef.GenNum}
+			streamData, err := readContentStream(pdfDoc.file, ref)
+			if err != nil {
+				lastErr = err
+				continue
+			}
+			extracted := extractLiteralStrings(streamData)
+			if extracted != "" {
+				text.WriteString(extracted)
+				text.WriteString(" ")
+			}
 		}
 	}
 
