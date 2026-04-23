@@ -532,9 +532,6 @@ func readObjectAt(f *os.File, offset int64) ([]byte, error) {
 	return obj.Bytes(), nil
 }
 
-// resolveFromObjStm resolves an object from a compressed object stream.
-// It first resolves the ObjStm itself, decompresses it, then extracts the
-// object at the specified index.
 // ValidateDeep performs comprehensive PDF structure validation beyond basic header checks.
 // It verifies xref table/stream integrity, object accessibility, trailer validity,
 // and cross-reference consistency across the entire document.
@@ -620,6 +617,9 @@ func readTrailerDictFromFile(f *os.File, xrefOffset int64) (string, bool, error)
 	return readTrailerDictLines(rd)
 }
 
+// resolveFromObjStm resolves an object from a compressed object stream.
+// It first resolves the ObjStm itself, decompresses it, then extracts the
+// object at the specified index.
 func resolveFromObjStm(f *os.File, idx xrefIndex, objStmNum int64, indexInStm int) ([]byte, error) {
 	// Get the ObjStm entry
 	stmEntry, ok := idx[objStmNum]
