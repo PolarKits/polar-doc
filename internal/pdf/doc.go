@@ -53,6 +53,8 @@
 //     Contents, Rotate (with inheritance)
 //   - xref traversal: reads traditional xref tables and XRef streams (including Prev chain);
 //     Type 2 (ObjStm) entries are recognized but object stream content is not decompressed
+//   - ValidateDeep: comprehensive integrity validation covering xref table/stream integrity,
+//     object accessibility, trailer validity, and cross-reference consistency
 //   - ExtractText: extracts literal/hex strings from first-page content streams
 //     (FlateDecode supported); content operators and font mapping not implemented
 //   - CopyFile: raw byte copy to destination path
