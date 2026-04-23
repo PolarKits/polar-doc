@@ -44,53 +44,11 @@ func buildXRefIndex(f *os.File, startXref int64) (xrefIndex, error) {
 	for currentOffset != 0 && !visited[currentOffset] {
 		visited[currentOffset] = true
 
-		// Seek to current xref position
-		if _, err := f.Seek(currentOffset, io.SeekStart); err != nil {
-			return nil, fmt.Errorf("seek to xref at %d: %w", currentOffset, err)
+		prevOffset, entries, objNums, err := parseXRefSectionAt(f, currentOffset)
+		if err != nil {
+			return nil, err
 		}
 
-		// Peek first non-whitespace bytes to determine type
-		buf := make([]byte, 20)
-		n, err := f.Read(buf)
-		if err != nil && err != io.EOF {
-			return nil, fmt.Errorf("read xref header at %d: %w", currentOffset, err)
-		}
-		buf = buf[:n]
-
-		// Determine xref type by examining header
-		header := strings.TrimSpace(string(buf))
-		var prevOffset int64
-		var entries []xrefEntry
-		var objNums []int64
-
-		if strings.HasPrefix(header, "xref") {
-			// Traditional xref table
-			// Seek back and parse
-			if _, err := f.Seek(currentOffset, io.SeekStart); err != nil {
-				return nil, err
-			}
-			prevOffset, entries, objNums, err = parseTraditionalXref(f)
-			if err != nil {
-				return nil, fmt.Errorf("parse traditional xref at %d: %w", currentOffset, err)
-			}
-		} else {
-			// Check if this is an xref stream (starts with "N G obj")
-			fields := strings.Fields(header)
-			if len(fields) >= 3 && fields[2] == "obj" {
-				// This is an xref stream
-				if _, err := f.Seek(currentOffset, io.SeekStart); err != nil {
-					return nil, err
-				}
-				prevOffset, entries, objNums, err = parseXRefStream(f, currentOffset)
-				if err != nil {
-					return nil, fmt.Errorf("parse xref stream at %d: %w", currentOffset, err)
-				}
-			} else {
-				return nil, fmt.Errorf("unknown xref type at offset %d: %q", currentOffset, header)
-			}
-		}
-
-		// Add entries to table (only if not already present - later revisions win)
 		for i, entry := range entries {
 			if i < len(objNums) {
 				objNum := objNums[i]
@@ -104,6 +62,63 @@ func buildXRefIndex(f *os.File, startXref int64) (xrefIndex, error) {
 	}
 
 	return table, nil
+}
+
+// parseXRefSectionAt parses a single xref section (traditional table or stream)
+// located at the given file offset. It returns the /Prev link offset, the parsed
+// entries with their object numbers, or an error if the section cannot be decoded.
+func parseXRefSectionAt(f *os.File, offset int64) (int64, []xrefEntry, []int64, error) {
+	if _, err := f.Seek(offset, io.SeekStart); err != nil {
+		return 0, nil, nil, fmt.Errorf("seek to xref at %d: %w", offset, err)
+	}
+
+	buf := make([]byte, 20)
+	n, err := f.Read(buf)
+	if err != nil && err != io.EOF {
+		return 0, nil, nil, fmt.Errorf("read xref header at %d: %w", offset, err)
+	}
+	buf = buf[:n]
+
+	header := strings.TrimSpace(string(buf))
+
+	if strings.HasPrefix(header, "xref") {
+		if _, err := f.Seek(offset, io.SeekStart); err != nil {
+			return 0, nil, nil, err
+		}
+		return parseTraditionalXref(f)
+	}
+
+	fields := strings.Fields(header)
+	if len(fields) >= 3 && fields[2] == "obj" {
+		if _, err := f.Seek(offset, io.SeekStart); err != nil {
+			return 0, nil, nil, err
+		}
+		return parseXRefStream(f, offset)
+	}
+
+	return 0, nil, nil, fmt.Errorf("unknown xref type at offset %d: %q", offset, header)
+}
+
+// discoverXRefOffsets walks the xref chain starting at startXref and returns
+// the list of section offsets from newest to oldest. It parses just enough of
+// each section to extract the /Prev link.
+func discoverXRefOffsets(f *os.File, startXref int64) ([]int64, error) {
+	var offsets []int64
+	visited := map[int64]bool{}
+	current := startXref
+
+	for current != 0 && !visited[current] {
+		visited[current] = true
+		offsets = append(offsets, current)
+
+		prevOffset, _, _, err := parseXRefSectionAt(f, current)
+		if err != nil {
+			return offsets, fmt.Errorf("discover xref offsets at %d: %w", current, err)
+		}
+		current = prevOffset
+	}
+
+	return offsets, nil
 }
 
 // parseTraditionalXref parses a traditional xref table and returns the Prev offset,
@@ -243,6 +258,7 @@ func parseXRefStream(f *os.File, xrefOffset int64) (int64, []xrefEntry, []int64,
 	if err != nil {
 		return 0, nil, nil, fmt.Errorf("read xref stream header: %w", err)
 	}
+	rawConsumed := len(headerLine)
 	headerLine = strings.TrimRight(headerLine, "\r\n")
 	if !strings.Contains(headerLine, " obj") {
 		return 0, nil, nil, fmt.Errorf("expected xref stream obj header, got %q", headerLine)
@@ -250,6 +266,7 @@ func parseXRefStream(f *os.File, xrefOffset int64) (int64, []xrefEntry, []int64,
 
 	// Read stream dictionary until ">>stream"
 	var dictLines []string
+	streamFound := false
 	for {
 		line, err := rd.ReadString('\n')
 		if err == io.EOF {
@@ -258,15 +275,18 @@ func parseXRefStream(f *os.File, xrefOffset int64) (int64, []xrefEntry, []int64,
 		if err != nil {
 			return 0, nil, nil, err
 		}
+		rawConsumed += len(line)
 		line = strings.TrimRight(line, "\r\n")
 		dictLines = append(dictLines, line)
 
 		// Check for stream marker
 		combined := strings.Join(dictLines, "")
 		if strings.Contains(combined, ">>stream") || strings.Contains(combined, ">>\nstream") {
+			streamFound = true
 			break
 		}
 		if strings.HasPrefix(line, "stream") {
+			streamFound = true
 			break
 		}
 	}
@@ -377,97 +397,76 @@ func parseXRefStream(f *os.File, xrefOffset int64) (int64, []xrefEntry, []int64,
 		prevOffset, _ = strconv.ParseInt(dictStr[prevStart+6:prevEnd], 10, 64)
 	}
 
-	// Read stream data
+	// Read stream data by seeking directly to the computed position
 	if streamLen <= 0 || streamLen > 10000000 {
 		return prevOffset, nil, nil, fmt.Errorf("invalid xref stream length: %d", streamLen)
 	}
 
-	// Find "stream" marker position and skip past it
-	streamMarkerPos := strings.Index(dictStr, "stream")
-	if streamMarkerPos < 0 {
-		return prevOffset, nil, nil, fmt.Errorf("stream marker not found")
+	if !streamFound {
+		return prevOffset, nil, nil, fmt.Errorf("stream marker not found in xref stream dictionary")
 	}
 
-	// Calculate file position for stream data
-	// We need to re-seek to just after "stream\n" or "stream\r\n".
-	// Must return to file head for full read because bufio.Reader may have
-	// buffered and discarded the original stream data location; we need
-	// precise byte offsets to locate the compressed stream content.
-	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		return prevOffset, nil, nil, fmt.Errorf("seek to file head for xref stream: %w", err)
+	// rawConsumed tracked the exact number of bytes read from xrefOffset through
+	// the "stream" keyword and its trailing newline, so the file position for the
+	// compressed payload is xrefOffset + rawConsumed.
+	streamDataOffset := xrefOffset + int64(rawConsumed)
+	if _, err := f.Seek(streamDataOffset, io.SeekStart); err != nil {
+		return prevOffset, nil, nil, fmt.Errorf("seek to xref stream data at %d: %w", streamDataOffset, err)
 	}
-	data, err := io.ReadAll(f)
+
+	streamData := make([]byte, streamLen)
+	if _, err := io.ReadFull(f, streamData); err != nil {
+		return prevOffset, nil, nil, fmt.Errorf("read xref stream data (%d bytes): %w", streamLen, err)
+	}
+
+	// Decompress
+	r, err := zlib.NewReader(bytes.NewReader(streamData))
 	if err != nil {
-		return prevOffset, nil, nil, fmt.Errorf("read file for xref stream: %w", err)
+		return prevOffset, nil, nil, fmt.Errorf("decompress xref stream: %w", err)
 	}
-	streamIdx := bytes.Index(data[xrefOffset:], []byte("stream"))
-	if streamIdx >= 0 {
-		dataStart := xrefOffset + int64(streamIdx) + 6 // after "stream"
-		// Skip \n or \r\n
-		if dataStart < int64(len(data)) && (data[dataStart] == '\r' || data[dataStart] == '\n') {
-			dataStart++
-		}
-		if dataStart < int64(len(data)) && data[dataStart] == '\n' {
-			dataStart++
-		}
+	decompressed, err := io.ReadAll(r)
+	if err != nil {
+		return prevOffset, nil, nil, fmt.Errorf("read decompressed xref stream: %w", err)
+	}
 
-		streamData := data[dataStart : dataStart+int64(streamLen)]
-
-		// Decompress
-		r, err := zlib.NewReader(bytes.NewReader(streamData))
-		if err != nil {
-			return prevOffset, nil, nil, fmt.Errorf("decompress xref stream: %w", err)
-		}
-		decompressed, err := io.ReadAll(r)
-		if err != nil {
-			return prevOffset, nil, nil, fmt.Errorf("read decompressed xref stream: %w", err)
-		}
-
-		// Parse entries
-		var entries []xrefEntry
-		var objNums []int64
-		dataIdx := 0
-		for _, idx := range indices {
-			start := idx[0]
-			count := idx[1]
-			for i := 0; i < count; i++ {
-				if dataIdx+entrySize > len(decompressed) {
-					break
-				}
-				entry := decompressed[dataIdx : dataIdx+entrySize]
-				dataIdx += entrySize
-
-				objNum := int64(start + i)
-				typ := int(readUintFromBytes(entry[0:w0]))
-
-				var xrefEnt xrefEntry
-				switch typ {
-				case 0:
-					// Free entry
-					xrefEnt = xrefEntry{Kind: xrefEntryFree}
-				case 1:
-					// Direct object at offset
-					offset := readUintFromBytes(entry[w0 : w0+w1])
-					gen := int(readUintFromBytes(entry[w0+w1:]))
-					xrefEnt = xrefEntry{Kind: xrefEntryDirect, Offset: int64(offset), Generation: gen}
-				case 2:
-					// Compressed object in ObjStm
-					objStmNum := int64(readUintFromBytes(entry[w0 : w0+w1]))
-					idxInStm := int(readUintFromBytes(entry[w0+w1:]))
-					xrefEnt = xrefEntry{Kind: xrefEntryInObjStm, ObjStmNum: objStmNum, IndexInStm: idxInStm}
-				default:
-					// Unknown type, treat as free
-					xrefEnt = xrefEntry{Kind: xrefEntryFree}
-				}
-				entries = append(entries, xrefEnt)
-				objNums = append(objNums, objNum)
+	// Parse entries
+	var entries []xrefEntry
+	var objNums []int64
+	dataIdx := 0
+	for _, idx := range indices {
+		start := idx[0]
+		count := idx[1]
+		for i := 0; i < count; i++ {
+			if dataIdx+entrySize > len(decompressed) {
+				break
 			}
-		}
+			entry := decompressed[dataIdx : dataIdx+entrySize]
+			dataIdx += entrySize
 
-		return prevOffset, entries, objNums, nil
+			objNum := int64(start + i)
+			typ := int(readUintFromBytes(entry[0:w0]))
+
+			var xrefEnt xrefEntry
+			switch typ {
+			case 0:
+				xrefEnt = xrefEntry{Kind: xrefEntryFree}
+			case 1:
+				offset := readUintFromBytes(entry[w0 : w0+w1])
+				gen := int(readUintFromBytes(entry[w0+w1:]))
+				xrefEnt = xrefEntry{Kind: xrefEntryDirect, Offset: int64(offset), Generation: gen}
+			case 2:
+				objStmNum := int64(readUintFromBytes(entry[w0 : w0+w1]))
+				idxInStm := int(readUintFromBytes(entry[w0+w1:]))
+				xrefEnt = xrefEntry{Kind: xrefEntryInObjStm, ObjStmNum: objStmNum, IndexInStm: idxInStm}
+			default:
+				xrefEnt = xrefEntry{Kind: xrefEntryFree}
+			}
+			entries = append(entries, xrefEnt)
+			objNums = append(objNums, objNum)
+		}
 	}
 
-	return prevOffset, nil, nil, fmt.Errorf("failed to locate xref stream data")
+	return prevOffset, entries, objNums, nil
 }
 
 // readUintFromBytes reads a big-endian unsigned integer from b (1-8 bytes).

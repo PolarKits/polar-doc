@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/PolarKits/polar-doc/internal/doc"
 )
@@ -64,7 +65,11 @@ type document struct {
 	file            *os.File
 	sizeBytes       int64
 	declaredVersion string
-	xrefIdx         xrefIndex // unified xref index (lazy-loaded on first access)
+	xrefIdx         xrefIndex          // unified xref index (lazy-loaded on first access)
+	xrefStartOffset int64              // byte offset of the newest xref section
+	xrefOffsets     []int64            // ordered chain of xref section offsets (newest first)
+	xrefLoaded      map[int64]bool     // tracks which sections have been parsed into xrefIdx
+	mu              sync.Mutex         // guards xrefIdx, xrefOffsets, xrefLoaded
 }
 
 // NewService returns the PDF service used by phase-1 CLI flows.
@@ -89,20 +94,97 @@ func (d *document) getFile() *os.File {
 
 // getXRefIndex returns the unified xref index for this document.
 // The index is lazily loaded on first access and cached for subsequent calls.
+// This method is safe for concurrent use.
 func (d *document) getXRefIndex() (xrefIndex, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	if d.xrefIdx != nil {
 		return d.xrefIdx, nil
 	}
-	xrefOffset, err := readStartxref(d.file)
-	if err != nil {
-		return nil, err
+
+	if d.xrefStartOffset == 0 {
+		xrefOffset, err := readStartxref(d.file)
+		if err != nil {
+			return nil, err
+		}
+		d.xrefStartOffset = xrefOffset
 	}
-	idx, err := buildXRefIndex(d.file, xrefOffset)
+
+	idx, err := buildXRefIndex(d.file, d.xrefStartOffset)
 	if err != nil {
 		return nil, err
 	}
 	d.xrefIdx = idx
 	return idx, nil
+}
+
+// getXRefEntry returns the xref entry for the given object number.
+// Fast path: entry is already cached in the index.
+// Slow path: xref sections are loaded one at a time (newest first) until the
+// target object is found or all sections are exhausted.
+// This method is safe for concurrent use.
+func (d *document) getXRefEntry(objNum int64) (xrefEntry, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	// Fast path: already cached
+	if d.xrefIdx != nil {
+		if entry, ok := d.xrefIdx[objNum]; ok {
+			return entry, nil
+		}
+		// All sections already loaded — object genuinely absent
+		if d.xrefLoaded != nil && len(d.xrefLoaded) == len(d.xrefOffsets) {
+			return xrefEntry{}, fmt.Errorf("object %d not found in xref", objNum)
+		}
+	}
+
+	// Ensure offset chain is discovered
+	if d.xrefOffsets == nil {
+		if d.xrefStartOffset == 0 {
+			xrefOffset, err := readStartxref(d.file)
+			if err != nil {
+				return xrefEntry{}, err
+			}
+			d.xrefStartOffset = xrefOffset
+		}
+		offsets, err := discoverXRefOffsets(d.file, d.xrefStartOffset)
+		if err != nil {
+			return xrefEntry{}, err
+		}
+		d.xrefOffsets = offsets
+		d.xrefLoaded = make(map[int64]bool)
+		if d.xrefIdx == nil {
+			d.xrefIdx = make(xrefIndex)
+		}
+	}
+
+	// Slow path: load sections one by one until the object is found
+	for _, offset := range d.xrefOffsets {
+		if d.xrefLoaded[offset] {
+			continue
+		}
+
+		_, entries, objNums, err := parseXRefSectionAt(d.file, offset)
+		if err != nil {
+			return xrefEntry{}, fmt.Errorf("lazy-load xref section at %d: %w", offset, err)
+		}
+		d.xrefLoaded[offset] = true
+
+		for i, entry := range entries {
+			if i < len(objNums) {
+				if _, exists := d.xrefIdx[objNums[i]]; !exists {
+					d.xrefIdx[objNums[i]] = entry
+				}
+			}
+		}
+
+		if entry, ok := d.xrefIdx[objNum]; ok {
+			return entry, nil
+		}
+	}
+
+	return xrefEntry{}, fmt.Errorf("object %d not found in xref", objNum)
 }
 
 func (s *service) Open(_ context.Context, ref doc.DocumentRef) (doc.Document, error) {
@@ -135,11 +217,14 @@ func (s *service) Open(_ context.Context, ref doc.DocumentRef) (doc.Document, er
 		return nil, err
 	}
 
+	xrefStartOffset, _ := readStartxref(f)
+
 	return &document{
 		ref:             ref,
 		file:            f,
 		sizeBytes:       st.Size(),
 		declaredVersion: version,
+		xrefStartOffset: xrefStartOffset,
 	}, nil
 }
 
