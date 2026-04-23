@@ -88,6 +88,52 @@ func (d *document) Close() error {
 	return d.file.Close()
 }
 
+// readObject resolves an object reference using the document's cached xref index.
+// Unlike the package-level readObject which rebuilds the xref on every call,
+// this method reuses the lazy-loaded index cached in the document.
+func (d *document) readObject(ref string) (string, error) {
+	parts := strings.Fields(ref)
+	if len(parts) < 3 || parts[2] != "R" {
+		return "", fmt.Errorf("invalid object ref %q", ref)
+	}
+	objNum, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return "", fmt.Errorf("document.readObject: parse objNum: %w", err)
+	}
+
+	_, err = d.getXRefEntry(objNum)
+	if err != nil {
+		return readObject(d.file, ref)
+	}
+
+	f := d.getFile()
+	if f == nil {
+		return "", fmt.Errorf("document.readObject: file is closed")
+	}
+
+	idx, err := d.getXRefIndex()
+	if err != nil {
+		return readObject(d.file, ref)
+	}
+
+	objData, err := resolveObject(f, idx, objNum)
+	if err != nil {
+		return readObject(d.file, ref)
+	}
+
+	objStr := string(objData)
+	lines := strings.Split(objStr, "\n")
+	genNum := parts[1]
+	if len(lines) > 0 {
+		expectedPrefix := parts[0] + " " + genNum + " obj"
+		headerLineTrimmed := strings.TrimRight(lines[0], "\r\n")
+		if !strings.HasPrefix(headerLineTrimmed, expectedPrefix) {
+			return expectedPrefix + "\n<<" + objStr + ">>\nendobj\n", nil
+		}
+	}
+	return objStr, nil
+}
+
 func (d *document) getFile() *os.File {
 	return d.file
 }

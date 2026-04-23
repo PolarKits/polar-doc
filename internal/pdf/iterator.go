@@ -39,7 +39,7 @@ func newPageIterator(pdfDoc *document) (*pageIterator, error) {
 		return nil, fmt.Errorf("pageIterator: readTrailerRootRef: %w", err)
 	}
 
-	catalogObj, err := readObject(f, rootRefStr)
+	catalogObj, err := pdfDoc.readObject(rootRefStr)
 	if err != nil {
 		return nil, fmt.Errorf("pageIterator: readCatalog: %w", err)
 	}
@@ -50,7 +50,7 @@ func newPageIterator(pdfDoc *document) (*pageIterator, error) {
 	}
 
 	// Read root Pages to get /Count (total page count)
-	pagesObj, err := readObject(f, pagesRefStr)
+	pagesObj, err := pdfDoc.readObject(pagesRefStr)
 	if err != nil {
 		return nil, fmt.Errorf("pageIterator: readPages: %w", err)
 	}
@@ -105,7 +105,7 @@ func (it *pageIterator) Next(ctx context.Context) (doc.PageData, error) {
 		}
 		it.visited[refStr] = struct{}{}
 
-		objStr, err := readObject(f, refStr)
+		objStr, err := it.doc.readObject(refStr)
 		if err != nil {
 			continue
 		}
@@ -202,7 +202,7 @@ func (it *pageIterator) Reset() {
 		return
 	}
 
-	catalogObj, err := readObject(f, rootRefStr)
+	catalogObj, err := it.doc.readObject(rootRefStr)
 	if err != nil {
 		return
 	}
@@ -212,7 +212,7 @@ func (it *pageIterator) Reset() {
 		return
 	}
 
-	pagesObj, err := readObject(f, pagesRefStr)
+	pagesObj, err := it.doc.readObject(pagesRefStr)
 	if err != nil {
 		return
 	}

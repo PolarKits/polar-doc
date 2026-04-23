@@ -54,7 +54,7 @@ func (n *pdfNavigator) GoTo(ctx context.Context, ref string) (doc.PageData, erro
 	pdfRef := PDFRef{ObjNum: objNum, GenNum: genNum}
 
 	// Read the referenced object
-	objStr, err := readObject(f, RefToString(pdfRef))
+	objStr, err := n.doc.readObject(RefToString(pdfRef))
 	if err != nil {
 		return doc.PageData{}, fmt.Errorf("pdfNavigator.GoTo: readObject: %w", err)
 	}
@@ -136,7 +136,7 @@ func (n *pdfNavigator) findPageNumber(ctx context.Context, target PDFRef) int {
 		return 0
 	}
 
-	catalogObj, err := readObject(f, rootRefStr)
+	catalogObj, err := n.doc.readObject(rootRefStr)
 	if err != nil {
 		return 0
 	}
@@ -161,8 +161,7 @@ func (n *pdfNavigator) traverseForNumber(pagesRefStr string, target PDFRef, coun
 	}
 	visited[pagesRefStr] = struct{}{}
 
-	f := n.doc.getFile()
-	objStr, err := readObject(f, pagesRefStr)
+	objStr, err := n.doc.readObject(pagesRefStr)
 	if err != nil {
 		return
 	}
@@ -193,7 +192,7 @@ func (n *pdfNavigator) traverseForNumber(pagesRefStr string, target PDFRef, coun
 			continue
 		}
 
-		kidObj, err := readObject(f, refStr)
+		kidObj, err := n.doc.readObject(refStr)
 		if err != nil {
 			continue
 		}
