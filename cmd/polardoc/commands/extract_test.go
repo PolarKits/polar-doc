@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/PolarKits/polardoc/internal/app"
+	"github.com/PolarKits/polar-doc/internal/app"
 )
 
 // TestRunExtractOFDMissingDocumentXml verifies that extracting from an OFD

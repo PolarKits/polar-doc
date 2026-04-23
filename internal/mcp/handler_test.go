@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/PolarKits/polardoc/internal/app"
-	"github.com/PolarKits/polardoc/internal/doc"
+	"github.com/PolarKits/polar-doc/internal/app"
+	"github.com/PolarKits/polar-doc/internal/doc"
 )
 
 func TestFirstPageHandlerPDFSuccess(t *testing.T) {

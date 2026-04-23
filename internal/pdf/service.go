@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/PolarKits/polardoc/internal/doc"
+	"github.com/PolarKits/polar-doc/internal/doc"
 )
 
 // FirstPageInfo holds raw PDF object references and attributes for the first page.

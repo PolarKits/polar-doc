@@ -3,7 +3,7 @@ package pdf
 import (
 	"context"
 
-	"github.com/PolarKits/polardoc/internal/doc"
+	"github.com/PolarKits/polar-doc/internal/doc"
 )
 
 // Service defines PDF capability implementations.

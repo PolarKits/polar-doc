@@ -1,6 +1,6 @@
 package commands
 
-import "github.com/PolarKits/polardoc/internal/doc"
+import "github.com/PolarKits/polar-doc/internal/doc"
 
 func parseDocumentRef(command string, args []string) (doc.DocumentRef, error) {
 	input, err := parseCommandInput(command, args)

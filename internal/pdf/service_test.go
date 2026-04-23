@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/PolarKits/polardoc/internal/doc"
-	"github.com/PolarKits/polardoc/internal/ofd"
+	"github.com/PolarKits/polar-doc/internal/doc"
+	"github.com/PolarKits/polar-doc/internal/ofd"
 )
 
 func TestServiceOpenAndInfo(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/PolarKits/polardoc/cmd/polardoc/commands"
-	"github.com/PolarKits/polardoc/internal/app"
+	"github.com/PolarKits/polar-doc/cmd/polardoc/commands"
+	"github.com/PolarKits/polar-doc/internal/app"
 )
 
 func main() {

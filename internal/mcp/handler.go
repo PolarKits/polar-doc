@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/PolarKits/polardoc/internal/app"
-	"github.com/PolarKits/polardoc/internal/doc"
+	"github.com/PolarKits/polar-doc/internal/app"
+	"github.com/PolarKits/polar-doc/internal/doc"
 )
 
 // ToolNameFirstPageInfo is the MCP tool name for retrieving first-page structure info.

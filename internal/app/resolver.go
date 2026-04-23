@@ -1,9 +1,9 @@
 package app
 
 import (
-	"github.com/PolarKits/polardoc/internal/doc"
-	"github.com/PolarKits/polardoc/internal/ofd"
-	"github.com/PolarKits/polardoc/internal/pdf"
+	"github.com/PolarKits/polar-doc/internal/doc"
+	"github.com/PolarKits/polar-doc/internal/ofd"
+	"github.com/PolarKits/polar-doc/internal/pdf"
 )
 
 // StaticResolver resolves services from a fixed set.

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/PolarKits/polardoc/internal/app"
+	"github.com/PolarKits/polar-doc/internal/app"
 )
 
 func TestParseInfoFileFlag(t *testing.T) {

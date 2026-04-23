@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/PolarKits/polardoc/internal/doc"
+	"github.com/PolarKits/polar-doc/internal/doc"
 )
 
 func TestPDFServiceHasLimitedWriteCapability(t *testing.T) {

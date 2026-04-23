@@ -3,7 +3,7 @@ package security
 import (
 	"context"
 
-	"github.com/PolarKits/polardoc/internal/doc"
+	"github.com/PolarKits/polar-doc/internal/doc"
 )
 
 // SignService defines signing capability for format-specific documents.

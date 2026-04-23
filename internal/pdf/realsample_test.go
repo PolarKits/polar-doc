@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/PolarKits/polardoc/internal/doc"
-	fixtures "github.com/PolarKits/polardoc/internal/testdata"
+	"github.com/PolarKits/polar-doc/internal/doc"
+	fixtures "github.com/PolarKits/polar-doc/internal/testdata"
 )
 
 type PDFSampleResult struct {

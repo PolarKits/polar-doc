@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/PolarKits/polardoc/internal/app"
+	"github.com/PolarKits/polar-doc/internal/app"
 )
 
 func TestRunInfoSuccessReturnsZero(t *testing.T) {

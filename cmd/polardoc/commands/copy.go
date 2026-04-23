@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/PolarKits/polardoc/internal/app"
-	"github.com/PolarKits/polardoc/internal/doc"
+	"github.com/PolarKits/polar-doc/internal/app"
+	"github.com/PolarKits/polar-doc/internal/doc"
 )
 
 func parseCopyInput(args []string) (copyInput, error) {

@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/PolarKits/polardoc/internal/doc"
-	"github.com/PolarKits/polardoc/internal/pdf"
+	"github.com/PolarKits/polar-doc/internal/doc"
+	"github.com/PolarKits/polar-doc/internal/pdf"
 )
 
 // TestServiceFirstPageInfoUnsupported verifies that FirstPageInfo returns

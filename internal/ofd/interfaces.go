@@ -3,7 +3,7 @@ package ofd
 import (
 	"context"
 
-	"github.com/PolarKits/polardoc/internal/doc"
+	"github.com/PolarKits/polar-doc/internal/doc"
 )
 
 // Service defines OFD capability implementations.

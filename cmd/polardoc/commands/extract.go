@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/PolarKits/polardoc/internal/app"
-	"github.com/PolarKits/polardoc/internal/doc"
+	"github.com/PolarKits/polar-doc/internal/app"
+	"github.com/PolarKits/polar-doc/internal/doc"
 )
 
 // RunExtract runs the extract command to extract text content from documents.

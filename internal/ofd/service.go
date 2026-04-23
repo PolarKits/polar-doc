@@ -10,7 +10,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/PolarKits/polardoc/internal/doc"
+	"github.com/PolarKits/polar-doc/internal/doc"
 )
 
 // maxZipEntries is the maximum number of files allowed inside an OFD ZIP package.

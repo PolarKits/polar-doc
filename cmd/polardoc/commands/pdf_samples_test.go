@@ -3,7 +3,7 @@ package commands
 import (
 	"testing"
 
-	fixtures "github.com/PolarKits/polardoc/internal/testdata"
+	fixtures "github.com/PolarKits/polar-doc/internal/testdata"
 )
 
 func requirePDFSample(t *testing.T, key string) string {

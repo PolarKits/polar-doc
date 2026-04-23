@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/PolarKits/polardoc/cmd/polardoc/commands"
-	"github.com/PolarKits/polardoc/internal/app"
+	"github.com/PolarKits/polar-doc/cmd/polardoc/commands"
+	"github.com/PolarKits/polar-doc/internal/app"
 )
 
 var errUsage = errors.New("usage")

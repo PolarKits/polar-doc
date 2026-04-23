@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/PolarKits/polardoc/internal/app"
-	"github.com/PolarKits/polardoc/internal/mcp"
-	fixtures "github.com/PolarKits/polardoc/internal/testdata"
+	"github.com/PolarKits/polar-doc/internal/app"
+	"github.com/PolarKits/polar-doc/internal/mcp"
+	fixtures "github.com/PolarKits/polar-doc/internal/testdata"
 )
 
 func requirePDFSample(t *testing.T, key string) string {

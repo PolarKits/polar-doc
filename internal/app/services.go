@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 
-	"github.com/PolarKits/polardoc/internal/doc"
+	"github.com/PolarKits/polar-doc/internal/doc"
 )
 
 // FirstPageInfoResult holds first page info result at app capability level.
