@@ -100,7 +100,7 @@ func (n *pdfNavigator) GoTo(ctx context.Context, ref string) (doc.PageData, erro
 
 	var contentBytes []byte
 	for _, contentRef := range contents {
-		streamData, err := readContentStream(f, contentRef)
+		streamData, err := n.doc.readCachedContentStream(contentRef)
 		if err != nil {
 			continue
 		}

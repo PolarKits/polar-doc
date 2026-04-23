@@ -159,7 +159,7 @@ func (it *pageIterator) Next(ctx context.Context) (doc.PageData, error) {
 
 			var contentBytes []byte
 			for _, contentRef := range contents {
-				streamData, err := readContentStream(f, contentRef)
+				streamData, err := it.doc.readCachedContentStream(contentRef)
 				if err != nil {
 					continue
 				}

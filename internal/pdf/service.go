@@ -70,6 +70,7 @@ type document struct {
 	xrefOffsets     []int64            // ordered chain of xref section offsets (newest first)
 	xrefLoaded      map[int64]bool     // tracks which sections have been parsed into xrefIdx
 	mu              sync.Mutex         // guards xrefIdx, xrefOffsets, xrefLoaded
+	contentCache    *doc.LRUCache      // page content stream cache, keyed by object ref
 }
 
 // NewService returns the PDF service used by phase-1 CLI flows.
@@ -136,6 +137,22 @@ func (d *document) readObject(ref string) (string, error) {
 
 func (d *document) getFile() *os.File {
 	return d.file
+}
+
+// readCachedContentStream reads and decodes a content stream, using the
+// document's content cache to avoid repeated I/O and decompression on
+// subsequent accesses to the same object reference.
+func (d *document) readCachedContentStream(ref PDFRef) ([]byte, error) {
+	key := RefToString(ref)
+	if cached, ok := d.contentCache.Get(context.Background(), key); ok {
+		return cached, nil
+	}
+	data, err := readContentStream(d.file, ref)
+	if err != nil {
+		return nil, err
+	}
+	d.contentCache.Put(context.Background(), key, data)
+	return data, nil
 }
 
 // getXRefIndex returns the unified xref index for this document.
@@ -271,6 +288,7 @@ func (s *service) Open(_ context.Context, ref doc.DocumentRef) (doc.Document, er
 		sizeBytes:       st.Size(),
 		declaredVersion: version,
 		xrefStartOffset: xrefStartOffset,
+		contentCache:    doc.NewLRUCache(doc.DefaultPageCacheMaxBytes),
 	}, nil
 }
 
