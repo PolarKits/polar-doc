@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/PolarKits/polar-doc/internal/doc"
 )
@@ -33,6 +34,11 @@ type document struct {
 	ref       doc.DocumentRef // original reference used to open the document
 	zipReader *zip.ReadCloser // handle to the OFD ZIP package
 	sizeBytes int64           // total size of the OFD file in bytes
+
+	metaOnce  sync.Once       // guards lazy initialization of version and pageCount
+	version   string          // cached from OFD.xml
+	pageCount int             // cached from Document.xml
+	metaErr   error           // first error encountered during meta initialization
 }
 
 // NewService returns the OFD service used by phase-1 CLI flows.
@@ -52,6 +58,26 @@ func (d *document) Close() error {
 		return nil
 	}
 	return d.zipReader.Close()
+}
+
+// loadMeta initializes version and pageCount from the OFD package.
+// It is called at most once per document via sync.Once.
+func (d *document) loadMeta() {
+	d.metaOnce.Do(func() {
+		v, err := getVersion(d.zipReader.File)
+		if err != nil {
+			d.metaErr = err
+			return
+		}
+		d.version = v
+
+		pc, err := getPageCount(d.zipReader.File)
+		if err != nil {
+			d.metaErr = err
+			return
+		}
+		d.pageCount = pc
+	})
 }
 
 // Open opens an OFD package from the given reference.
@@ -99,11 +125,9 @@ func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error
 		SizeBytes: ofdDoc.sizeBytes,
 	}
 
-	version, _ := getVersion(ofdDoc.zipReader.File)
-	info.DeclaredVersion = version
-
-	pageCount, _ := getPageCount(ofdDoc.zipReader.File)
-	info.PageCount = pageCount
+	ofdDoc.loadMeta()
+	info.DeclaredVersion = ofdDoc.version
+	info.PageCount = ofdDoc.pageCount
 
 	return info, nil
 }
