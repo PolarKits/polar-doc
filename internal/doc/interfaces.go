@@ -94,3 +94,37 @@ type PreviewRenderer interface {
 type Signer interface {
 	Sign(ctx context.Context, d Document, req SignRequest) (SignResult, error)
 }
+
+// PageIterator enables sequential streaming access to document pages.
+// Iterators are stateful and not safe for concurrent use.
+type PageIterator interface {
+	// Next returns the next page data or io.EOF when exhausted.
+	Next(ctx context.Context) (PageData, error)
+	// Reset restarts the iterator from the first page.
+	Reset()
+}
+
+// PageData encapsulates content and metadata for a single page.
+// Callers should not retain references to Content after the iterator advances,
+// as implementations may reuse or release buffers between calls.
+type PageData struct {
+	Number   int      // 1-based page number
+	ObjRef   string   // Object reference: "12 0 R" for PDF, "Doc_0/Page_0/Content.xml" for OFD
+	MediaBox []float64 // [llx, lly, urx, ury] in PDF user units
+	Content  []byte    // Raw decoded content stream (page content operators)
+}
+
+// Navigator provides random-access to page content via object references.
+// Unlike PageIterator which walks pages sequentially, Navigator can jump
+// directly to a specific object reference.
+type Navigator interface {
+	// GoTo resolves a page object reference and returns its content.
+	// The ref format is format-specific (e.g., "12 0 R" for PDF).
+	GoTo(ctx context.Context, ref string) (PageData, error)
+}
+
+// PageCounter provides page count information.
+type PageCounter interface {
+	// PageCount returns the total number of pages in the document.
+	PageCount(ctx context.Context) (int, error)
+}
