@@ -535,6 +535,91 @@ func readObjectAt(f *os.File, offset int64) ([]byte, error) {
 // resolveFromObjStm resolves an object from a compressed object stream.
 // It first resolves the ObjStm itself, decompresses it, then extracts the
 // object at the specified index.
+// ValidateDeep performs comprehensive PDF structure validation beyond basic header checks.
+// It verifies xref table/stream integrity, object accessibility, trailer validity,
+// and cross-reference consistency across the entire document.
+func ValidateDeep(f *os.File) error {
+	info, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("ValidateDeep: stat: %w", err)
+	}
+	if info.Size() < 20 {
+		return fmt.Errorf("ValidateDeep: file too small for valid PDF")
+	}
+
+	xrefOffset, err := readStartxref(f)
+	if err != nil {
+		return fmt.Errorf("ValidateDeep: %w", err)
+	}
+
+	idx, err := buildXRefIndex(f, xrefOffset)
+	if err != nil {
+		return fmt.Errorf("ValidateDeep: build xref index: %w", err)
+	}
+
+	if len(idx) == 0 {
+		return fmt.Errorf("ValidateDeep: no objects found in xref index")
+	}
+
+	for objNum := range idx {
+		if objNum == 0 {
+			continue
+		}
+		_, err := resolveObject(f, idx, objNum)
+		if err != nil {
+			return fmt.Errorf("ValidateDeep: object %d not resolvable: %w", objNum, err)
+		}
+	}
+
+	trailerDict, isXRefStream, err := readTrailerDictFromFile(f, xrefOffset)
+	if err != nil {
+		return fmt.Errorf("ValidateDeep: trailer read: %w", err)
+	}
+	if trailerDict == "" {
+		return fmt.Errorf("ValidateDeep: trailer dictionary not found")
+	}
+
+	trailer, err := ParseDictContent(trailerDict)
+	if err != nil {
+		return fmt.Errorf("ValidateDeep: parse trailer: %w", err)
+	}
+
+	if _, ok := DictGetRef(trailer, "Root"); !ok && !isXRefStream {
+		return fmt.Errorf("ValidateDeep: /Root reference not found in trailer")
+	}
+
+	if isXRefStream {
+		return nil
+	}
+
+	rootRefStr, err := readTrailerRootRef(f, xrefOffset)
+	if err != nil {
+		return fmt.Errorf("ValidateDeep: get root ref: %w", err)
+	}
+	catalogObj, err := readObject(f, rootRefStr)
+	if err != nil {
+		return fmt.Errorf("ValidateDeep: catalog object unreadable: %w", err)
+	}
+	catalogDict, err := extractDictFromObject(catalogObj)
+	if err != nil {
+		return fmt.Errorf("ValidateDeep: catalog dict: %w", err)
+	}
+	if typ, ok := DictGetName(catalogDict, "Type"); !ok || typ != "Catalog" {
+		return fmt.Errorf("ValidateDeep: root is not /Type /Catalog")
+	}
+
+	return nil
+}
+
+func readTrailerDictFromFile(f *os.File, xrefOffset int64) (string, bool, error) {
+	_, err := f.Seek(xrefOffset, io.SeekStart)
+	if err != nil {
+		return "", false, err
+	}
+	rd := bufio.NewReader(f)
+	return readTrailerDictLines(rd)
+}
+
 func resolveFromObjStm(f *os.File, idx xrefIndex, objStmNum int64, indexInStm int) ([]byte, error) {
 	// Get the ObjStm entry
 	stmEntry, ok := idx[objStmNum]
