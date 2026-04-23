@@ -76,7 +76,7 @@ func TestParseInfoJSONFileFlag(t *testing.T) {
 func TestParseValidateFileFlag(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")
-	if err := os.WriteFile(path, []byte("%PDF-1.7\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, buildMinimalValidPDF(), 0o644); err != nil {
 		t.Fatalf("write sample PDF: %v", err)
 	}
 
@@ -93,7 +93,7 @@ func TestParseValidateFileFlag(t *testing.T) {
 func TestParseValidateFFlag(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")
-	if err := os.WriteFile(path, []byte("%PDF-1.7\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, buildMinimalValidPDF(), 0o644); err != nil {
 		t.Fatalf("write sample PDF: %v", err)
 	}
 
@@ -110,7 +110,7 @@ func TestParseValidateFFlag(t *testing.T) {
 func TestParseValidateJSONFileFlag(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")
-	if err := os.WriteFile(path, []byte("%PDF-1.7\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, buildMinimalValidPDF(), 0o644); err != nil {
 		t.Fatalf("write sample PDF: %v", err)
 	}
 

@@ -35,4 +35,4 @@ func Execute(ctx context.Context, args []string, resolver app.ServiceResolver) e
 	}
 }
 
-const usageText = "polardoc\nusage: polardoc <info|validate|extract|cp> [--file|-f] <path>\ncommands: info, validate, extract, cp\ninfo flags: --json, --page"
+const usageText = "polardoc\nusage: polardoc <info|validate|extract|cp> [--file|-f] <path>\ncommands: info, validate, extract, cp\ninfo flags: --json, --page\nvalidate flags: --json, --deep-validate"

@@ -40,7 +40,7 @@ func TestRunValidateInvalidPDF(t *testing.T) {
 func TestRunValidatePDF(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")
-	if err := os.WriteFile(path, []byte("%PDF-1.7\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, buildMinimalValidPDF(), 0o644); err != nil {
 		t.Fatalf("write sample PDF: %v", err)
 	}
 
@@ -72,7 +72,7 @@ func TestRunValidateInvalidOFD(t *testing.T) {
 func TestRunValidateJSONValidPDF(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")
-	if err := os.WriteFile(path, []byte("%PDF-1.7\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, buildMinimalValidPDF(), 0o644); err != nil {
 		t.Fatalf("write sample PDF: %v", err)
 	}
 
@@ -142,4 +142,73 @@ func mustUnmarshalValidateJSON(t *testing.T, output string, dst any) {
 	if err := json.Unmarshal([]byte(output), dst); err != nil {
 		t.Fatalf("unmarshal JSON output %q: %v", output, err)
 	}
+}
+
+func TestRunValidateDeepFlag(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	if err := os.WriteFile(path, buildMinimalValidPDF(), 0o644); err != nil {
+		t.Fatalf("write sample PDF: %v", err)
+	}
+
+	resolver := app.NewPhase1Resolver()
+	output := captureStdout(t, func() {
+		if err := RunValidate(context.Background(), resolver, []string{"--deep-validate", path}); err != nil {
+			t.Fatalf("run validate --deep-validate: %v", err)
+		}
+	})
+
+	mustContain(t, output, "valid: true")
+	mustContain(t, output, "deep: true")
+}
+
+func TestRunValidateDeepFlagJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	if err := os.WriteFile(path, buildMinimalValidPDF(), 0o644); err != nil {
+		t.Fatalf("write sample PDF: %v", err)
+	}
+
+	resolver := app.NewPhase1Resolver()
+	output := captureStdout(t, func() {
+		if err := RunValidate(context.Background(), resolver, []string{"--json", "--deep-validate", path}); err != nil {
+			t.Fatalf("run validate --json --deep-validate: %v", err)
+		}
+	})
+
+	var got struct {
+		Valid  bool     `json:"valid"`
+		Errors []string `json:"errors"`
+		Deep   bool     `json:"deep"`
+	}
+	mustUnmarshalValidateJSON(t, output, &got)
+
+	if !got.Valid {
+		t.Fatalf("valid = %t, want true", got.Valid)
+	}
+	if !got.Deep {
+		t.Fatalf("deep = %t, want true", got.Deep)
+	}
+}
+
+// buildMinimalValidPDF returns a minimal structurally complete PDF with
+// header, Catalog, Pages, xref table, trailer, and startxref.
+func buildMinimalValidPDF() []byte {
+	return []byte("%PDF-1.7\n" +
+		"1 0 obj\n" +
+		"<< /Type /Catalog /Pages 2 0 R >>\n" +
+		"endobj\n" +
+		"2 0 obj\n" +
+		"<< /Type /Pages /Kids [] /Count 0 >>\n" +
+		"endobj\n" +
+		"xref\n" +
+		"0 3\n" +
+		"0000000000 65535 f \n" +
+		"0000000009 00000 n \n" +
+		"0000000058 00000 n \n" +
+		"trailer\n" +
+		"<< /Root 1 0 R /Size 3 >>\n" +
+		"startxref\n" +
+		"110\n" +
+		"%%EOF\n")
 }

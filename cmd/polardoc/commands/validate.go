@@ -13,7 +13,7 @@ import (
 var ErrValidationFailed = errors.New("validation failed")
 
 // RunValidate runs the validate command to check document structural integrity.
-// It supports PDF and OFD formats, with optional JSON output.
+// It supports PDF and OFD formats, with optional JSON output and deep validation.
 func RunValidate(ctx context.Context, resolver app.ServiceResolver, args []string) error {
 	input, err := parseCommandInput("validate", args)
 	if err != nil {
@@ -50,6 +50,7 @@ func RunValidate(ctx context.Context, resolver app.ServiceResolver, args []strin
 		err := writeJSON(validateResponse{
 			Valid:  report.Valid,
 			Errors: report.Errors,
+			Deep:   input.deepValidate,
 		})
 		if err != nil {
 			return err
@@ -61,6 +62,9 @@ func RunValidate(ctx context.Context, resolver app.ServiceResolver, args []strin
 	}
 
 	fmt.Printf("valid: %t\n", report.Valid)
+	if input.deepValidate {
+		fmt.Printf("deep: true\n")
+	}
 	for _, errText := range report.Errors {
 		fmt.Printf("error: %s\n", errText)
 	}
@@ -77,4 +81,6 @@ type validateResponse struct {
 	Valid bool `json:"valid"`
 	// Errors contains validation error messages if Valid is false.
 	Errors []string `json:"errors"`
+	// Deep indicates whether deep validation was requested.
+	Deep bool `json:"deep,omitempty"`
 }

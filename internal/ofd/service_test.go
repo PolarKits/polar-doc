@@ -354,6 +354,44 @@ func TestServiceExtractTextKeywordSearch(t *testing.T) {
 	t.Logf("extracted %d chars", len(result.Text))
 }
 
+// TestServiceExtractTextMultiPage verifies that ExtractText collects text from
+// all pages in a multi-page OFD document and concatenates them in page order.
+func TestServiceExtractTextMultiPage(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "multi.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd:OFD xmlns:ofd="http://www.ofdspec.org/2016" Version="1.0"><ofd:DocBody><ofd:DocRoot>Doc_0/Document.xml</ofd:DocRoot></ofd:DocBody></ofd:OFD>`,
+		"Doc_0/Document.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd:Document xmlns:ofd="http://www.ofdspec.org/2016"><ofd:Pages>` +
+			`<ofd:Page ID="1" BaseLoc="Pages/Page_0/Content.xml"/>` +
+			`<ofd:Page ID="2" BaseLoc="Pages/Page_1/Content.xml"/>` +
+			`<ofd:Page ID="3" BaseLoc="Pages/Page_2/Content.xml"/>` +
+			`</ofd:Pages></ofd:Document>`,
+		"Doc_0/Pages/Page_0/Content.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd:Content xmlns:ofd="http://www.ofdspec.org/2016"><ofd:Page><ofd:TextObject><ofd:TextCode X="0" Y="0">Alpha</ofd:TextCode></ofd:TextObject></ofd:Page></ofd:Content>`,
+		"Doc_0/Pages/Page_1/Content.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd:Content xmlns:ofd="http://www.ofdspec.org/2016"><ofd:Page><ofd:TextObject><ofd:TextCode X="0" Y="0">Beta</ofd:TextCode></ofd:TextObject></ofd:Page></ofd:Content>`,
+		"Doc_0/Pages/Page_2/Content.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd:Content xmlns:ofd="http://www.ofdspec.org/2016"><ofd:Page><ofd:TextObject><ofd:TextCode X="0" Y="0">Gamma</ofd:TextCode></ofd:TextObject></ofd:Page></ofd:Content>`,
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write multi-page OFD: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: path})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	result, err := svc.ExtractText(context.Background(), d)
+	if err != nil {
+		t.Fatalf("ExtractText: %v", err)
+	}
+
+	expected := "Alpha\nBeta\nGamma"
+	if result.Text != expected {
+		t.Fatalf("ExtractText = %q, want %q", result.Text, expected)
+	}
+}
+
 func TestServiceInfoMultiPage(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "multi.ofd")

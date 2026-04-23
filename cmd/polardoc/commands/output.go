@@ -8,8 +8,9 @@ import (
 )
 
 type commandInput struct {
-	path string
-	json bool
+	path          string
+	json          bool
+	deepValidate  bool
 }
 
 func parseCommandInput(command string, args []string) (commandInput, error) {
@@ -18,9 +19,11 @@ func parseCommandInput(command string, args []string) (commandInput, error) {
 
 	var file string
 	var jsonOutput bool
+	var deepValidate bool
 	fs.StringVar(&file, "file", "", "document path")
 	fs.StringVar(&file, "f", "", "document path")
 	fs.BoolVar(&jsonOutput, "json", false, "print JSON output")
+	fs.BoolVar(&deepValidate, "deep-validate", false, "perform deep structural validation")
 
 	if err := fs.Parse(args); err != nil {
 		return commandInput{}, fmt.Errorf("invalid args for %s: %w", command, err)
@@ -28,16 +31,17 @@ func parseCommandInput(command string, args []string) (commandInput, error) {
 
 	if file == "" {
 		if fs.NArg() != 1 {
-			return commandInput{}, fmt.Errorf("usage: polardoc %s [--json] [--file|-f] <path>", command)
+			return commandInput{}, fmt.Errorf("usage: polardoc %s [--json] [--deep-validate] [--file|-f] <path>", command)
 		}
 		file = fs.Arg(0)
 	} else if fs.NArg() != 0 {
-		return commandInput{}, fmt.Errorf("usage: polardoc %s [--json] [--file|-f] <path>", command)
+		return commandInput{}, fmt.Errorf("usage: polardoc %s [--json] [--deep-validate] [--file|-f] <path>", command)
 	}
 
 	return commandInput{
-		path: file,
-		json: jsonOutput,
+		path:         file,
+		json:         jsonOutput,
+		deepValidate: deepValidate,
 	}, nil
 }
 

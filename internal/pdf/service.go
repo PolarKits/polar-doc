@@ -202,6 +202,11 @@ func (s *service) Validate(_ context.Context, d doc.Document) (doc.ValidationRep
 		return doc.ValidationReport{}, err
 	}
 
+	if err := ValidateDeep(pdfDoc.file); err != nil {
+		report.Valid = false
+		report.Errors = append(report.Errors, err.Error())
+	}
+
 	return report, nil
 }
 

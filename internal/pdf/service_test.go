@@ -642,7 +642,8 @@ func TestReadPageCount(t *testing.T) {
 func TestServiceValidateValidPDF(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")
-	if err := os.WriteFile(path, []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n"), 0o644); err != nil {
+	pdf := buildMinimalValidPDF("1.7")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
 		t.Fatalf("write sample PDF: %v", err)
 	}
 
@@ -659,7 +660,7 @@ func TestServiceValidateValidPDF(t *testing.T) {
 	}
 
 	if !report.Valid {
-		t.Fatalf("valid = false, want true")
+		t.Fatalf("valid = false, want true; errors: %v", report.Errors)
 	}
 	if len(report.Errors) != 0 {
 		t.Fatalf("errors = %v, want empty", report.Errors)
@@ -694,7 +695,8 @@ func TestServiceOpenAndInfoPDF20(t *testing.T) {
 func TestServiceValidateValidPDF20(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")
-	if err := os.WriteFile(path, []byte("%PDF-2.0\n1 0 obj\n<<>>\nendobj\n"), 0o644); err != nil {
+	pdf := buildMinimalValidPDF("2.0")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
 		t.Fatalf("write sample PDF 2.0: %v", err)
 	}
 
@@ -711,7 +713,7 @@ func TestServiceValidateValidPDF20(t *testing.T) {
 	}
 
 	if !report.Valid {
-		t.Fatalf("valid = false, want true for PDF 2.0 header")
+		t.Fatalf("valid = false, want true for PDF 2.0; errors: %v", report.Errors)
 	}
 }
 
@@ -743,7 +745,8 @@ func TestServiceOpenAndInfoPDF14(t *testing.T) {
 func TestServiceValidateValidPDF14(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")
-	if err := os.WriteFile(path, []byte("%PDF-1.4\n1 0 obj\n<<>>\nendobj\n"), 0o644); err != nil {
+	pdf := buildMinimalValidPDF("1.4")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
 		t.Fatalf("write sample PDF 1.4: %v", err)
 	}
 
@@ -760,7 +763,7 @@ func TestServiceValidateValidPDF14(t *testing.T) {
 	}
 
 	if !report.Valid {
-		t.Fatalf("valid = false, want true for PDF 1.4 header")
+		t.Fatalf("valid = false, want true for PDF 1.4; errors: %v", report.Errors)
 	}
 }
 
@@ -792,7 +795,8 @@ func TestServiceOpenAndInfoPDF13PreRelease(t *testing.T) {
 func TestServiceValidateValidPDF13PreRelease(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")
-	if err := os.WriteFile(path, []byte("%PDF-1.3\n1 0 obj\n<<>>\nendobj\n"), 0o644); err != nil {
+	pdf := buildMinimalValidPDF("1.3")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
 		t.Fatalf("write sample PDF 1.3: %v", err)
 	}
 
@@ -809,30 +813,14 @@ func TestServiceValidateValidPDF13PreRelease(t *testing.T) {
 	}
 
 	if !report.Valid {
-		t.Fatalf("valid = false, want true for PDF 1.3 header")
+		t.Fatalf("valid = false, want true for PDF 1.3; errors: %v", report.Errors)
 	}
 }
 
 func TestServiceReadStartxrefFindsXrefOffset(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.pdf")
-	pdf := []byte("%PDF-1.4\n" +
-		"1 0 obj\n" +
-		"<< /Type /Catalog /Pages 2 0 R >>\n" +
-		"endobj\n" +
-		"2 0 obj\n" +
-		"<< /Type /Pages /Kids [] /Count 0 >>\n" +
-		"endobj\n" +
-		"xref\n" +
-		"0 3\n" +
-		"0000000000 65535 f \n" +
-		"0000000009 00000 n \n" +
-		"0000000058 00000 n \n" +
-		"trailer\n" +
-		"<< /Root 1 0 R /Size 3 >>\n" +
-		"startxref\n" +
-		"110\n" +
-		"%%EOF\n")
+	pdf := buildMinimalValidPDF("1.4")
 	if err := os.WriteFile(path, pdf, 0o644); err != nil {
 		t.Fatalf("write PDF: %v", err)
 	}
@@ -849,6 +837,76 @@ func TestServiceReadStartxrefFindsXrefOffset(t *testing.T) {
 	}
 	if offset != 110 {
 		t.Fatalf("startxref offset = %d, want 110", offset)
+	}
+}
+
+func TestServiceValidateDeepRejectsCorruptXref(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "corrupt.pdf")
+	pdf := []byte("%PDF-1.4\n" +
+		"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n" +
+		"2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n" +
+		"xref\n" +
+		"0 3\n" +
+		"0000000000 65535 f \n" +
+		"0000999999 00000 n \n" +
+		"0000000058 00000 n \n" +
+		"trailer\n" +
+		"<< /Root 1 0 R /Size 3 >>\n" +
+		"startxref\n" +
+		"110\n" +
+		"%%EOF\n")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
+		t.Fatalf("write PDF: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	report, err := svc.Validate(context.Background(), d)
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	if report.Valid {
+		t.Fatal("valid = true, want false for corrupt xref")
+	}
+}
+
+func TestServiceValidateDeepRejectsMissingRoot(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "no_root.pdf")
+	pdf := []byte("%PDF-1.4\n" +
+		"1 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n" +
+		"xref\n" +
+		"0 2\n" +
+		"0000000000 65535 f \n" +
+		"0000000009 00000 n \n" +
+		"trailer\n" +
+		"<< /Size 2 >>\n" +
+		"startxref\n" +
+		"62\n" +
+		"%%EOF\n")
+	if err := os.WriteFile(path, pdf, 0o644); err != nil {
+		t.Fatalf("write PDF: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	report, err := svc.Validate(context.Background(), d)
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	if report.Valid {
+		t.Fatal("valid = true, want false for missing /Root")
 	}
 }
 
@@ -1481,6 +1539,28 @@ func buildOFDTestPackage(t *testing.T, files map[string]string) []byte {
 		t.Fatalf("close zip writer: %v", err)
 	}
 	return buf.Bytes()
+}
+
+// buildMinimalValidPDF returns a minimal but structurally complete PDF with
+// header, two objects (Catalog + Pages), xref table, trailer, and startxref.
+func buildMinimalValidPDF(version string) []byte {
+	return []byte(fmt.Sprintf("%%PDF-%s\n"+
+		"1 0 obj\n"+
+		"<< /Type /Catalog /Pages 2 0 R >>\n"+
+		"endobj\n"+
+		"2 0 obj\n"+
+		"<< /Type /Pages /Kids [] /Count 0 >>\n"+
+		"endobj\n"+
+		"xref\n"+
+		"0 3\n"+
+		"0000000000 65535 f \n"+
+		"0000000009 00000 n \n"+
+		"0000000058 00000 n \n"+
+		"trailer\n"+
+		"<< /Root 1 0 R /Size 3 >>\n"+
+		"startxref\n"+
+		"110\n"+
+		"%%%%EOF\n", version))
 }
 
 func TestServiceReadNestedPagesTree(t *testing.T) {
