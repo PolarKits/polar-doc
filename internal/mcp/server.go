@@ -235,6 +235,15 @@ func (s *Server) handleToolsList() ToolsListResult {
 					"required":   []string{"path"},
 				},
 			},
+			{
+				Name:        ToolNameDocumentExtract,
+				Description: "Extract text content from a PDF or OFD document.",
+				InputSchema: map[string]any{
+					"type":       "object",
+					"properties": map[string]any{"path": pathSchema},
+					"required":   []string{"path"},
+				},
+			},
 		},
 	}
 }
@@ -254,6 +263,8 @@ func (s *Server) handleToolsCall(ctx context.Context, rawParams json.RawMessage)
 		handler = NewDocumentInfoHandler(s.resolver)
 	case ToolNameDocumentValidate:
 		handler = NewDocumentValidateHandler(s.resolver)
+	case ToolNameDocumentExtract:
+		handler = NewDocumentExtractHandler(s.resolver)
 	default:
 		return nil, &jsonrpcError{Code: -32602, Message: fmt.Sprintf("unknown tool: %s", params.Name)}
 	}

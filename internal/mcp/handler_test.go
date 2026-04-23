@@ -12,6 +12,7 @@ import (
 
 	"github.com/PolarKits/polar-doc/internal/app"
 	"github.com/PolarKits/polar-doc/internal/doc"
+	testfixtures "github.com/PolarKits/polar-doc/internal/testdata"
 )
 
 func TestFirstPageHandlerPDFSuccess(t *testing.T) {
@@ -515,4 +516,96 @@ func buildOFDPackage(t *testing.T, files map[string]string) []byte {
 		t.Fatalf("close zip writer: %v", err)
 	}
 	return buf.Bytes()
+}
+
+func TestDocumentExtractHandlerPDF(t *testing.T) {
+	path := requirePDFSample(t, "standard-pdf20-utf8")
+
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentExtractHandler(resolver)
+
+	input := DocumentExtractInput{Path: path}
+	payload, _ := json.Marshal(input)
+
+	result, err := handler.Handle(context.Background(), ToolNameDocumentExtract, payload)
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+
+	var output DocumentExtractOutput
+	if err := json.Unmarshal(result, &output); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if output.Path != path {
+		t.Fatalf("path = %q, want %q", output.Path, path)
+	}
+	if output.Text == "" {
+		t.Fatal("text is empty, expected non-empty")
+	}
+	if output.PageCount <= 0 {
+		t.Fatalf("page_count = %d, want > 0", output.PageCount)
+	}
+	t.Logf("text length = %d, page_count = %d", len(output.Text), output.PageCount)
+}
+
+func TestDocumentExtractHandlerOFD(t *testing.T) {
+	sample, ok := testfixtures.OFDSampleByKey("core-multipage")
+	if !ok {
+		t.Fatal("core-multipage OFD sample not found")
+	}
+	path := sample.Path()
+
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentExtractHandler(resolver)
+
+	input := DocumentExtractInput{Path: path}
+	payload, _ := json.Marshal(input)
+
+	result, err := handler.Handle(context.Background(), ToolNameDocumentExtract, payload)
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+
+	var output DocumentExtractOutput
+	if err := json.Unmarshal(result, &output); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if output.Path != path {
+		t.Fatalf("path = %q, want %q", output.Path, path)
+	}
+	if output.Text == "" {
+		t.Fatal("text is empty, expected non-empty")
+	}
+	if output.PageCount <= 0 {
+		t.Fatalf("page_count = %d, want > 0", output.PageCount)
+	}
+	t.Logf("text length = %d, page_count = %d", len(output.Text), output.PageCount)
+}
+
+func TestDocumentExtractHandlerEmptyPath(t *testing.T) {
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentExtractHandler(resolver)
+
+	input := DocumentExtractInput{Path: ""}
+	payload, _ := json.Marshal(input)
+
+	_, err := handler.Handle(context.Background(), ToolNameDocumentExtract, payload)
+	if err == nil {
+		t.Fatal("handler should fail for empty path")
+	}
+}
+
+func TestDocumentExtractHandlerUnsupportedExtension(t *testing.T) {
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentExtractHandler(resolver)
+
+	input := DocumentExtractInput{Path: "/path/to/file.txt"}
+	payload, _ := json.Marshal(input)
+
+	_, err := handler.Handle(context.Background(), ToolNameDocumentExtract, payload)
+	if err == nil {
+		t.Fatal("handler should fail for unsupported extension")
+	}
 }

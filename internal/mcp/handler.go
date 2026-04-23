@@ -291,6 +291,84 @@ func detectFormatByExtension(path string) (doc.Format, error) {
 	return doc.DetectFormatByExtension(path)
 }
 
+// ToolNameDocumentExtract is the MCP tool name for text extraction.
+const ToolNameDocumentExtract = "document_extract"
+
+// DocumentExtractInput is the payload for the document_extract tool.
+type DocumentExtractInput struct {
+	// Path is the file system path to the document (PDF or OFD).
+	Path string `json:"path"`
+}
+
+// DocumentExtractOutput is the result for the document_extract tool.
+type DocumentExtractOutput struct {
+	// Path is the file system path to the document.
+	Path string `json:"path"`
+	// Text is the extracted plain text content.
+	Text string `json:"text"`
+	// PageCount is the number of pages processed.
+	PageCount int `json:"page_count"`
+}
+
+// DocumentExtractHandler handles the document_extract MCP tool.
+type DocumentExtractHandler struct {
+	resolver app.ServiceResolver
+}
+
+// NewDocumentExtractHandler creates a handler for the document_extract tool.
+func NewDocumentExtractHandler(resolver app.ServiceResolver) *DocumentExtractHandler {
+	return &DocumentExtractHandler{resolver: resolver}
+}
+
+// Handle implements the ToolHandler interface for the document_extract tool.
+// It extracts text content from a PDF or OFD document.
+func (h *DocumentExtractHandler) Handle(ctx context.Context, tool string, payload []byte) ([]byte, error) {
+	if tool != ToolNameDocumentExtract {
+		return nil, fmt.Errorf("unknown tool: %s", tool)
+	}
+
+	var input DocumentExtractInput
+	if err := json.Unmarshal(payload, &input); err != nil {
+		return nil, fmt.Errorf("invalid payload: %w", err)
+	}
+	if err := validateInputPath(input.Path); err != nil {
+		return nil, err
+	}
+
+	format, err := detectFormatByExtension(input.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	svc, ok := h.resolver.ByFormat(format)
+	if !ok {
+		return nil, fmt.Errorf("no service for format %q", format)
+	}
+
+	d, err := svc.Open(ctx, doc.DocumentRef{Format: format, Path: input.Path})
+	if err != nil {
+		return nil, fmt.Errorf("open document: %w", err)
+	}
+	defer d.Close()
+
+	result, err := svc.ExtractText(ctx, d)
+	if err != nil {
+		return nil, fmt.Errorf("extract text: %w", err)
+	}
+
+	info, err := svc.Info(ctx, d)
+	if err != nil {
+		return nil, fmt.Errorf("get document info: %w", err)
+	}
+
+	out := DocumentExtractOutput{
+		Path:      input.Path,
+		Text:      result.Text,
+		PageCount: info.PageCount,
+	}
+	return json.Marshal(out)
+}
+
 // validateInputPath rejects paths that contain directory traversal components
 // (e.g. "..") which could escape the intended file system boundary.
 // It uses filepath.Clean to normalize the path, then checks each component.
