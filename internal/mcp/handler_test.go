@@ -609,3 +609,105 @@ func TestDocumentExtractHandlerUnsupportedExtension(t *testing.T) {
 		t.Fatal("handler should fail for unsupported extension")
 	}
 }
+
+func TestDocumentReadPageHandler_PDF(t *testing.T) {
+	path := requirePDFSample(t, "core-multipage")
+
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentReadPageHandler(resolver)
+
+	input := DocumentReadPageInput{Path: path, Page: 1}
+	payload, _ := json.Marshal(input)
+
+	result, err := handler.Handle(context.Background(), ToolNameDocumentReadPage, payload)
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+
+	var output DocumentReadPageOutput
+	if err := json.Unmarshal(result, &output); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if output.Path != path {
+		t.Fatalf("path = %q, want %q", output.Path, path)
+	}
+	if output.Page != 1 {
+		t.Fatalf("page = %d, want 1", output.Page)
+	}
+	if output.TotalPages <= 0 {
+		t.Fatalf("total_pages = %d, want > 0", output.TotalPages)
+	}
+	if output.ObjRef == "" {
+		t.Fatal("obj_ref is empty, expected non-empty")
+	}
+	if output.ContentSize <= 0 {
+		t.Fatalf("content_size = %d, want > 0", output.ContentSize)
+	}
+}
+
+func TestDocumentReadPageHandler_OFD(t *testing.T) {
+	path := requireOFDSample(t, "core-multipage")
+
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentReadPageHandler(resolver)
+
+	input := DocumentReadPageInput{Path: path, Page: 1}
+	payload, _ := json.Marshal(input)
+
+	result, err := handler.Handle(context.Background(), ToolNameDocumentReadPage, payload)
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+
+	var output DocumentReadPageOutput
+	if err := json.Unmarshal(result, &output); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if output.Path != path {
+		t.Fatalf("path = %q, want %q", output.Path, path)
+	}
+	if output.Page != 1 {
+		t.Fatalf("page = %d, want 1", output.Page)
+	}
+	if output.TotalPages <= 0 {
+		t.Fatalf("total_pages = %d, want > 0", output.TotalPages)
+	}
+	if output.ObjRef == "" {
+		t.Fatal("obj_ref is empty, expected non-empty")
+	}
+	if output.ContentSize <= 0 {
+		t.Fatalf("content_size = %d, want > 0", output.ContentSize)
+	}
+}
+
+func TestDocumentReadPageHandler_OutOfRange(t *testing.T) {
+	path := requirePDFSample(t, "core-multipage")
+
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentReadPageHandler(resolver)
+
+	_, err := handler.Handle(context.Background(), ToolNameDocumentReadPage, []byte(`{"path":`+`"`+path+`","page":9999}`))
+	if err == nil {
+		t.Fatal("expected error for out-of-range page, got nil")
+	}
+	if !strings.Contains(err.Error(), "out of range") {
+		t.Fatalf("error = %q, want contains 'out of range'", err.Error())
+	}
+}
+
+func TestDocumentReadPageHandler_InvalidPage(t *testing.T) {
+	path := requirePDFSample(t, "core-multipage")
+
+	resolver := app.NewPhase1Resolver()
+	handler := NewDocumentReadPageHandler(resolver)
+
+	_, err := handler.Handle(context.Background(), ToolNameDocumentReadPage, []byte(`{"path":`+`"`+path+`","page":0}`))
+	if err == nil {
+		t.Fatal("handler should fail for page=0")
+	}
+	if !strings.Contains(err.Error(), "page must be >= 1") {
+		t.Fatalf("error = %q, want contains 'page must be >= 1'", err.Error())
+	}
+}

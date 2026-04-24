@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 
@@ -383,4 +384,116 @@ func validateInputPath(path string) error {
 		}
 	}
 	return nil
+}
+
+// ToolNameDocumentReadPage is the MCP tool name for reading a single page.
+const ToolNameDocumentReadPage = "document_read_page"
+
+// DocumentReadPageInput is the payload for the document_read_page tool.
+type DocumentReadPageInput struct {
+	// Path is the file system path to the document (PDF or OFD).
+	Path string `json:"path"`
+	// Page is the 1-based page number to read.
+	Page int `json:"page"`
+}
+
+// DocumentReadPageOutput is the result for the document_read_page tool.
+type DocumentReadPageOutput struct {
+	// Path is the file system path to the document.
+	Path string `json:"path"`
+	// Page is the 1-based page number returned.
+	Page int `json:"page"`
+	// TotalPages is the total page count of the document.
+	TotalPages int `json:"total_pages"`
+	// ObjRef is the format-specific object reference for this page.
+	ObjRef string `json:"obj_ref"`
+	// ContentSize is the byte size of the raw page content stream.
+	ContentSize int `json:"content_size"`
+}
+
+// DocumentReadPageHandler handles the document_read_page MCP tool.
+type DocumentReadPageHandler struct {
+	resolver app.ServiceResolver
+}
+
+// NewDocumentReadPageHandler creates a handler for the document_read_page tool.
+func NewDocumentReadPageHandler(resolver app.ServiceResolver) *DocumentReadPageHandler {
+	return &DocumentReadPageHandler{resolver: resolver}
+}
+
+// Handle implements the ToolHandler interface for the document_read_page tool.
+// It reads a specific page from a PDF or OFD document by 1-based page number.
+func (h *DocumentReadPageHandler) Handle(ctx context.Context, tool string, payload []byte) ([]byte, error) {
+	if tool != ToolNameDocumentReadPage {
+		return nil, fmt.Errorf("unknown tool: %s", tool)
+	}
+
+	var input DocumentReadPageInput
+	if err := json.Unmarshal(payload, &input); err != nil {
+		return nil, fmt.Errorf("invalid payload: %w", err)
+	}
+	if err := validateInputPath(input.Path); err != nil {
+		return nil, err
+	}
+	if input.Page < 1 {
+		return nil, fmt.Errorf("page must be >= 1, got %d", input.Page)
+	}
+
+	format, err := detectFormatByExtension(input.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	svc, ok := h.resolver.ByFormat(format)
+	if !ok {
+		return nil, fmt.Errorf("no service for format %q", format)
+	}
+
+	d, err := svc.Open(ctx, doc.DocumentRef{Format: format, Path: input.Path})
+	if err != nil {
+		return nil, fmt.Errorf("open document: %w", err)
+	}
+	defer d.Close()
+
+	info, err := svc.Info(ctx, d)
+	if err != nil {
+		return nil, fmt.Errorf("get document info: %w", err)
+	}
+	if input.Page > info.PageCount {
+		return nil, fmt.Errorf("page %d out of range (total: %d)", input.Page, info.PageCount)
+	}
+
+	iterProvider, ok := svc.(doc.PageIteratorProvider)
+	if !ok {
+		return nil, fmt.Errorf("format %q does not support page iteration", format)
+	}
+
+	iter, err := iterProvider.NewPageIterator(ctx, d)
+	if err != nil {
+		return nil, fmt.Errorf("create page iterator: %w", err)
+	}
+
+	var pageData doc.PageData
+	for {
+		pd, err := iter.Next(ctx)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("iterate page: %w", err)
+		}
+		pageData = pd
+		if pd.Number == input.Page {
+			break
+		}
+	}
+
+	out := DocumentReadPageOutput{
+		Path:        input.Path,
+		Page:        pageData.Number,
+		TotalPages:  info.PageCount,
+		ObjRef:      pageData.ObjRef,
+		ContentSize: len(pageData.Content),
+	}
+	return json.Marshal(out)
 }

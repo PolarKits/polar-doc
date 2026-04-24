@@ -70,7 +70,7 @@ Implemented:
 - PDF open, metadata inspection, first-page inspection, minimal validation, text extraction, copy/save, and single-revision rewrite
 - OFD open, metadata inspection (version, page count), package validation, and full text extraction from page Content.xml
 - application-layer format resolution through `internal/app`
-- MCP read handlers in `internal/mcp` for `pdf_first_page_info` and `document_info`
+- MCP read handlers in `internal/mcp` for `pdf_first_page_info`, `document_info`, and `document_read_page`
 - `cmd/polardoc-mcp` runnable via JSON-over-stdin/stdout transport
 
 Not yet complete:

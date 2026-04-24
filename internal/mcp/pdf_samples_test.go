@@ -15,3 +15,13 @@ func requirePDFSample(t *testing.T, key string) string {
 	}
 	return sample.Path()
 }
+
+func requireOFDSample(t *testing.T, key string) string {
+	t.Helper()
+
+	sample, ok := fixtures.OFDSampleByKey(key)
+	if !ok {
+		t.Fatalf("missing OFD sample %q", key)
+	}
+	return sample.Path()
+}

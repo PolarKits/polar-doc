@@ -244,6 +244,22 @@ func (s *Server) handleToolsList() ToolsListResult {
 					"required":   []string{"path"},
 				},
 			},
+			{
+				Name:        ToolNameDocumentReadPage,
+				Description: "Read a specific page from a PDF or OFD document by 1-based page number.",
+				InputSchema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"path": pathSchema,
+						"page": map[string]any{
+							"type":        "integer",
+							"description": "1-based page number to read.",
+							"minimum":     1,
+						},
+					},
+					"required": []string{"path", "page"},
+				},
+			},
 		},
 	}
 }
@@ -265,6 +281,8 @@ func (s *Server) handleToolsCall(ctx context.Context, rawParams json.RawMessage)
 		handler = NewDocumentValidateHandler(s.resolver)
 	case ToolNameDocumentExtract:
 		handler = NewDocumentExtractHandler(s.resolver)
+	case ToolNameDocumentReadPage:
+		handler = NewDocumentReadPageHandler(s.resolver)
 	default:
 		return nil, &jsonrpcError{Code: -32602, Message: fmt.Sprintf("unknown tool: %s", params.Name)}
 	}
