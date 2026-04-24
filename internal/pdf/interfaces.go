@@ -19,11 +19,19 @@ type Service interface {
 	doc.PageIteratorProvider
 	doc.NavigatorProvider
 	FirstPageInfoProvider
+	FeaturesProvider
 }
 
 // FirstPageInfoProvider returns structured first page information for a PDF document.
 type FirstPageInfoProvider interface {
 	FirstPageInfo(ctx context.Context, d doc.Document) (*doc.FirstPageInfoResult, error)
+}
+
+// FeaturesProvider exposes the structural feature flags detected when a PDF
+// document was opened. These flags describe the xref format, encryption state,
+// linearization, and version information without requiring a full xref load.
+type FeaturesProvider interface {
+	DocumentFeatures(ctx context.Context, d doc.Document) (PDFFeatureSet, error)
 }
 
 // Saver defines the capability to save a PDF document to a destination path.

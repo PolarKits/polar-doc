@@ -1,6 +1,13 @@
 package pdf
 
-import "fmt"
+import (
+	"bufio"
+	"bytes"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+)
 
 // PDFVersion represents a PDF specification version as major and minor integers.
 // Use the predefined constants (PDF14, PDF17, PDF20, etc.) rather than constructing
@@ -230,4 +237,115 @@ type CompatWarning struct {
 	Fix CompatFix
 	// Detail is a human-readable description of the specific deviation encountered.
 	Detail string
+}
+
+// probeDocumentFeatures performs lightweight structural probing of a PDF file
+// at open time. It reads three small regions of the file and returns a
+// PDFFeatureSet without loading the full xref chain.
+//
+// Probed fields:
+//   - DeclaredVersion / EffectiveVersion
+//   - HasTraditionalXRef / HasXRefStream / IsHybridXRef
+//   - IsLinearized
+//   - IsEncrypted / HasInfoDict
+//
+// HasObjectStreams and HasIncrementalUpdates are left false here; they are
+// populated lazily by the document when the xref index is first loaded.
+func probeDocumentFeatures(f *os.File, xrefOffset int64, versionStr string) PDFFeatureSet {
+	var fs PDFFeatureSet
+
+	if v, err := parsePDFVersion(versionStr); err == nil {
+		fs.DeclaredVersion = v
+		fs.EffectiveVersion = v
+	}
+
+	if xrefOffset <= 0 {
+		return fs
+	}
+
+	isTraditional, isStream := peekXRefType(f, xrefOffset)
+	fs.HasTraditionalXRef = isTraditional
+	fs.HasXRefStream = isStream
+
+	if err := probeTrailerKeys(f, xrefOffset, &fs); err == nil {
+		if isTraditional && fs.HasXRefStream {
+			fs.IsHybridXRef = true
+		}
+	}
+
+	if fs.HasXRefStream && !fs.EffectiveVersion.AtLeast(PDF15) {
+		fs.EffectiveVersion = PDF15
+	}
+
+	fs.IsLinearized = checkLinearized(f)
+
+	return fs
+}
+
+// peekXRefType reads the first 20 bytes at xrefOffset to determine whether the
+// section is a traditional xref table ("xref" header) or a cross-reference stream
+// (object header of the form "N M obj").
+func peekXRefType(f *os.File, offset int64) (isTraditional, isStream bool) {
+	if _, err := f.Seek(offset, io.SeekStart); err != nil {
+		return
+	}
+	buf := make([]byte, 20)
+	n, _ := f.Read(buf)
+	header := strings.TrimSpace(string(buf[:n]))
+	if strings.HasPrefix(header, "xref") {
+		return true, false
+	}
+	fields := strings.Fields(header)
+	if len(fields) >= 3 && fields[2] == "obj" {
+		return false, true
+	}
+	return
+}
+
+// probeTrailerKeys reads the trailer dictionary at xrefOffset and sets
+// IsEncrypted, HasInfoDict, and (for hybrid detection) HasXRefStream on fs.
+// A "XRefStm" key in a traditional-table trailer indicates a hybrid xref.
+func probeTrailerKeys(f *os.File, xrefOffset int64, fs *PDFFeatureSet) error {
+	if _, err := f.Seek(xrefOffset, io.SeekStart); err != nil {
+		return err
+	}
+	rd := bufio.NewReader(f)
+	trailerStr, isXRefStream, err := readTrailerDictLines(rd)
+	if err != nil {
+		return err
+	}
+
+	var dictStr string
+	if isXRefStream {
+		dictStr = trailerStr
+	} else {
+		dictStr = trailerStr
+	}
+
+	d, err := ParseDictContent(dictStr)
+	if err != nil {
+		return err
+	}
+
+	if _, ok := d["Encrypt"]; ok {
+		fs.IsEncrypted = true
+	}
+	if _, ok := d["Info"]; ok {
+		fs.HasInfoDict = true
+	}
+	if _, ok := d["XRefStm"]; ok {
+		fs.HasXRefStream = true
+	}
+	return nil
+}
+
+// checkLinearized reads the first 2 KiB of the file and returns true if it
+// contains the /Linearized marker, indicating a linearized (fast web view) PDF.
+func checkLinearized(f *os.File) bool {
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return false
+	}
+	buf := make([]byte, 2048)
+	n, _ := f.Read(buf)
+	return bytes.Contains(buf[:n], []byte("/Linearized"))
 }

@@ -3540,3 +3540,57 @@ func TestNewNavigator_GoTo(t *testing.T) {
 	}
 }
 
+func TestDocumentFeatures_Standard(t *testing.T) {
+	sample, ok := testfixtures.PDFSampleByKey("standard-pdf20-utf8")
+	if !ok {
+		t.Fatalf("missing PDF sample")
+	}
+	path := sample.Path()
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	features, err := svc.DocumentFeatures(context.Background(), d)
+	if err != nil {
+		t.Fatalf("DocumentFeatures: %v", err)
+	}
+
+	if features.DeclaredVersion.IsZero() {
+		t.Fatal("DeclaredVersion is zero")
+	}
+	if !features.HasTraditionalXRef && !features.HasXRefStream {
+		t.Fatal("neither HasTraditionalXRef nor HasXRefStream is true")
+	}
+	if features.IsEncrypted {
+		t.Fatal("IsEncrypted is true, expected false for test fixture")
+	}
+}
+
+func TestDocumentFeatures_VersionBounds(t *testing.T) {
+	sample, ok := testfixtures.PDFSampleByKey("standard-pdf20-utf8")
+	if !ok {
+		t.Fatalf("missing PDF sample")
+	}
+	path := sample.Path()
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	features, err := svc.DocumentFeatures(context.Background(), d)
+	if err != nil {
+		t.Fatalf("DocumentFeatures: %v", err)
+	}
+
+	if !features.EffectiveVersion.AtLeast(features.DeclaredVersion) {
+		t.Fatalf("EffectiveVersion %v is not at least DeclaredVersion %v", features.EffectiveVersion, features.DeclaredVersion)
+	}
+}
+

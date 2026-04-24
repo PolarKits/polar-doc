@@ -71,6 +71,7 @@ type document struct {
 	xrefLoaded      map[int64]bool     // tracks which sections have been parsed into xrefIdx
 	mu              sync.Mutex         // guards xrefIdx, xrefOffsets, xrefLoaded
 	contentCache    *doc.LRUCache      // page content stream cache, keyed by object ref
+	features        PDFFeatureSet      // structural feature flags, populated at Open time
 }
 
 // NewService returns the PDF service used by phase-1 CLI flows.
@@ -282,6 +283,8 @@ func (s *service) Open(_ context.Context, ref doc.DocumentRef) (doc.Document, er
 
 	xrefStartOffset, _ := readStartxref(f)
 
+	features := probeDocumentFeatures(f, xrefStartOffset, version)
+
 	return &document{
 		ref:             ref,
 		file:            f,
@@ -289,6 +292,7 @@ func (s *service) Open(_ context.Context, ref doc.DocumentRef) (doc.Document, er
 		declaredVersion: version,
 		xrefStartOffset: xrefStartOffset,
 		contentCache:    doc.NewLRUCache(doc.DefaultPageCacheMaxBytes),
+		features:        features,
 	}, nil
 }
 
@@ -322,6 +326,17 @@ func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error
 	}
 
 	return info, nil
+}
+
+// DocumentFeatures returns the structural feature flags detected when the
+// document was opened. The flags are populated by probeDocumentFeatures and
+// reflect the xref format, encryption state, and version information.
+func (s *service) DocumentFeatures(_ context.Context, d doc.Document) (PDFFeatureSet, error) {
+	pdfDoc, ok := d.(*document)
+	if !ok {
+		return PDFFeatureSet{}, fmt.Errorf("unsupported document type %T", d)
+	}
+	return pdfDoc.features, nil
 }
 
 func (s *service) Validate(_ context.Context, d doc.Document) (doc.ValidationReport, error) {
