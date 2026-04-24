@@ -1,7 +1,10 @@
 package pdf
 
 import (
+	"bytes"
+	"compress/zlib"
 	"context"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -376,5 +379,89 @@ func TestExtractTextQuality_WithFonts(t *testing.T) {
 	// The text should not be significantly shorter due to font issues
 	if len(result.Text) < 10 {
 		t.Errorf("Extracted text too short (%d chars), possible font resolution issue", len(result.Text))
+	}
+}
+
+// TestParseToUnicodeCMap_Compressed tests that FlateDecode compressed CMap can be parsed.
+func TestParseToUnicodeCMap_Compressed(t *testing.T) {
+	// Create a CMap content
+	cmapContent := `1 beginbfchar
+<0041> <0042>
+endbfchar`
+
+	// Compress it using zlib (FlateDecode)
+	var compressed bytes.Buffer
+	w := zlib.NewWriter(&compressed)
+	w.Write([]byte(cmapContent))
+	w.Close()
+
+	// Build a mock stream object with FlateDecode filter
+	// Format: "N G obj\n<< /Filter /FlateDecode /Length X >>\nstream\n...\nendstream\nendobj"
+	objStr := fmt.Sprintf("15 0 obj\n<< /Filter /FlateDecode /Length %d >>\nstream\n%s\nendstream\nendobj",
+		compressed.Len(), compressed.String())
+
+	// Test that parseFilterNames correctly identifies the filter
+	filters := parseFilterNames(objStr)
+	if len(filters) != 1 || filters[0] != "FlateDecode" {
+		t.Errorf("parseFilterNames: got %v, want [FlateDecode]", filters)
+	}
+
+	// Test that decodeStream can decompress the data
+	decompressed, err := decodeStream(compressed.Bytes(), filters)
+	if err != nil {
+		t.Fatalf("decodeStream failed: %v", err)
+	}
+
+	// Verify decompressed content contains the CMap data
+	if !strings.Contains(string(decompressed), "beginbfchar") {
+		t.Errorf("Decompressed data missing CMap markers: %s", string(decompressed))
+	}
+}
+
+// TestDecodeStream_Integration tests the integration with stream_filter.
+func TestDecodeStream_Integration(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		filters  []string
+		expected string
+	}{
+		{
+			name:     "plain text no filter",
+			content:  "1 beginbfchar <0041> <0042> endbfchar",
+			filters:  []string{},
+			expected: "1 beginbfchar <0041> <0042> endbfchar",
+		},
+		{
+			name:     "FlateDecode",
+			content:  "2 beginbfrange <0000> <0005> <0041> endbfrange",
+			filters:  []string{"FlateDecode"},
+			expected: "2 beginbfrange <0000> <0005> <0041> endbfrange",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var data []byte
+			if len(tt.filters) > 0 && tt.filters[0] == "FlateDecode" {
+				// Compress the content
+				var compressed bytes.Buffer
+				w := zlib.NewWriter(&compressed)
+				w.Write([]byte(tt.content))
+				w.Close()
+				data = compressed.Bytes()
+			} else {
+				data = []byte(tt.content)
+			}
+
+			result, err := decodeStream(data, tt.filters)
+			if err != nil {
+				t.Fatalf("decodeStream error: %v", err)
+			}
+
+			if string(result) != tt.expected {
+				t.Errorf("decodeStream = %q, want %q", string(result), tt.expected)
+			}
+		})
 	}
 }

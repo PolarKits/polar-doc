@@ -268,10 +268,11 @@ func findPageObject(f *os.File, idx xrefIndex, pagesRef string, targetIndex int)
 }
 
 // parseToUnicodeCMap parses a ToUnicode CMap stream and returns a character code to Unicode mapping.
+// It handles both plain text and compressed (FlateDecode) CMap streams.
 func parseToUnicodeCMap(f *os.File, idx xrefIndex, ref PDFRef) (map[rune]string, error) {
 	cmap := make(map[rune]string)
 
-	// Read the CMap stream
+	// Read the CMap object (includes dictionary and stream)
 	cmapData, err := resolveObject(f, idx, ref.ObjNum)
 	if err != nil {
 		return cmap, fmt.Errorf("resolve CMap object: %w", err)
@@ -279,35 +280,50 @@ func parseToUnicodeCMap(f *os.File, idx xrefIndex, ref PDFRef) (map[rune]string,
 
 	cmapStr := string(cmapData)
 
-	// Extract the stream content between stream and endstream
-	streamStart := strings.Index(cmapStr, "stream")
+	// Parse the stream dictionary to get filter information
+	// The dictionary is between the object header and "stream"
+	streamKeyword := "stream"
+	streamStart := strings.Index(cmapStr, streamKeyword)
 	if streamStart < 0 {
 		return cmap, fmt.Errorf("no stream keyword found")
 	}
+
+	// Extract dictionary portion (from << to before stream)
+	dictStart := strings.Index(cmapStr, "<<")
+	if dictStart < 0 || dictStart > streamStart {
+		dictStart = 0
+	}
+	dictStr := cmapStr[dictStart:streamStart]
+
+	// Parse filters from dictionary
+	filters := parseFilterNames(dictStr)
 
 	streamEnd := strings.Index(cmapStr, "endstream")
 	if streamEnd < 0 {
 		return cmap, fmt.Errorf("no endstream keyword found")
 	}
 
-	// Skip past "stream" and any newline
-	contentStart := streamStart + 6
+	// Skip past "stream" and any newline to get raw stream bytes
+	contentStart := streamStart + len(streamKeyword)
 	for contentStart < streamEnd && (cmapStr[contentStart] == '\n' || cmapStr[contentStart] == '\r') {
 		contentStart++
 	}
 
-	streamContent := cmapStr[contentStart:streamEnd]
+	rawStream := cmapData[contentStart:streamEnd]
 
-	// Decode the stream if it's FlateDecode compressed
-	// For now, assume it's plain text or try to decompress
-	decoded := streamContent
-
-	// Check if it starts with typical CMap markers
-	if !strings.Contains(streamContent, "beginbfchar") && !strings.Contains(streamContent, "beginbfrange") {
-		// Might be compressed, try simple decompression logic
-		// In practice, we'd use the stream_filter.go decode functions here
-		// For now, return empty map - the caller will use raw strings
-		return cmap, nil
+	// Decode the stream using stream_filter
+	var decoded string
+	if len(filters) > 0 {
+		decodedBytes, err := decodeStream(rawStream, filters)
+		if err != nil {
+			// Decompression failed, try to use raw data as plain text
+			decoded = string(rawStream)
+		} else {
+			decoded = string(decodedBytes)
+		}
+	} else {
+		// No filters, assume plain text
+		decoded = string(rawStream)
 	}
 
 	// Parse bfchar blocks
