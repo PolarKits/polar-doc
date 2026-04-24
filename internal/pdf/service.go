@@ -104,6 +104,11 @@ func (d *document) readObject(ref string) (string, error) {
 		return "", fmt.Errorf("document.readObject: parse objNum: %w", err)
 	}
 
+	if objNum == 0 {
+		return "", nil
+	}
+	// FixNullObjectRef: object 0 is always the free-list head; treat as null.
+
 	_, err = d.getXRefEntry(objNum)
 	if err != nil {
 		return readObject(d.file, ref)
@@ -698,6 +703,10 @@ func readContentStream(f *os.File, ref PDFRef) ([]byte, error) {
 			return nil, fmt.Errorf("read stream data: %w", err)
 		}
 		streamBuf = streamBuf[:n]
+		// FixStreamLengthMismatch: if /Length over-reports, trim at the endstream marker.
+		if trimmed, fixed := trimToEndstream(streamBuf); fixed {
+			streamBuf = trimmed
+		}
 	} else {
 		data, err := io.ReadAll(rd)
 		if err != nil {
@@ -1605,6 +1614,11 @@ func readObject(f *os.File, ref string) (string, error) {
 	objNumStr := parts[0]
 	genNum := parts[1]
 	objNum, _ := strconv.ParseInt(objNumStr, 10, 64)
+
+	if objNum == 0 {
+		return "", nil
+	}
+	// FixNullObjectRef: object 0 is always the free-list head; treat as null.
 
 	// Build xref index for this file (cached if called multiple times)
 	xrefOffset, err := readStartxref(f)

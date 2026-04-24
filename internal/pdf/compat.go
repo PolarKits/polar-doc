@@ -426,3 +426,23 @@ func hasPDFEOF(f *os.File) bool {
 	n, _ := f.Read(buf)
 	return bytes.Contains(buf[:n], []byte("%%EOF"))
 }
+
+// trimToEndstream scans buf for an embedded "endstream" marker that indicates
+// the /Length value in the stream dictionary was over-reported. If found,
+// it returns the trimmed slice and true; otherwise it returns buf unchanged
+// and false.
+//
+// The markers searched (in order of preference) are:
+//   "\r\nendstream", "\nendstream", "\rendstream"
+func trimToEndstream(buf []byte) ([]byte, bool) {
+	for _, sep := range [][]byte{
+		[]byte("\r\nendstream"),
+		[]byte("\nendstream"),
+		[]byte("\rendstream"),
+	} {
+		if idx := bytes.Index(buf, sep); idx >= 0 {
+			return buf[:idx], true
+		}
+	}
+	return buf, false
+}

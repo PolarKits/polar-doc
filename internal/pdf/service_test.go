@@ -3657,3 +3657,49 @@ func TestScanForXRefFallback_Valid(t *testing.T) {
 	}
 }
 
+func TestTrimToEndstream_OverReported(t *testing.T) {
+	buf := []byte("some stream content\nendstream\njunk after")
+	trimmed, fixed := trimToEndstream(buf)
+	if !fixed {
+		t.Fatal("trimToEndstream: fixed = false, want true")
+	}
+	if string(trimmed) != "some stream content" {
+		t.Fatalf("trimmed = %q, want %q", string(trimmed), "some stream content")
+	}
+}
+
+func TestTrimToEndstream_Exact(t *testing.T) {
+	buf := []byte("some stream content without endstream marker")
+	trimmed, fixed := trimToEndstream(buf)
+	if fixed {
+		t.Fatal("trimToEndstream: fixed = true, want false")
+	}
+	if string(trimmed) != string(buf) {
+		t.Fatalf("trimmed = %q, want same as input", string(trimmed))
+	}
+}
+
+func TestReadObject_NullRef(t *testing.T) {
+	sample, ok := testfixtures.PDFSampleByKey("standard-pdf20-utf8")
+	if !ok {
+		t.Fatalf("missing PDF sample")
+	}
+	path := sample.Path()
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	pdfDoc := d.(*document)
+	result, err := pdfDoc.readObject("0 0 R")
+	if err != nil {
+		t.Fatalf("readObject(\"0 0 R\"): err = %v, want nil", err)
+	}
+	if result != "" {
+		t.Fatalf("readObject(\"0 0 R\") = %q, want \"\"", result)
+	}
+}
+
