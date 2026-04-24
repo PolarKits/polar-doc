@@ -377,6 +377,9 @@ func (s *service) Warnings(_ context.Context, d doc.Document) ([]CompatWarning, 
 	return pdfDoc.warnings, nil
 }
 
+// Validate performs comprehensive PDF structure validation using multi-level checks.
+// It validates header, xref structure, trailer dictionary, catalog, and pages tree.
+// The returned ValidationReport contains errors (fatal) and warnings (non-fatal).
 func (s *service) Validate(_ context.Context, d doc.Document) (doc.ValidationReport, error) {
 	pdfDoc, ok := d.(*document)
 	if !ok {
@@ -387,26 +390,10 @@ func (s *service) Validate(_ context.Context, d doc.Document) (doc.ValidationRep
 		return doc.ValidationReport{}, fmt.Errorf("pdf file is not open")
 	}
 
-	if _, err := pdfDoc.file.Seek(0, io.SeekStart); err != nil {
-		return doc.ValidationReport{}, err
-	}
-
-	report := doc.ValidationReport{
-		Valid: true,
-	}
-
-	if _, err := readPDFHeaderVersion(pdfDoc.file); err != nil {
-		report.Valid = false
-		report.Errors = append(report.Errors, err.Error())
-	}
-
-	if _, err := pdfDoc.file.Seek(0, io.SeekStart); err != nil {
-		return doc.ValidationReport{}, err
-	}
-
-	if err := ValidateDeep(pdfDoc.file); err != nil {
-		report.Valid = false
-		report.Errors = append(report.Errors, err.Error())
+	// Use multi-level validation for comprehensive checking
+	report, err := validateDocument(pdfDoc.file)
+	if err != nil {
+		return doc.ValidationReport{}, fmt.Errorf("validation error: %w", err)
 	}
 
 	return report, nil

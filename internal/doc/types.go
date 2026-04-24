@@ -84,6 +84,7 @@ type InfoResult struct {
 // Valid=false indicates the document failed a basic structural check.
 // Errors are human-readable strings derived from format-specific rules;
 // they are NOT a complete enumeration of all possible standard violations.
+// Warnings contains non-fatal issues that don't invalidate the document but may indicate problems.
 //
 // Phase-1 coverage for PDF: header presence check (%PDF- prefix format) per ISO 32000-2.
 // Phase-1 coverage for OFD: package entry presence and DocRoot integrity per GB/T 33190-2016.
@@ -97,6 +98,9 @@ type ValidationReport struct {
 	// Errors contains human-readable structural failure reasons.
 	// This is not an exhaustive list of standard violations.
 	Errors []string
+	// Warnings contains non-fatal issues that don't invalidate the document.
+	// Examples: unknown encryption algorithm, deprecated structures.
+	Warnings []string
 }
 
 // PreviewRequest describes a requested preview rendering.
