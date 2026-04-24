@@ -100,25 +100,28 @@ func parseXRefSectionAt(f *os.File, offset int64) (int64, []xrefEntry, []int64, 
 }
 
 // discoverXRefOffsets walks the xref chain starting at startXref and returns
-// the list of section offsets from newest to oldest. It parses just enough of
-// each section to extract the /Prev link.
-func discoverXRefOffsets(f *os.File, startXref int64) ([]int64, error) {
-	var offsets []int64
+// the list of section offsets from newest to oldest, plus a flag indicating
+// whether a Prev cycle was detected. The cycleDetected flag corresponds to
+// FixTrailerPrevChain: iteration stops safely but the caller may record a warning.
+func discoverXRefOffsets(f *os.File, startXref int64) (offsets []int64, cycleDetected bool, err error) {
 	visited := map[int64]bool{}
 	current := startXref
 
-	for current != 0 && !visited[current] {
+	for current != 0 {
+		if visited[current] {
+			cycleDetected = true
+			break
+		}
 		visited[current] = true
 		offsets = append(offsets, current)
 
 		prevOffset, _, _, err := parseXRefSectionAt(f, current)
 		if err != nil {
-			return offsets, fmt.Errorf("discover xref offsets at %d: %w", current, err)
+			return offsets, cycleDetected, fmt.Errorf("discover xref offsets at %d: %w", current, err)
 		}
 		current = prevOffset
 	}
-
-	return offsets, nil
+	return offsets, cycleDetected, nil
 }
 
 // parseTraditionalXref parses a traditional xref table and returns the Prev offset,

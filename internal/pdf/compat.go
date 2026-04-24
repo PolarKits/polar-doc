@@ -279,6 +279,12 @@ func probeDocumentFeatures(f *os.File, xrefOffset int64, versionStr string) PDFF
 
 	fs.IsLinearized = checkLinearized(f)
 
+	// HasIncrementalUpdates: more than one xref section means the document was
+	// revised incrementally after original creation.
+	if offsets, _, err := discoverXRefOffsets(f, xrefOffset); err == nil {
+		fs.HasIncrementalUpdates = len(offsets) > 1
+	}
+
 	return fs
 }
 

@@ -186,6 +186,12 @@ func (d *document) getXRefIndex() (xrefIndex, error) {
 		return nil, err
 	}
 	d.xrefIdx = idx
+	for _, entry := range idx {
+		if entry.Kind == xrefEntryInObjStm {
+			d.features.HasObjectStreams = true
+			break
+		}
+	}
 	return idx, nil
 }
 
@@ -218,9 +224,15 @@ func (d *document) getXRefEntry(objNum int64) (xrefEntry, error) {
 			}
 			d.xrefStartOffset = xrefOffset
 		}
-		offsets, err := discoverXRefOffsets(d.file, d.xrefStartOffset)
+		offsets, cycleDetected, err := discoverXRefOffsets(d.file, d.xrefStartOffset)
 		if err != nil {
 			return xrefEntry{}, err
+		}
+		if cycleDetected {
+			d.warnings = append(d.warnings, CompatWarning{
+				Fix:    FixTrailerPrevChain,
+				Detail: "Prev chain cycle detected; stopped at repeated offset",
+			})
 		}
 		d.xrefOffsets = offsets
 		d.xrefLoaded = make(map[int64]bool)

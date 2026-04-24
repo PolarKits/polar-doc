@@ -3768,3 +3768,70 @@ func TestDocumentFeatures_IsEncrypted_False(t *testing.T) {
 	}
 }
 
+func TestDocumentFeatures_HasObjectStreams(t *testing.T) {
+	sample, ok := testfixtures.PDFSampleByKey("standard-pdf20-utf8")
+	if !ok {
+		t.Fatalf("missing PDF sample")
+	}
+	path := sample.Path()
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	features, err := svc.DocumentFeatures(context.Background(), d)
+	if err != nil {
+		t.Fatalf("DocumentFeatures: %v", err)
+	}
+	_ = features.HasObjectStreams
+}
+
+func TestDocumentFeatures_HasIncrementalUpdates(t *testing.T) {
+	sample, ok := testfixtures.PDFSampleByKey("standard-pdf20-incremental")
+	if !ok {
+		t.Fatalf("missing PDF sample")
+	}
+	path := sample.Path()
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	features, err := svc.DocumentFeatures(context.Background(), d)
+	if err != nil {
+		t.Fatalf("DocumentFeatures: %v", err)
+	}
+	if !features.HasIncrementalUpdates {
+		t.Fatal("HasIncrementalUpdates = false, expected true for incremental fixture")
+	}
+}
+
+func TestDocumentFeatures_NoIncrementalUpdates(t *testing.T) {
+	sample, ok := testfixtures.PDFSampleByKey("standard-pdf20-utf8")
+	if !ok {
+		t.Fatalf("missing PDF sample")
+	}
+	path := sample.Path()
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	features, err := svc.DocumentFeatures(context.Background(), d)
+	if err != nil {
+		t.Fatalf("DocumentFeatures: %v", err)
+	}
+	if features.HasIncrementalUpdates {
+		t.Fatal("HasIncrementalUpdates = true, expected false for single-revision fixture")
+	}
+}
+
