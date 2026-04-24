@@ -122,13 +122,51 @@ if err := os.WriteFile(path, []byte("%PDF-1.4\n"), 0o644); err != nil {
 
 ## Stable Fixtures in `testdata/`
 
-The `testdata/` directories (`testdata/pdf/`, `testdata/ofd/`) currently contain only `.gitkeep` files.
+The `testdata/` directories contain version-controlled, real-world document fixtures for comprehensive testing:
+
+- `testdata/pdf/` — approximately 295 PDF files including:
+  - `test_*.pdf` — structured test fixtures for specific features (35 files)
+  - `stillhq_*.pdf` — PDF 1.0–1.7 version compatibility test suite (100+ files)
+  - `pmaupin_*.pdf` — edge cases and malformed document tests
+  - `sambit_*.pdf` — encrypted, signed, and structured document samples
+  - `bosdev_*.pdf` — business document samples (forms, cards, reports)
+  - `artur_*.pdf` — security and encryption test fixtures
+  - `sec_*.pdf` — security handling regression tests
+  - `sample_*.pdf` — general format and layout samples
+  - `bmaupin_*.pdf` — minimal and basic PDF structure tests
+  - Other PDF/A, PDF/UA compliance samples
+
+- `testdata/ofd/` — 10 OFD test fixtures including:
+  - `test_core_*.ofd` — core functionality tests (hello world, multipage)
+  - `test_feat_*.ofd` — feature-specific tests (attachments, images, signatures, etc.)
+  - `_samples/` — additional OFD sample files
+
+These fixtures are used for:
+- **Version compatibility testing** — verifying behavior across PDF 1.0–2.0 and OFD versions
+- **Feature testing** — encryption, signatures, attachments, complex layouts
+- **Standard compliance testing** — PDF/A, PDF/UA, GB/T 33190-2016 (OFD)
+- **Regression testing** — ensuring fixes for previously identified issues
 
 Use stable fixtures from `testdata/` when:
 - A test requires a real, complex document that cannot be synthesized inline
-- The fixture is version-controlled and shared across tests
+- Testing specific format versions or features that require authentic document structure
+- The fixture is shared across multiple test packages
 
-For now, prefer inline synthetic fixtures. Reserve `testdata/` for future real-world document fixtures.
+For simple unit tests, prefer inline synthetic fixtures created with `t.TempDir()`. Reserve `testdata/` for complex real-world document testing where authentic format structure is required.
+
+## Test Fixture Registry
+
+Test fixtures are programmatically accessible through the internal testdata registry:
+
+- **PDF fixtures** — registered in `internal/testdata/pdf_samples.go`
+  - Access via `testfixtures.PDFSampleByKey(key string)`
+  - Returns path to the requested PDF sample file
+
+- **OFD fixtures** — registered in `internal/testdata/ofd_samples.go`
+  - Access via `testfixtures.OFDSampleByKey(key string)`
+  - Returns path to the requested OFD sample file
+
+The registry provides type-safe, IDE-friendly access to test fixtures without hardcoding paths. Tests should use these registry functions rather than constructing paths manually, ensuring fixtures remain discoverable and maintainable as the test suite grows.
 
 ## Package Boundaries
 
