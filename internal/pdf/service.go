@@ -734,16 +734,14 @@ func readContentStream(f *os.File, ref PDFRef) ([]byte, error) {
 		streamBuf = data
 	}
 
-	if strings.Contains(dictStr, "/Filter /FlateDecode") || strings.Contains(dictStr, "/Filter/FlateDecode") {
-		r, err := zlib.NewReader(bytes.NewReader(streamBuf))
+	// Parse and apply filters from stream dictionary
+	filters := parseFilterNames(dictStr)
+	if len(filters) > 0 {
+		decoded, err := decodeStream(streamBuf, filters)
 		if err != nil {
-			return nil, fmt.Errorf("zlib NewReader: %w", err)
+			return nil, fmt.Errorf("decode stream: %w", err)
 		}
-		decompressed, err := io.ReadAll(r)
-		if err != nil {
-			return nil, fmt.Errorf("zlib ReadAll: %w", err)
-		}
-		return decompressed, nil
+		return decoded, nil
 	}
 
 	return streamBuf, nil
