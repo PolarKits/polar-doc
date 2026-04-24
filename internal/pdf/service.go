@@ -551,7 +551,14 @@ func (s *service) ExtractText(_ context.Context, d doc.Document) (doc.TextResult
 
 	var text strings.Builder
 	var lastErr error
-	for _, page := range pages {
+	for pageIndex, page := range pages {
+		// Resolve fonts for this page
+		fonts, err := resolvePageFonts(pdfDoc.file, xrefOffset, pagesRefStr, pageIndex)
+		if err != nil {
+			// Log warning but continue with nil fonts (raw text extraction)
+			lastErr = err
+		}
+
 		for _, contentRef := range page.Contents {
 			ref := PDFRef{ObjNum: contentRef.ObjNum, GenNum: contentRef.GenNum}
 			streamData, err := readContentStream(pdfDoc.file, ref)
@@ -559,13 +566,13 @@ func (s *service) ExtractText(_ context.Context, d doc.Document) (doc.TextResult
 				lastErr = err
 				continue
 			}
-			// Parse content stream into operators and extract text
+			// Parse content stream into operators and extract text with font support
 			operators, err := parseContentStream(streamData)
 			if err != nil {
 				lastErr = err
 				continue
 			}
-			extracted := extractTextFromOperators(operators)
+			extracted := extractTextWithFonts(operators, fonts)
 			if extracted != "" {
 				text.WriteString(extracted)
 				text.WriteString(" ")

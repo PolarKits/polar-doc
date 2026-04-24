@@ -680,10 +680,19 @@ func isValidOperator(s string) bool {
 // extractTextFromOperators extracts text content from parsed content stream operators.
 // It handles BT/ET text blocks, Tj/TJ text showing operators, and properly manages
 // character spacing adjustments in TJ arrays.
+// This is the original function without font support. Use extractTextWithFonts for font-aware extraction.
 func extractTextFromOperators(operators []ContentOperator) string {
+	return extractTextWithFonts(operators, nil)
+}
+
+// extractTextWithFonts extracts text content with font encoding support.
+// It applies ToUnicode CMap mappings when available to correctly decode characters
+// from subset fonts and non-standard encodings.
+func extractTextWithFonts(operators []ContentOperator, fonts map[string]FontInfo) string {
 	var result strings.Builder
 	inTextBlock := false
 	needsSpace := false
+	currentFont := ""
 
 	for _, op := range operators {
 		switch op.Op {
@@ -691,11 +700,25 @@ func extractTextFromOperators(operators []ContentOperator) string {
 			// Begin text block
 			inTextBlock = true
 			needsSpace = false
+			currentFont = "" // Reset font at start of text block
 
 		case "ET":
 			// End text block
 			inTextBlock = false
 			needsSpace = false
+			currentFont = ""
+
+		case "Tf":
+			// Set text font and size: fontname size Tf
+			if len(op.Operands) >= 1 {
+				operand := op.Operands[0]
+				if operand.Kind == OperandName {
+					currentFont = strings.TrimPrefix(operand.StrVal, "/")
+				} else {
+					fontName := extractOperandString(operand)
+					currentFont = strings.TrimPrefix(fontName, "/")
+				}
+			}
 
 		case "Tj":
 			// Show text: (string) Tj
@@ -705,8 +728,10 @@ func extractTextFromOperators(operators []ContentOperator) string {
 			if needsSpace && result.Len() > 0 {
 				result.WriteByte(' ')
 			}
-			text := extractOperandString(op.Operands[0])
-			result.WriteString(text)
+			rawText := extractOperandString(op.Operands[0])
+			// Apply font encoding if available
+			decodedText := applyFontEncoding(rawText, currentFont, fonts)
+			result.WriteString(decodedText)
 			needsSpace = true
 
 		case "TJ":
@@ -718,7 +743,7 @@ func extractTextFromOperators(operators []ContentOperator) string {
 			if arr.Kind != OperandArray {
 				continue
 			}
-			processTJArray(arr.ArrVal, &result, &needsSpace)
+			processTJArrayWithFonts(arr.ArrVal, &result, &needsSpace, currentFont, fonts)
 
 		case "'":
 			// Move to next line and show text: (string) '
@@ -728,8 +753,9 @@ func extractTextFromOperators(operators []ContentOperator) string {
 			if result.Len() > 0 {
 				result.WriteByte('\n')
 			}
-			text := extractOperandString(op.Operands[0])
-			result.WriteString(text)
+			rawText := extractOperandString(op.Operands[0])
+			decodedText := applyFontEncoding(rawText, currentFont, fonts)
+			result.WriteString(decodedText)
 			needsSpace = true
 
 		case "\"":
@@ -740,8 +766,9 @@ func extractTextFromOperators(operators []ContentOperator) string {
 			if result.Len() > 0 {
 				result.WriteByte('\n')
 			}
-			text := extractOperandString(op.Operands[2])
-			result.WriteString(text)
+			rawText := extractOperandString(op.Operands[2])
+			decodedText := applyFontEncoding(rawText, currentFont, fonts)
+			result.WriteString(decodedText)
 			needsSpace = true
 
 		case "T*":
@@ -780,6 +807,12 @@ func extractTextFromOperators(operators []ContentOperator) string {
 const wordSpacingThreshold = -250.0 // thousandths of text space units
 
 func processTJArray(elements []ContentOperand, result *strings.Builder, needsSpace *bool) {
+	processTJArrayWithFonts(elements, result, needsSpace, "", nil)
+}
+
+// processTJArrayWithFonts processes a TJ array with font encoding support.
+// It applies ToUnicode CMap mappings when available.
+func processTJArrayWithFonts(elements []ContentOperand, result *strings.Builder, needsSpace *bool, currentFont string, fonts map[string]FontInfo) {
 	for i, elem := range elements {
 		if elem.Kind == OperandString {
 			// Check if previous element was a large negative spacing
@@ -792,11 +825,41 @@ func processTJArray(elements []ContentOperand, result *strings.Builder, needsSpa
 					}
 				}
 			}
-			result.WriteString(elem.StrVal)
+			rawText := elem.StrVal
+			decodedText := applyFontEncoding(rawText, currentFont, fonts)
+			result.WriteString(decodedText)
 			*needsSpace = true
 		}
 		// Numeric elements are spacing adjustments, handled when we see the next string
 	}
+}
+
+// applyFontEncoding applies ToUnicode CMap mapping if available for the current font.
+// It decodes raw character codes to Unicode strings using the font's ToUnicode mapping.
+// If no mapping is available, the original text is returned.
+func applyFontEncoding(rawText string, fontName string, fonts map[string]FontInfo) string {
+	if fonts == nil || fontName == "" {
+		return rawText
+	}
+
+	font, ok := fonts[fontName]
+	if !ok || font.ToUnicode == nil {
+		// No ToUnicode mapping for this font, return raw text
+		return rawText
+	}
+
+	// Apply character-by-character mapping
+	var result strings.Builder
+	for _, charCode := range rawText {
+		if unicodeStr, ok := font.ToUnicode[charCode]; ok {
+			result.WriteString(unicodeStr)
+		} else {
+			// No mapping for this character, use original
+			result.WriteRune(charCode)
+		}
+	}
+
+	return result.String()
 }
 
 // extractOperandString extracts a string value from a ContentOperand.
