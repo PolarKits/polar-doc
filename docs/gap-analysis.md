@@ -56,6 +56,21 @@ It is not a roadmap or design document.
 - worktree is clean (no uncommitted changes)
 - **关闭原因**: Current state is accurately described in docs/current-status.md as of 2026-04-24. This item is closed as the worktree has stabilized.
 
+### G11 — PDF text extraction described as "first-page only" in docs — **Closed / 已关闭** (2026-04-24)
+- docs/current-status.md and docs/standards-audit.md described text extraction as limited to first page
+- current implementation supports full-document text extraction via content operator parsing (content_parser.go)
+- **关闭原因**: Documentation updated to reflect full-document text extraction capability with BT/ET block parsing, Tj/TJ operator handling, and TJ array spacing analysis.
+
+### G12 — PDF validation described as "header-only" in docs — **Closed / 已关闭** (2026-04-24)
+- docs described validation as only checking %PDF- prefix
+- current implementation provides 5-level structural validation (Header → XRef → Trailer → Catalog → Pages)
+- **关闭原因**: Documentation updated to reflect multi-level validation with xref integrity, trailer field checks, catalog structure, and pages tree validation.
+
+### G13 — Stream filters described as "FlateDecode only" in docs — **Closed / 已关闭** (2026-04-24)
+- docs/standards-audit.md listed stream filters as "Partial — FlateDecode only"
+- current implementation supports FlateDecode, ASCIIHexDecode, ASCII85Decode, and LZWDecode (framework)
+- **关闭原因**: Documentation updated to reflect multi-filter support including filter chain handling.
+
 ## Notes
 
 - G0, G4, G7, G8, G9 are Closed as of 2026-04-21.
