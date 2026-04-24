@@ -36,6 +36,8 @@ type xrefIndex map[int64]xrefEntry
 // buildXRefIndex constructs a unified object location index by reading
 // the xref chain starting at startXref and following /Prev links.
 // Later revisions take precedence; entries are not overwritten.
+// For hybrid PDFs (traditional table with XRefStm), XRefStm entries take
+// precedence over the traditional table (FixHybridXRef).
 func buildXRefIndex(f *os.File, startXref int64) (xrefIndex, error) {
 	visited := map[int64]bool{}
 	table := xrefIndex{}
@@ -44,7 +46,7 @@ func buildXRefIndex(f *os.File, startXref int64) (xrefIndex, error) {
 	for currentOffset != 0 && !visited[currentOffset] {
 		visited[currentOffset] = true
 
-		prevOffset, entries, objNums, err := parseXRefSectionAt(f, currentOffset)
+		prevOffset, xrefStmOffset, entries, objNums, err := parseXRefSectionAt(f, currentOffset)
 		if err != nil {
 			return nil, err
 		}
@@ -58,6 +60,25 @@ func buildXRefIndex(f *os.File, startXref int64) (xrefIndex, error) {
 			}
 		}
 
+		// FixHybridXRef: if this traditional section has an accompanying XRefStm,
+		// load it now so that ObjStm-resident objects (not present in the
+		// traditional table) become accessible. XRefStm entries override same-
+		// object-number entries already loaded from the traditional table.
+		if xrefStmOffset > 0 && !visited[xrefStmOffset] {
+			visited[xrefStmOffset] = true
+			_, _, stmEntries, stmObjNums, err := parseXRefSectionAt(f, xrefStmOffset)
+			if err == nil {
+				for i, entry := range stmEntries {
+					if i < len(stmObjNums) {
+						// XRefStm entries take precedence (override traditional table)
+						table[stmObjNums[i]] = entry
+					}
+				}
+			}
+			// If XRefStm parse fails, continue silently — the traditional entries
+			// are still loaded; only ObjStm objects will be inaccessible.
+		}
+
 		currentOffset = prevOffset
 	}
 
@@ -65,17 +86,19 @@ func buildXRefIndex(f *os.File, startXref int64) (xrefIndex, error) {
 }
 
 // parseXRefSectionAt parses a single xref section (traditional table or stream)
-// located at the given file offset. It returns the /Prev link offset, the parsed
-// entries with their object numbers, or an error if the section cannot be decoded.
-func parseXRefSectionAt(f *os.File, offset int64) (int64, []xrefEntry, []int64, error) {
+// located at the given file offset. It returns the /Prev link offset, the
+// /XRefStm offset (0 for traditional tables without one; 0 for xref streams
+// since they are self-contained), the parsed entries with their object numbers,
+// or an error if the section cannot be decoded.
+func parseXRefSectionAt(f *os.File, offset int64) (int64, int64, []xrefEntry, []int64, error) {
 	if _, err := f.Seek(offset, io.SeekStart); err != nil {
-		return 0, nil, nil, fmt.Errorf("seek to xref at %d: %w", offset, err)
+		return 0, 0, nil, nil, fmt.Errorf("seek to xref at %d: %w", offset, err)
 	}
 
 	buf := make([]byte, 20)
 	n, err := f.Read(buf)
 	if err != nil && err != io.EOF {
-		return 0, nil, nil, fmt.Errorf("read xref header at %d: %w", offset, err)
+		return 0, 0, nil, nil, fmt.Errorf("read xref header at %d: %w", offset, err)
 	}
 	buf = buf[:n]
 
@@ -83,7 +106,7 @@ func parseXRefSectionAt(f *os.File, offset int64) (int64, []xrefEntry, []int64, 
 
 	if strings.HasPrefix(header, "xref") {
 		if _, err := f.Seek(offset, io.SeekStart); err != nil {
-			return 0, nil, nil, err
+			return 0, 0, nil, nil, err
 		}
 		return parseTraditionalXref(f)
 	}
@@ -91,12 +114,13 @@ func parseXRefSectionAt(f *os.File, offset int64) (int64, []xrefEntry, []int64, 
 	fields := strings.Fields(header)
 	if len(fields) >= 3 && fields[2] == "obj" {
 		if _, err := f.Seek(offset, io.SeekStart); err != nil {
-			return 0, nil, nil, err
+			return 0, 0, nil, nil, err
 		}
-		return parseXRefStream(f, offset)
+		prev, entries, objNums, err := parseXRefStream(f, offset)
+		return prev, 0, entries, objNums, err
 	}
 
-	return 0, nil, nil, fmt.Errorf("unknown xref type at offset %d: %q", offset, header)
+	return 0, 0, nil, nil, fmt.Errorf("unknown xref type at offset %d: %q", offset, header)
 }
 
 // discoverXRefOffsets walks the xref chain starting at startXref and returns
@@ -115,7 +139,7 @@ func discoverXRefOffsets(f *os.File, startXref int64) (offsets []int64, cycleDet
 		visited[current] = true
 		offsets = append(offsets, current)
 
-		prevOffset, _, _, err := parseXRefSectionAt(f, current)
+		prevOffset, _, _, _, err := parseXRefSectionAt(f, current)
 		if err != nil {
 			return offsets, cycleDetected, fmt.Errorf("discover xref offsets at %d: %w", current, err)
 		}
@@ -124,24 +148,24 @@ func discoverXRefOffsets(f *os.File, startXref int64) (offsets []int64, cycleDet
 	return offsets, cycleDetected, nil
 }
 
-// parseTraditionalXref parses a traditional xref table and returns the Prev offset,
-// slice of entries, and corresponding object numbers.
-func parseTraditionalXref(f *os.File) (int64, []xrefEntry, []int64, error) {
+// parseTraditionalXref parses a traditional xref table and returns the /Prev
+// offset, the /XRefStm offset (0 if absent — FixHybridXRef), the parsed
+// entries, and the corresponding object numbers.
+func parseTraditionalXref(f *os.File) (prevOffset int64, xrefStmOffset int64, entries []xrefEntry, objNums []int64, err error) {
 	rd := bufio.NewReader(f)
 
 	// Skip "xref" line
 	line, err := rd.ReadString('\n')
 	if err != nil {
-		return 0, nil, nil, fmt.Errorf("read xref marker: %w", err)
+		return 0, 0, nil, nil, fmt.Errorf("read xref marker: %w", err)
 	}
 	line = strings.TrimRight(line, "\r\n")
 	if !strings.HasPrefix(line, "xref") {
-		return 0, nil, nil, fmt.Errorf("expected xref marker, got %q", line)
+		return 0, 0, nil, nil, fmt.Errorf("expected xref marker, got %q", line)
 	}
 
-	var entries []xrefEntry
-	var objNums []int64
-	var prevOffset int64
+	var xrefEntries []xrefEntry
+	var xrefObjNums []int64
 
 	// Parse subsections until we hit "trailer"
 	for {
@@ -150,16 +174,16 @@ func parseTraditionalXref(f *os.File) (int64, []xrefEntry, []int64, error) {
 			break
 		}
 		if err != nil {
-			return 0, nil, nil, err
+			return 0, 0, nil, nil, err
 		}
 		line = strings.TrimRight(line, "\r\n")
 		lineTrimmed := strings.TrimSpace(line)
 
 		if lineTrimmed == "trailer" {
-			// Read trailer dict to find Prev
+			// Read trailer dict to find Prev and XRefStm
 			trailerLine, err := rd.ReadString('\n')
 			if err != nil && err != io.EOF {
-				return 0, nil, nil, err
+				return 0, 0, nil, nil, err
 			}
 			trailerLine = strings.TrimRight(trailerLine, "\r\n")
 			openBrackets := strings.Count(trailerLine, "<<") - strings.Count(trailerLine, ">>")
@@ -169,23 +193,22 @@ func parseTraditionalXref(f *os.File) (int64, []xrefEntry, []int64, error) {
 					break
 				}
 				if err != nil {
-					return 0, nil, nil, err
+					return 0, 0, nil, nil, err
 				}
 				nextLine = strings.TrimRight(nextLine, "\r\n")
 				trailerLine += nextLine
 				openBrackets += strings.Count(nextLine, "<<") - strings.Count(nextLine, ">>")
 			}
 
-			// Extract /Prev from trailer dict
-			idx := strings.Index(trailerLine, "/Prev ")
-			if idx >= 0 {
-				rest := trailerLine[idx+6:]
-				endIdx := 0
-				for endIdx < len(rest) && rest[endIdx] >= '0' && rest[endIdx] <= '9' {
-					endIdx++
+			d, parseErr := ParseDictContent(trailerLine)
+			if parseErr == nil {
+				if n, ok := DictGetInt(d, "Prev"); ok {
+					prevOffset = n
 				}
-				if endIdx > 0 {
-					prevOffset, _ = strconv.ParseInt(rest[:endIdx], 10, 64)
+				// FixHybridXRef: if the traditional trailer has /XRefStm, record
+				// that offset so the caller can also load the accompanying xref stream.
+				if n, ok := DictGetInt(d, "XRefStm"); ok {
+					xrefStmOffset = n
 				}
 			}
 			break
@@ -207,7 +230,7 @@ func parseTraditionalXref(f *os.File) (int64, []xrefEntry, []int64, error) {
 		for i := int64(0); i < count; i++ {
 			entryLine, err := rd.ReadString('\n')
 			if err != nil && err != io.EOF {
-				return 0, nil, nil, err
+				return 0, 0, nil, nil, err
 			}
 
 			// Entry format: "OOOOOOOOOO GGGGG n \n" or "OOOOOOOOOO GGGGG f \n"
@@ -238,12 +261,12 @@ func parseTraditionalXref(f *os.File) (int64, []xrefEntry, []int64, error) {
 			} else {
 				entry = xrefEntry{Kind: xrefEntryDirect, Offset: offset, Generation: int(gen)}
 			}
-			entries = append(entries, entry)
-			objNums = append(objNums, objNum)
+			xrefEntries = append(xrefEntries, entry)
+			xrefObjNums = append(xrefObjNums, objNum)
 		}
 	}
 
-	return prevOffset, entries, objNums, nil
+	return prevOffset, xrefStmOffset, xrefEntries, xrefObjNums, nil
 }
 
 // parseXRefStream parses an xref stream and returns the Prev offset,

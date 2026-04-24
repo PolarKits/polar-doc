@@ -248,7 +248,7 @@ func (d *document) getXRefEntry(objNum int64) (xrefEntry, error) {
 			continue
 		}
 
-		_, entries, objNums, err := parseXRefSectionAt(d.file, offset)
+		_, _, entries, objNums, err := parseXRefSectionAt(d.file, offset)
 		if err != nil {
 			return xrefEntry{}, fmt.Errorf("lazy-load xref section at %d: %w", offset, err)
 		}
