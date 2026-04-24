@@ -317,8 +317,9 @@ func peekXRefType(f *os.File, offset int64) (isTraditional, isStream bool) {
 }
 
 // probeTrailerKeys reads the trailer dictionary at xrefOffset and sets
-// IsEncrypted, HasInfoDict, and (for hybrid detection) HasXRefStream on fs.
-// A "XRefStm" key in a traditional-table trailer indicates a hybrid xref.
+// IsEncrypted, EncryptionAlgorithm, HasInfoDict, and (for hybrid detection)
+// HasXRefStream on fs. A "XRefStm" key in a traditional-table trailer
+// indicates a hybrid xref.
 func probeTrailerKeys(f *os.File, xrefOffset int64, fs *PDFFeatureSet) error {
 	if _, err := f.Seek(xrefOffset, io.SeekStart); err != nil {
 		return err
@@ -344,6 +345,9 @@ func probeTrailerKeys(f *os.File, xrefOffset int64, fs *PDFFeatureSet) error {
 	if encObj, ok := d["Encrypt"]; ok {
 		if !isEmptyEncryptDict(f, encObj) {
 			fs.IsEncrypted = true
+			// Resolve the /Encrypt dictionary and map its fields to a known
+			// algorithm so callers do not need to re-parse the trailer.
+			fs.EncryptionAlgorithm = detectEncryptionAlgorithm(f, encObj)
 		}
 	}
 	if _, ok := d["Info"]; ok {
@@ -461,6 +465,80 @@ func trimToEndstream(buf []byte) ([]byte, bool) {
 		}
 	}
 	return buf, false
+}
+
+// detectEncryptionAlgorithm resolves the /Encrypt dictionary and determines
+// the encryption algorithm from its /V, /R, /Length, and /CF fields.
+// Returns EncryptNone when the dictionary cannot be resolved, and
+// EncryptUnknown when the algorithm does not match any known variant.
+//
+// Detection rules follow ISO 32000-1 Table 3.18 and ISO 32000-2 §7.6:
+//   - /V=1, /R=2 → 40-bit RC4  (PDF 1.1–1.3)
+//   - /V=1, /R=3 → 128-bit RC4 (PDF 1.4)
+//   - /V=2, /R=3 → 128-bit RC4 (PDF 1.4+)
+//   - /V=4, /R=4 with AESV2 in StdCF → 128-bit AES
+//   - /V=4, /R=4 without AES → 128-bit RC4
+//   - /V=5, /R=5 or /R=6 → 256-bit AES (PDF 2.0)
+func detectEncryptionAlgorithm(f *os.File, encObj PDFObject) EncryptionAlgorithm {
+	var d PDFDict
+	switch v := encObj.(type) {
+	case PDFRef:
+		objStr, err := readObject(f, RefToString(v))
+		if err != nil || objStr == "" {
+			return EncryptNone
+		}
+		d, err = extractDictFromObject(objStr)
+		if err != nil {
+			return EncryptNone
+		}
+	case PDFDict:
+		d = v
+	default:
+		return EncryptNone
+	}
+
+	if len(d) == 0 {
+		return EncryptNone
+	}
+
+	// Read algorithm version (/V) and revision (/R). Missing keys yield 0,
+	// which falls through to the default case and returns EncryptUnknown.
+	ver, _ := DictGetInt(d, "V")
+	rev, _ := DictGetInt(d, "R")
+
+	switch {
+	case ver == 1 && rev == 2:
+		return EncryptRC4_40
+	case ver == 1 && rev == 3:
+		return EncryptRC4_128
+	case ver == 2 && rev == 3:
+		return EncryptRC4_128
+	case ver == 4 && rev == 4:
+		if hasAESInStdCF(d) {
+			return EncryptAES_128
+		}
+		return EncryptRC4_128
+	case ver == 5 && (rev == 5 || rev == 6):
+		return EncryptAES_256
+	default:
+		return EncryptUnknown
+	}
+}
+
+// hasAESInStdCF inspects the /CF (crypt filter) dictionary for an AESV2
+// entry in the StdCF crypt filter. This distinguishes AES-128 from RC4-128
+// when /V=4, /R=4 (ISO 32000-1 §3.5.2).
+func hasAESInStdCF(encDict PDFDict) bool {
+	cfRaw, ok := DictGetDict(encDict, "CF")
+	if !ok {
+		return false
+	}
+	stdCF, ok := DictGetDict(cfRaw, "StdCF")
+	if !ok {
+		return false
+	}
+	cfName, ok := DictGetName(stdCF, "CFM")
+	return ok && cfName == "AESV2"
 }
 
 // isEmptyEncryptDict resolves encObj and returns true when the /Encrypt entry
