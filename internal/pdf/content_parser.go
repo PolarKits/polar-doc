@@ -836,30 +836,47 @@ func processTJArrayWithFonts(elements []ContentOperand, result *strings.Builder,
 
 // applyFontEncoding applies ToUnicode CMap mapping if available for the current font.
 // It decodes raw character codes to Unicode strings using the font's ToUnicode mapping.
-// If no mapping is available, the original text is returned.
+// If no ToUnicode mapping is available, it falls back to built-in encodings:
+//   - WinAnsiEncoding: Windows 1252 (Latin-1 with Windows extensions)
+//   - MacRomanEncoding: Classic Macintosh encoding
+// If no encoding information is available, the original text is returned.
 func applyFontEncoding(rawText string, fontName string, fonts map[string]FontInfo) string {
 	if fonts == nil || fontName == "" {
 		return rawText
 	}
 
 	font, ok := fonts[fontName]
-	if !ok || font.ToUnicode == nil {
-		// No ToUnicode mapping for this font, return raw text
+	if !ok {
 		return rawText
 	}
 
-	// Apply character-by-character mapping
-	var result strings.Builder
-	for _, charCode := range rawText {
-		if unicodeStr, ok := font.ToUnicode[charCode]; ok {
-			result.WriteString(unicodeStr)
-		} else {
-			// No mapping for this character, use original
-			result.WriteRune(charCode)
+	// Priority 1: Use ToUnicode CMap if available
+	if font.ToUnicode != nil {
+		var result strings.Builder
+		for _, charCode := range rawText {
+			if unicodeStr, ok := font.ToUnicode[charCode]; ok {
+				result.WriteString(unicodeStr)
+			} else {
+				// No mapping for this character, use original
+				result.WriteRune(charCode)
+			}
 		}
+		return result.String()
 	}
 
-	return result.String()
+	// Priority 2: Use built-in encoding tables
+	switch font.Encoding {
+	case "WinAnsiEncoding":
+		return applyByteMapping(rawText, winAnsiMapping)
+	case "MacRomanEncoding":
+		return applyByteMapping(rawText, macRomanMapping)
+	case "MacExpertEncoding":
+		// Not supported yet - return original
+		return rawText
+	default:
+		// No encoding info or unsupported encoding - return original
+		return rawText
+	}
 }
 
 // extractOperandString extracts a string value from a ContentOperand.
