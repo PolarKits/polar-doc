@@ -16,16 +16,24 @@ PolarDoc currently focuses on explicit PDF and OFD document capabilities in a Go
   - first-page inspection
   - partial text extraction
   - copy/save to a destination path
+  - PageIterator + Navigator (streaming/random page access)
+  - LRU content stream cache
+  - PDFFeatureSet structural probing at Open time
+  - CompatFix system fully activated (8 fixes: FixBrokenStartxref, FixMissingEOF, FixStreamLengthMismatch, FixNullObjectRef, FixInfoDictUTF16NoBOM, FixEmptyEncryptDict, FixTrailerPrevChain warning, FixHybridXRef)
 - OFD phase-1 read-oriented capabilities:
   - open package
   - read version metadata (from OFD.xml Version attribute)
   - count pages (from Document.xml Page elements)
   - validate package structure
   - extract text (TextCode elements across all pages via Content.xml)
+  - PageIterator + Navigator
+  - metadata lazy loading (sync.Once)
 - MCP handlers implemented in-process:
   - `pdf_first_page_info`
   - `document_info`
   - `document_validate`
+  - `document_extract`
+  - `document_read_page`
 
 ## Recently Delivered (Post Stage 1-9)
 
@@ -39,7 +47,6 @@ PolarDoc currently focuses on explicit PDF and OFD document capabilities in a Go
 
 ## Deferred
 
-- full MCP server runtime in `cmd/polardoc-mcp` (currently JSON-over-stdin/stdout only)
 - deep PDF validation (header presence only; no xref/object integrity)
 - full-document PDF text extraction (currently first-page only)
 - OFD preview and first-page inspection
@@ -48,9 +55,8 @@ PolarDoc currently focuses on explicit PDF and OFD document capabilities in a Go
 
 ## Working Facts
 
-- `go test ./...` passes (as of 2026-04-21)
-- worktree has uncommitted changes: docs/cli.md (reviewed but not committed), docs/current-status.md (this file)
-- git status shows "main...origin/main [ahead 1]" due to stale local tracking ref; actual remote main HEAD is 095c3a4 (same as local HEAD)
+- `go test ./...` passes (as of 2026-04-24)
+- worktree is clean (no uncommitted changes)
 
 ## Stage 1-9 Completion Summary (2026-04-20 Evening)
 

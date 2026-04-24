@@ -101,13 +101,13 @@ ISO 32000-2:2020 §7 (Document Structure), §8 (File Structure), §12.8 (Digital
 
 | ISO 32000-2 Clause | Feature | Status |
 |--------------------|---------|--------|
-| §7.7 | Cross-reference table (xref) | Traditional xref + XRef stream decoding implemented; ObjStm entries recognized but not parsed |
+| §7.7 | Cross-reference table (xref) | Traditional xref + XRef stream decoding implemented; ObjStm entries recognized and resolved via `resolveFromObjStm` |
 | §7.7.2 | Trailer and trailer dictionary | Basic parsing + /ID byte strings extracted |
-| §7.7.3 | Object streams | Not implemented — ObjStm type entries recognized in XRef, but object stream content is neither parsed nor decompressed |
+| §7.7.3 | Object streams | **Implemented** — ObjStm entries recognized in xref index and resolved via `resolveFromObjStm` (xref.go): decompresses the ObjStm, reads object index, extracts objects by index position |
 | §7.7.4 | Incremental updates | Not implemented |
 | §7.7.5 | Linearized PDF | Not implemented |
 | §7.8 | File trailer / startxref | startxref keyword parsing; XRef stream decoding implemented |
-| §8.2 | Object structure | Indirect object reading + XRef stream traversal; ObjStm compressed objects not readable |
+| §8.2 | Object structure | Indirect object reading + XRef stream traversal; ObjStm compressed objects resolved via `resolveFromObjStm` |
 | §8.3 | Strings, numbers, booleans, arrays | Primitives parsed; byte strings in arrays not handled |
 | §8.4 | Names and dictionaries | Basic parsing only |
 | §8.5 | Streams and filters | Partial — FlateDecode decompression for content streams; other filters not implemented |
@@ -132,7 +132,7 @@ This check was added to prevent silent failure on cross-format misuse.
 
 ### Gaps
 
-1. **Object streams (ObjStm)**: Type 2 entries are recognized in XRef streams, but object stream content is neither decompressed nor parsed. Objects stored in ObjStm cannot be read.
+1. **Object streams (ObjStm)**: Implemented — `resolveFromObjStm` decompresses ObjStm and extracts the requested object by index. FlateDecode filter is supported (covers the vast majority of real-world PDFs). Other stream filters within ObjStm (rare) are not handled.
 2. **Pages tree complexity**: Some PDFs have Pages trees that cannot be fully traversed with current parser.
 3. **Content stream limitations**: Only FlateDecode filter supported; full content operator parsing, font mapping, and text layout analysis not implemented.
 4. **No preview rendering**: PreviewRenderer returns error.
@@ -162,7 +162,7 @@ The current code performs:
 - File body recovery scan: fallback scan for objects not found in XRef/XRef streams
 
 Limitations:
-- Object streams (ObjStm): Type 2 entries are recognized in XRef streams, but object stream content is neither decompressed nor parsed
+- Object streams (ObjStm): Type 2 entries are recognized and resolved via `resolveFromObjStm`; FlateDecode decompression supported
 - Some Pages tree structures cannot be fully traversed
 - Content stream parsing is limited to literal/hex string extraction; full operator parsing and text layout not implemented
 - Known-bad samples with XRef corruption are explicitly handled via test assertions, not silently skipped
@@ -296,7 +296,7 @@ Cryptographic signatures, trust, and policy concerns.
 - **OFD**: ZIP package open + entry presence checks + OFD.xml DocRoot extraction/validation + Document.xml page list traversal + Content.xml TextCode extraction for all pages
 
 **Partially implemented (functional but incomplete):**
-- PDF: Content streams (FlateDecode only, no other filters), text extraction (literal/hex strings only, no operator/layout model), XRef streams (format decoded, ObjStm entries recognized but not readable)
+- PDF: Content streams (FlateDecode only, no other filters), text extraction (literal/hex strings only, no operator/layout model), XRef streams (format decoded, ObjStm entries resolved via `resolveFromObjStm`)
 - OFD: XML content model (DocRoot, page list, TextCode only; no resource mapping, fonts, or complex layouts)
 
 **Not implemented:**

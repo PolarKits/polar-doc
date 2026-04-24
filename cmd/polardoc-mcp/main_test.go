@@ -126,8 +126,8 @@ func TestServerToolsList(t *testing.T) {
 		t.Fatalf("tools is not a slice: %T", result["tools"])
 	}
 
-	if len(tools) != 3 {
-		t.Fatalf("len(tools) = %d, want 3", len(tools))
+	if len(tools) != 5 {
+		t.Fatalf("len(tools) = %d, want 5", len(tools))
 	}
 
 	names := make(map[string]bool)
@@ -144,7 +144,13 @@ func TestServerToolsList(t *testing.T) {
 		}
 	}
 
-	expected := []string{mcp.ToolNameFirstPageInfo, mcp.ToolNameDocumentInfo, mcp.ToolNameDocumentValidate}
+	expected := []string{
+		mcp.ToolNameFirstPageInfo,
+		mcp.ToolNameDocumentInfo,
+		mcp.ToolNameDocumentValidate,
+		mcp.ToolNameDocumentExtract,
+		mcp.ToolNameDocumentReadPage,
+	}
 	for _, n := range expected {
 		if !names[n] {
 			t.Fatalf("missing tool %q in tools/list", n)

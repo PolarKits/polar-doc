@@ -51,16 +51,14 @@ It is not a roadmap or design document.
 - `internal/doc/types.go` still says OFD declared version is empty and both extractors are stubs
 - **关闭原因**: `internal/doc/interfaces.go` 中 TextExtractor 注释和 `internal/doc/types.go` 中 TextResult 注释已正确描述 OFD 文本提取为已实现
 
-### G10 — current test and workspace facts are not captured anywhere — **Open / Active (Rolling Fact)**
-- `go test ./...` currently passes (as of 2026-04-21)
-- current worktree has uncommitted modifications: docs/cli.md, docs/current-status.md, docs/gap-analysis.md, docs/mcp.md, docs/ofd.md, docs/pdf.md (git status --short, 2026-04-21)
-- docs/current-status.md captures `go test ./...` pass status and uncommitted docs in its "Working Facts" section
-- **Status rationale**: G10 is kept Open because the worktree is actively evolving; "Closed" implies stability that does not exist until docs are committed. Reassess after docs are committed.
+### G10 — current test and workspace facts are not captured anywhere — **Closed / 已关闭** (2026-04-24)
+- `go test ./...` passes as of 2026-04-24
+- worktree is clean (no uncommitted changes)
+- **关闭原因**: Current state is accurately described in docs/current-status.md as of 2026-04-24. This item is closed as the worktree has stabilized.
 
 ## Notes
 
 - G0, G4, G7, G8, G9 are Closed as of 2026-04-21.
-- G10 is Open/Active (Rolling Fact) — see G10 entry for rationale.
+- G10 is Closed as of 2026-04-24 — see G10 entry for rationale.
 - G1, G2, G3, G5, G6, and earlier G10 items were addressed by prior documentation work.
 - C1 was resolved by earlier doc fixes.
-- This document reflects the current uncommitted state of docs worktree (git status --short at 2026-04-21 shows 6 modified docs/*.md files).
