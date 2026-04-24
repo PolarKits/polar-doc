@@ -3703,3 +3703,68 @@ func TestReadObject_NullRef(t *testing.T) {
 	}
 }
 
+func TestDecodePDFString_NoBOMUTF16BE(t *testing.T) {
+	raw := "H\x00e\x00l\x00l\x00o\x00"
+	got := decodePDFString(raw)
+	if got == "" {
+		t.Fatal("decodePDFString: got empty string, expected non-empty (heuristic should trigger)")
+	}
+}
+
+func TestIsEmptyEncryptDict_EmptyDict(t *testing.T) {
+	sample, ok := testfixtures.PDFSampleByKey("standard-pdf20-utf8")
+	if !ok {
+		t.Fatalf("missing PDF sample")
+	}
+	f, err := os.Open(sample.Path())
+	if err != nil {
+		t.Fatalf("open file: %v", err)
+	}
+	defer f.Close()
+
+	got := isEmptyEncryptDict(f, PDFDict{})
+	if !got {
+		t.Fatal("isEmptyEncryptDict(f, PDFDict{}) = false, want true")
+	}
+}
+
+func TestIsEmptyEncryptDict_NonEmptyDict(t *testing.T) {
+	sample, ok := testfixtures.PDFSampleByKey("standard-pdf20-utf8")
+	if !ok {
+		t.Fatalf("missing PDF sample")
+	}
+	f, err := os.Open(sample.Path())
+	if err != nil {
+		t.Fatalf("open file: %v", err)
+	}
+	defer f.Close()
+
+	got := isEmptyEncryptDict(f, PDFDict{"Filter": PDFName("Standard")})
+	if got {
+		t.Fatal("isEmptyEncryptDict(f, PDFDict{\"Filter\": ...}) = true, want false")
+	}
+}
+
+func TestDocumentFeatures_IsEncrypted_False(t *testing.T) {
+	sample, ok := testfixtures.PDFSampleByKey("standard-pdf20-utf8")
+	if !ok {
+		t.Fatalf("missing PDF sample")
+	}
+	path := sample.Path()
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	features, err := svc.DocumentFeatures(context.Background(), d)
+	if err != nil {
+		t.Fatalf("DocumentFeatures: %v", err)
+	}
+	if features.IsEncrypted {
+		t.Fatal("IsEncrypted = true, expected false for unencrypted fixture")
+	}
+}
+

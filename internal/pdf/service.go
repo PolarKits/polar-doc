@@ -1273,6 +1273,20 @@ func decodePDFString(raw string) string {
 			return utf16LEToUTF8(b[2:])
 		}
 	}
+	// FixInfoDictUTF16NoBOM: literal strings produced by Acrobat <6.0 may be
+	// UTF-16BE without a BOM. Apply the same heuristic as decodeHexString:
+	// if more than 25% of odd-indexed bytes are 0x00, decode as UTF-16BE.
+	if len(b) >= 4 && len(b)%2 == 0 {
+		zeroCount := 0
+		for i := 1; i < len(b); i += 2 {
+			if b[i] == 0x00 {
+				zeroCount++
+			}
+		}
+		if zeroCount > len(b)/4 {
+			return utf16BEToUTF8(b)
+		}
+	}
 	if isMostlyPrintableASCII(b) {
 		return printableASCIIOnly(b)
 	}

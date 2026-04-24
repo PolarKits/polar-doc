@@ -327,8 +327,10 @@ func probeTrailerKeys(f *os.File, xrefOffset int64, fs *PDFFeatureSet) error {
 		return err
 	}
 
-	if _, ok := d["Encrypt"]; ok {
-		fs.IsEncrypted = true
+	if encObj, ok := d["Encrypt"]; ok {
+		if !isEmptyEncryptDict(f, encObj) {
+			fs.IsEncrypted = true
+		}
 	}
 	if _, ok := d["Info"]; ok {
 		fs.HasInfoDict = true
@@ -445,4 +447,26 @@ func trimToEndstream(buf []byte) ([]byte, bool) {
 		}
 	}
 	return buf, false
+}
+
+// isEmptyEncryptDict resolves encObj and returns true when the /Encrypt entry
+// is absent, empty, or unresolvable. An empty /Encrypt dictionary means the
+// document is effectively unencrypted (FixEmptyEncryptDict).
+func isEmptyEncryptDict(f *os.File, encObj PDFObject) bool {
+	switch v := encObj.(type) {
+	case PDFRef:
+		objStr, err := readObject(f, RefToString(v))
+		if err != nil || objStr == "" {
+			return true
+		}
+		d, err := extractDictFromObject(objStr)
+		if err != nil {
+			return true
+		}
+		return len(d) == 0
+	case PDFDict:
+		return len(v) == 0
+	default:
+		return false
+	}
 }
