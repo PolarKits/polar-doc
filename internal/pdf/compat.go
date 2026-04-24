@@ -349,3 +349,80 @@ func checkLinearized(f *os.File) bool {
 	n, _ := f.Read(buf)
 	return bytes.Contains(buf[:n], []byte("/Linearized"))
 }
+
+// resolveStartxref reads the startxref offset from f. If the normal
+// readStartxref call fails, it falls back to scanForXRefFallback and records
+// a FixBrokenStartxref warning. Returns (0, nil) with no warning on total
+// failure so that Open still returns a usable (if degraded) document.
+func resolveStartxref(f *os.File) (int64, []CompatWarning) {
+	offset, err := readStartxref(f)
+	if err == nil {
+		return offset, nil
+	}
+
+	fallback, fbErr := scanForXRefFallback(f)
+	if fbErr != nil {
+		return 0, nil
+	}
+	w := CompatWarning{
+		Fix:    FixBrokenStartxref,
+		Detail: fmt.Sprintf("startxref marker missing or invalid (%v); fell back to scanned offset %d", err, fallback),
+	}
+	return fallback, []CompatWarning{w}
+}
+
+// scanForXRefFallback scans the PDF file from the end toward the beginning
+// looking for the last "xref" keyword (traditional table) or "obj" object
+// header pattern that indicates an xref stream. This is used when the
+// startxref offset is missing or points to invalid content.
+func scanForXRefFallback(f *os.File) (int64, error) {
+	info, err := f.Stat()
+	if err != nil {
+		return 0, err
+	}
+	size := info.Size()
+
+	scanLen := int64(10 * 1024 * 1024)
+	if scanLen > size {
+		scanLen = size
+	}
+	startOff := size - scanLen
+
+	buf := make([]byte, scanLen)
+	if _, err := f.Seek(startOff, io.SeekStart); err != nil {
+		return 0, err
+	}
+	n, err := f.Read(buf)
+	if err != nil && err != io.EOF {
+		return 0, err
+	}
+	buf = buf[:n]
+
+	if idx := bytes.LastIndex(buf, []byte("\nxref")); idx >= 0 {
+		return startOff + int64(idx) + 1, nil
+	}
+	if idx := bytes.LastIndex(buf, []byte("\rxref")); idx >= 0 {
+		return startOff + int64(idx) + 1, nil
+	}
+
+	return 0, fmt.Errorf("no xref section found in file")
+}
+
+// hasPDFEOF reports whether the last 64 bytes of f contain the %%EOF marker.
+func hasPDFEOF(f *os.File) bool {
+	info, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	size := info.Size()
+	checkLen := int64(64)
+	if checkLen > size {
+		checkLen = size
+	}
+	buf := make([]byte, checkLen)
+	if _, err := f.Seek(size-checkLen, io.SeekStart); err != nil {
+		return false
+	}
+	n, _ := f.Read(buf)
+	return bytes.Contains(buf[:n], []byte("%%EOF"))
+}

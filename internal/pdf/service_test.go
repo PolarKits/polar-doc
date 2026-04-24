@@ -3594,3 +3594,66 @@ func TestDocumentFeatures_VersionBounds(t *testing.T) {
 	}
 }
 
+func TestWarnings_CleanFile(t *testing.T) {
+	sample, ok := testfixtures.PDFSampleByKey("standard-pdf20-utf8")
+	if !ok {
+		t.Fatalf("missing PDF sample")
+	}
+	path := sample.Path()
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	warnings, err := svc.Warnings(context.Background(), d)
+	if err != nil {
+		t.Fatalf("Warnings: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %d, want 0 for clean file", len(warnings))
+	}
+}
+
+func TestHasPDFEOF_Present(t *testing.T) {
+	sample, ok := testfixtures.PDFSampleByKey("standard-pdf20-utf8")
+	if !ok {
+		t.Fatalf("missing PDF sample")
+	}
+	path := sample.Path()
+
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open file: %v", err)
+	}
+	defer f.Close()
+
+	if !hasPDFEOF(f) {
+		t.Fatal("hasPDFEOF = false, want true for standard fixture")
+	}
+}
+
+func TestScanForXRefFallback_Valid(t *testing.T) {
+	sample, ok := testfixtures.PDFSampleByKey("standard-pdf20-utf8")
+	if !ok {
+		t.Fatalf("missing PDF sample")
+	}
+	path := sample.Path()
+
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open file: %v", err)
+	}
+	defer f.Close()
+
+	offset, err := scanForXRefFallback(f)
+	if err != nil {
+		t.Fatalf("scanForXRefFallback: %v", err)
+	}
+	if offset == 0 {
+		t.Fatal("scanForXRefFallback returned offset 0, expected valid offset")
+	}
+}
+

@@ -20,6 +20,7 @@ type Service interface {
 	doc.NavigatorProvider
 	FirstPageInfoProvider
 	FeaturesProvider
+	WarningsProvider
 }
 
 // FirstPageInfoProvider returns structured first page information for a PDF document.
@@ -32,6 +33,12 @@ type FirstPageInfoProvider interface {
 // linearization, and version information without requiring a full xref load.
 type FeaturesProvider interface {
 	DocumentFeatures(ctx context.Context, d doc.Document) (PDFFeatureSet, error)
+}
+
+// WarningsProvider exposes the compat fix events recorded when a PDF document
+// was opened or parsed. Callers may surface these to users or logging systems.
+type WarningsProvider interface {
+	Warnings(ctx context.Context, d doc.Document) ([]CompatWarning, error)
 }
 
 // Saver defines the capability to save a PDF document to a destination path.

@@ -72,6 +72,7 @@ type document struct {
 	mu              sync.Mutex         // guards xrefIdx, xrefOffsets, xrefLoaded
 	contentCache    *doc.LRUCache      // page content stream cache, keyed by object ref
 	features        PDFFeatureSet      // structural feature flags, populated at Open time
+	warnings        []CompatWarning     // compat fix events recorded during Open and parsing
 }
 
 // NewService returns the PDF service used by phase-1 CLI flows.
@@ -281,9 +282,16 @@ func (s *service) Open(_ context.Context, ref doc.DocumentRef) (doc.Document, er
 		return nil, err
 	}
 
-	xrefStartOffset, _ := readStartxref(f)
+	xrefStartOffset, xrefWarnings := resolveStartxref(f)
 
 	features := probeDocumentFeatures(f, xrefStartOffset, version)
+
+	if !hasPDFEOF(f) {
+		xrefWarnings = append(xrefWarnings, CompatWarning{
+			Fix:    FixMissingEOF,
+			Detail: "%%EOF marker not found in last 64 bytes",
+		})
+	}
 
 	return &document{
 		ref:             ref,
@@ -293,6 +301,7 @@ func (s *service) Open(_ context.Context, ref doc.DocumentRef) (doc.Document, er
 		xrefStartOffset: xrefStartOffset,
 		contentCache:    doc.NewLRUCache(doc.DefaultPageCacheMaxBytes),
 		features:        features,
+		warnings:        xrefWarnings,
 	}, nil
 }
 
@@ -337,6 +346,17 @@ func (s *service) DocumentFeatures(_ context.Context, d doc.Document) (PDFFeatur
 		return PDFFeatureSet{}, fmt.Errorf("unsupported document type %T", d)
 	}
 	return pdfDoc.features, nil
+}
+
+// Warnings returns the list of compat fix events recorded when this document
+// was opened. Each entry describes a silent deviation from the PDF specification
+// that was automatically corrected.
+func (s *service) Warnings(_ context.Context, d doc.Document) ([]CompatWarning, error) {
+	pdfDoc, ok := d.(*document)
+	if !ok {
+		return nil, fmt.Errorf("unsupported document type %T", d)
+	}
+	return pdfDoc.warnings, nil
 }
 
 func (s *service) Validate(_ context.Context, d doc.Document) (doc.ValidationReport, error) {
