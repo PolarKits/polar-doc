@@ -1260,8 +1260,9 @@ func arrayToStrings(arr PDFArray) []string {
 }
 
 // decodePDFString decodes a raw PDF string value (after stripping outer delimiters).
-// It handles UTF-16BE (BOM 0xFE 0xFF), UTF-16LE (BOM 0xFF 0xFE), literal string escape
-// sequences, and falls back to printable ASCII filtering.
+// It handles UTF-16BE (BOM 0xFE 0xFF), UTF-16LE (BOM 0xFF 0xFE), no-BOM UTF-16BE
+// (FixInfoDictUTF16NoBOM: Acrobat <6.0 heuristic), literal string escape sequences,
+// and falls back to printable ASCII filtering.
 func decodePDFString(raw string) string {
 	unescaped := unescapeLiteralString(raw)
 	b := []byte(unescaped)
