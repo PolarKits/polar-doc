@@ -186,6 +186,7 @@ func (d *document) getXRefIndex() (xrefIndex, error) {
 		return nil, err
 	}
 	d.xrefIdx = idx
+	// Set HasObjectStreams if any ObjStm-resident entry was found in the index.
 	for _, entry := range idx {
 		if entry.Kind == xrefEntryInObjStm {
 			d.features.HasObjectStreams = true
