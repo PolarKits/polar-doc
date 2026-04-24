@@ -1,1 +1,105 @@
-404: Not Found
+%PDF-1.7
+%\xe2\xe3\xcf\xd3
+1 0 obj
+<<
+/Count 1
+/Kids [3 0 R]
+/MediaBox [0 0 595.28 841.89]
+/Type /Pages
+>>
+endobj
+2 0 obj
+<<
+/OpenAction [3 0 R /FitH null]
+/PageLayout /OneColumn
+/Pages 1 0 R
+/Type /Catalog
+>>
+endobj
+3 0 obj
+<<
+/Contents 4 0 R
+/MediaBox [0 0 595.28 841.89]
+/Parent 1 0 R
+/Resources <<
+/Font <<
+/F1 5 0 R
+>>
+/ProcSet [/PDF /Text]
+>>
+/Type /Page
+>>
+endobj
+4 0 obj
+<<
+/Length 58
+>>
+stream
+BT
+/F1 12 Tf
+100 700 Td
+(PDF 1.7 Digital Signature Test) Tj
+ET
+endstream
+endobj
+5 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+6 0 obj
+<<
+/CreationDate (D:20260424000000+00'00')
+/ModDate (D:20260424000000+00'00')
+/Producer (PolarDoc Test Fixture)
+/Title (PDF 1.7 Signed Test)
+>>
+endobj
+7 0 obj
+<<
+/FT /Sig
+/Type /Annot
+/Subtype /Widget
+/Rect [100 600 400 650]
+/T (Signature1)
+/V 8 0 R
+/P 3 0 R
+>>
+endobj
+8 0 obj
+<<
+/Type /Sig
+/Filter /Adobe.PPKLite
+/SubFilter /adbe.pkcs7.detached
+/ByteRange [0 1000 2000 1000]
+/Contents <0000>
+/Name (Test Signer)
+/Location (Test Location)
+/Reason (Test Purpose)
+/M (D:20260424000000+00'00')
+>>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000015 00000 n 
+0000000133 00000 n 
+0000000244 00000 n 
+0000000446 00000 n 
+0000000559 00000 n 
+0000000667 00000 n 
+0000000805 00000 n 
+0000000947 00000 n 
+trailer
+<<
+/Info 6 0 R
+/Root 2 0 R
+/Size 9
+>>
+startxref
+1157
+%%EOF

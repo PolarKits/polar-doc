@@ -23,6 +23,14 @@ type PDFVersion struct {
 // PDF 1.0 was the first standardized version (1993), with basic imaging and text.
 var PDF10 = PDFVersion{1, 0}
 
+// PDF11 represents PDF version 1.1.
+// PDF 1.1 introduced the concept of device-independent color and external streams.
+var PDF11 = PDFVersion{1, 1}
+
+// PDF12 represents PDF version 1.2.
+// PDF 1.2 introduced forms, threaded pages, and digital signatures.
+var PDF12 = PDFVersion{1, 2}
+
 // PDF13 represents PDF version 1.3.
 // Introduced form XObjects, digital signatures, and better color management.
 var PDF13 = PDFVersion{1, 3}

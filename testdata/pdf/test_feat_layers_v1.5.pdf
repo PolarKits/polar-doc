@@ -1,1 +1,99 @@
-404: Not Found
+%PDF-1.5
+%\xe2\xe3\xcf\xd3
+1 0 obj
+<<
+/Count 1
+/Kids [4 0 R]
+/MediaBox [0 0 595.28 841.89]
+/Type /Pages
+>>
+endobj
+2 0 obj
+<<
+/OCProperties <<
+/OCGs [3 0 R]
+/D <<
+/BaseState /ON
+/ON [3 0 R]
+>>
+>>
+/OpenAction [4 0 R /FitH null]
+/PageLayout /OneColumn
+/Pages 1 0 R
+/Type /Catalog
+>>
+endobj
+3 0 obj
+<<
+/Intent /View
+/Name (Layer1)
+/Type /OCG
+>>
+endobj
+4 0 obj
+<<
+/Contents 5 0 R
+/MediaBox [0 0 595.28 841.89]
+/Parent 1 0 R
+/Resources <<
+/Font <<
+/F1 6 0 R
+>>
+/ProcSet [/PDF /Text]
+/Properties <<
+/MC0 3 0 R
+>>
+>>
+/Type /Page
+>>
+endobj
+5 0 obj
+<<
+/Length 89
+>>
+stream
+/OC /MC0 BDC
+BT
+/F1 12 Tf
+100 700 Td
+(PDF 1.5 with Optional Content Groups) Tj
+ET
+EMC
+endstream
+endobj
+6 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+7 0 obj
+<<
+/CreationDate (D:20260424000000+00'00')
+/ModDate (D:20260424000000+00'00')
+/Producer (PolarDoc Test Fixture)
+/Title (PDF 1.5 Layers Test)
+>>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000018 00000 n 
+0000000157 00000 n 
+0000000345 00000 n 
+0000000434 00000 n 
+0000000650 00000 n 
+0000000793 00000 n 
+0000000901 00000 n 
+trailer
+<<
+/Info 7 0 R
+/Root 2 0 R
+/Size 8
+>>
+startxref
+1032
+%%EOF

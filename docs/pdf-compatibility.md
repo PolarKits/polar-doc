@@ -13,6 +13,20 @@ PolarDoc PDF compatibility strategy covering ISO 32000-1 (PDF 1.7) and ISO 32000
 | 1.7 | 2006 | AES-256 extension, ISO 32000-1:2008 | Current mainstream (★ baseline) |
 | 2.0 | 2017 | ISO 32000-2:2017, deprecated XFA/Info dict, page-level output intents | Growing (★ modern target) |
 
+### Version Test Coverage Matrix
+
+| Version | Test Fixture | Open/Info/Validate | Feature Detection | Notes |
+|---------|-------------|-------------------|-------------------|-------|
+| 1.0 | `version-compat-v1.0`, `version-v1.0` | ✓ | HasTraditionalXRef=true | Basic structure tests |
+| 1.1 | `version-v1.1` | ✓ | HasTraditionalXRef=true | Legacy fixture only |
+| 1.2 | `version-compat-v1.2` | ✓ | HasTraditionalXRef=true | Added for coverage completeness |
+| 1.3 | `core-multipage` | ✓ | HasTraditionalXRef=true | Multi-page structure tests |
+| 1.4 | `version-compat-v1.4`, `feature-transparency` | ✓ | HasTraditionalXRef=true, HasXRefStream=false | Transparency, CMYK tests |
+| 1.5 | `core-minimal`, `feature-layers`, `feature-encrypted` | ✓ | Mixed (file-dependent) | ObjStm, XRef stream tests |
+| 1.6 | `feature-fillable` | ✓ | Mixed (file-dependent) | AES-128 encryption (fixture stub) |
+| 1.7 | `version-compat-v1.7`, `feature-tagged`, `feature-signed` | ✓ | Mixed (file-dependent) | Tagged PDF, signatures |
+| 2.0 | `standard-pdf20-*`, `standard-pdf20-utf8` | ✓ | HasTraditionalXRef=true, HasXRefStream varies | UTF-8, modern features |
+
 ### PDF/A Archival Standards (write-relevant)
 
 | Standard | Base Version | Notes |
