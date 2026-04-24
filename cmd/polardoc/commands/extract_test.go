@@ -202,7 +202,8 @@ func TestRunExtractRealPDFError(t *testing.T) {
 }
 
 func TestRunExtractRealPDFSuccess5x(t *testing.T) {
-	path := requirePDFSample(t, "version-compat-v1.4")
+	// Use core-multipage PDF which has actual text content
+	path := requirePDFSample(t, "core-multipage")
 	resolver := app.NewPhase1Resolver()
 	output := captureStdout(t, func() {
 		_ = RunExtract(context.Background(), resolver, []string{path})
@@ -211,7 +212,8 @@ func TestRunExtractRealPDFSuccess5x(t *testing.T) {
 	if output == "" {
 		t.Fatal("expected non-empty text output")
 	}
-	if !containsString(output, "PDF") && !containsString(output, "1.4") && !containsString(output, "Sample") {
+	// Verify we got readable text (not fragmented like "Sa m pl e")
+	if !containsString(output, "Sample") && !containsString(output, "PDF") && !containsString(output, "Lorem") {
 		t.Fatalf("expected text content, got: %q", output)
 	}
 }

@@ -572,7 +572,13 @@ func (s *service) ExtractText(_ context.Context, d doc.Document) (doc.TextResult
 				lastErr = err
 				continue
 			}
-			extracted := extractLiteralStrings(streamData)
+			// Parse content stream into operators and extract text
+			operators, err := parseContentStream(streamData)
+			if err != nil {
+				lastErr = err
+				continue
+			}
+			extracted := extractTextFromOperators(operators)
 			if extracted != "" {
 				text.WriteString(extracted)
 				text.WriteString(" ")
@@ -746,6 +752,11 @@ func readContentStream(f *os.File, ref PDFRef) ([]byte, error) {
 // extractLiteralStrings extracts and decodes literal and hex strings from raw PDF stream content.
 // It scans for literal strings (parentheses) and hex strings (angle brackets), decoding UTF-16 BOM
 // and escape sequences where present. Results are joined with spaces.
+//
+// Deprecated: This function uses a naive byte-scanning approach that does not understand
+// PDF content stream operators. It produces poor results with character-by-character spacing
+// (e.g., "S a m p l e" instead of "Sample") when PDF uses TJ arrays with spacing adjustments.
+// Use parseContentStream followed by extractTextFromOperators instead for proper text extraction.
 func extractLiteralStrings(data []byte) string {
 	var result strings.Builder
 	s := string(data)

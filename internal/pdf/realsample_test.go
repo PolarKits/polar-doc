@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -189,7 +190,7 @@ func isBulkSample(filename string) bool {
 // the test, as some samples are intentionally corrupted or malformed.
 // The test asserts that at least 80% of samples can be successfully opened.
 func TestRealPDFSamples_BulkOpen(t *testing.T) {
-	entries, err := os.ReadDir("../../testdata/pdf")
+	entries, err := os.ReadDir(fixtures.PDFDir())
 	if err != nil {
 		t.Fatalf("failed to read testdata/pdf: %v", err)
 	}
@@ -204,7 +205,7 @@ func TestRealPDFSamples_BulkOpen(t *testing.T) {
 		}
 
 		totalCount++
-		path := "../../testdata/pdf/" + entry.Name()
+		path := filepath.Join(fixtures.PDFDir(), entry.Name())
 
 		d, err := svc.Open(context.Background(), doc.DocumentRef{
 			Format: doc.FormatPDF,
@@ -247,7 +248,7 @@ func TestRealPDFSamples_BulkOpen(t *testing.T) {
 // It verifies that InfoResult contains required fields (Format, Path, SizeBytes)
 // and records the distribution of DeclaredVersion values across samples.
 func TestRealPDFSamples_BulkInfo(t *testing.T) {
-	entries, err := os.ReadDir("../../testdata/pdf")
+	entries, err := os.ReadDir(fixtures.PDFDir())
 	if err != nil {
 		t.Fatalf("failed to read testdata/pdf: %v", err)
 	}
@@ -262,7 +263,7 @@ func TestRealPDFSamples_BulkInfo(t *testing.T) {
 			continue
 		}
 
-		path := "../../testdata/pdf/" + entry.Name()
+		path := filepath.Join(fixtures.PDFDir(), entry.Name())
 
 		d, err := svc.Open(context.Background(), doc.DocumentRef{
 			Format: doc.FormatPDF,
@@ -318,7 +319,7 @@ func TestRealPDFSamples_BulkInfo(t *testing.T) {
 // It records Valid=true/false statistics and logs errors for invalid samples
 // to aid in identifying structural issues in test fixtures.
 func TestRealPDFSamples_BulkValidate(t *testing.T) {
-	entries, err := os.ReadDir("../../testdata/pdf")
+	entries, err := os.ReadDir(fixtures.PDFDir())
 	if err != nil {
 		t.Fatalf("failed to read testdata/pdf: %v", err)
 	}
@@ -335,7 +336,7 @@ func TestRealPDFSamples_BulkValidate(t *testing.T) {
 			continue
 		}
 
-		path := "../../testdata/pdf/" + entry.Name()
+		path := filepath.Join(fixtures.PDFDir(), entry.Name())
 
 		d, err := svc.Open(context.Background(), doc.DocumentRef{
 			Format: doc.FormatPDF,
@@ -392,7 +393,7 @@ func TestRealPDFSamples_BulkValidate(t *testing.T) {
 // Known encrypted samples: artur_corrupted.pdf, sambit_pades_*.pdf
 // Known non-encrypted samples: artur_not_encrypted*.pdf, other sambit_*.pdf
 func TestRealPDFSamples_EncryptionDetection(t *testing.T) {
-	entries, err := os.ReadDir("../../testdata/pdf")
+	entries, err := os.ReadDir(fixtures.PDFDir())
 	if err != nil {
 		t.Fatalf("failed to read testdata/pdf: %v", err)
 	}
@@ -414,7 +415,7 @@ func TestRealPDFSamples_EncryptionDetection(t *testing.T) {
 			continue
 		}
 
-		path := "../../testdata/pdf/" + filename
+		path := filepath.Join(fixtures.PDFDir(), filename)
 
 		d, err := svc.Open(context.Background(), doc.DocumentRef{
 			Format: doc.FormatPDF,

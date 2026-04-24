@@ -1096,7 +1096,8 @@ func TestServiceExtractTextMatrix(t *testing.T) {
 		wantNonEmpty bool
 	}{
 		{"standard-pdf20-utf8", requirePDFSample(t, "standard-pdf20-utf8"), true, true},
-		{"version-compat-v1.4", requirePDFSample(t, "version-compat-v1.4"), true, true},
+		// version-compat-v1.4 has empty content stream (Length 0), so extraction returns error
+		{"version-compat-v1.4", requirePDFSample(t, "version-compat-v1.4"), false, false},
 		{"feature-encrypted", requirePDFSample(t, "feature-encrypted"), false, false},
 		{"core-minimal", requirePDFSample(t, "core-minimal"), false, false},
 		{"error-corrupted", requirePDFSample(t, "error-corrupted"), false, false},

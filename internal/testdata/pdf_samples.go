@@ -64,6 +64,13 @@ func repoRoot() string {
 	return filepath.Dir(filepath.Dir(filepath.Dir(filename)))
 }
 
+// PDFDir returns the absolute path to the testdata/pdf directory.
+// This is useful for bulk sample tests that need to iterate over all PDF files
+// in the directory without using hardcoded relative paths.
+func PDFDir() string {
+	return filepath.Join(repoRoot(), "testdata", "pdf")
+}
+
 var pdfSamples = []PDFSample{
 	{Key: "core-minimal", Filename: "test_core_minimal_v1.5.pdf", Category: "core", Description: "Minimal PDF 1.5 fixture", DeclaredVersionHint: "1.5", Integrity: PDFSampleIntegrityValid, ExpectFirstPageInfo: true, ExpectExtractText: false, ExpectFileIDs: true},
 	{Key: "core-latex-standard", Filename: "test_core_latex_standard_v1.5.pdf", Category: "core", Description: "LaTeX-generated baseline PDF 1.5 fixture", DeclaredVersionHint: "1.5", Integrity: PDFSampleIntegrityValid, ExpectFirstPageInfo: true, ExpectExtractText: true, ExpectFileIDs: true},
