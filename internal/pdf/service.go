@@ -584,7 +584,7 @@ func (s *service) ExtractText(_ context.Context, d doc.Document) (doc.TextResult
 		if lastErr != nil {
 			return doc.TextResult{}, fmt.Errorf("text extraction: %v", lastErr)
 		}
-		return doc.TextResult{}, fmt.Errorf("text extraction is not implemented for PDF")
+		return doc.TextResult{}, fmt.Errorf("text extraction: PDF contains no extractable text content (only graphics/images)")
 	}
 	return doc.TextResult{Text: strings.TrimSpace(text.String())}, nil
 }
