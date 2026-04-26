@@ -839,6 +839,8 @@ func processTJArrayWithFonts(elements []ContentOperand, result *strings.Builder,
 // If no ToUnicode mapping is available, it falls back to built-in encodings:
 //   - WinAnsiEncoding: Windows 1252 (Latin-1 with Windows extensions)
 //   - MacRomanEncoding: Classic Macintosh encoding
+//   - StandardEncoding: Default for Type1 fonts without /Encoding (PDF 1.0-1.3)
+// If /Differences is present, it overrides specific byte mappings from the base encoding.
 // If no encoding information is available, the original text is returned.
 func applyFontEncoding(rawText string, fontName string, fonts map[string]FontInfo) string {
 	if fonts == nil || fontName == "" {
@@ -864,12 +866,23 @@ func applyFontEncoding(rawText string, fontName string, fonts map[string]FontInf
 		return result.String()
 	}
 
-	// Priority 2: Use built-in encoding tables
-	switch font.Encoding {
+	// Priority 2: Use built-in encoding tables with Differences support
+	// Determine base encoding
+	var baseMapping map[byte]rune
+	encoding := font.Encoding
+
+	// Type1 fonts without /Encoding default to StandardEncoding
+	if encoding == "" && font.Subtype == "Type1" {
+		encoding = "StandardEncoding"
+	}
+
+	switch encoding {
 	case "WinAnsiEncoding":
-		return applyByteMapping(rawText, winAnsiMapping)
+		baseMapping = winAnsiMapping
 	case "MacRomanEncoding":
-		return applyByteMapping(rawText, macRomanMapping)
+		baseMapping = macRomanMapping
+	case "StandardEncoding":
+		baseMapping = standardEncodingMapping
 	case "MacExpertEncoding":
 		// Not supported yet - return original
 		return rawText
@@ -877,6 +890,13 @@ func applyFontEncoding(rawText string, fontName string, fonts map[string]FontInf
 		// No encoding info or unsupported encoding - return original
 		return rawText
 	}
+
+	// Apply Differences if present
+	if font.Differences != nil && len(font.Differences) > 0 {
+		return applyDifferencesMapping(rawText, baseMapping, font.Differences)
+	}
+
+	return applyByteMapping(rawText, baseMapping)
 }
 
 // extractOperandString extracts a string value from a ContentOperand.

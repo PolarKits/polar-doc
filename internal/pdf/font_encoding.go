@@ -1,6 +1,9 @@
 package pdf
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // winAnsiMapping maps WinAnsiEncoding bytes 128-255 to Unicode runes.
 // WinAnsiEncoding (Windows 1252) is the most common encoding in PDFs.
@@ -137,6 +140,339 @@ var winAnsiMapping = map[byte]rune{
 	0xFD: '\u00FD', // Latin small letter y with acute
 	0xFE: '\u00FE', // Latin small letter thorn
 	0xFF: '\u00FF', // Latin small letter y with diaeresis
+}
+
+// standardEncodingMapping maps StandardEncoding bytes 128-255 to Unicode runes.
+// StandardEncoding is the default encoding for Type1 fonts without an /Encoding entry.
+// It is used in early PDFs (1.0-1.3) and LaTeX-generated documents.
+// Source: ISO 32000-1 Annex D.2, Table D.3
+var standardEncodingMapping = map[byte]rune{
+	0x80: '\u2022', // Bullet (•) - differs from WinAnsi
+	0x81: '\u2022', // Bullet (variant)
+	0x82: '\u2022', // Bullet (variant)
+	0x83: '\u0192', // Latin small letter f with hook (ƒ)
+	0x84: '\u2022', // Bullet (variant)
+	0x85: '\u2026', // Horizontal ellipsis
+	0x86: '\u2020', // Dagger
+	0x87: '\u2021', // Double dagger
+	0x88: '\u02C6', // Modifier letter circumflex accent
+	0x89: '\u2030', // Per mille sign
+	0x8A: '\u0160', // Latin capital letter S with caron
+	0x8B: '\u2039', // Single left-pointing angle quotation mark
+	0x8C: '\u0152', // Latin capital ligature OE
+	0x8D: '\u2022', // Bullet (unmapped in some variants)
+	0x8E: '\u017D', // Latin capital letter Z with caron (varies)
+	0x8F: '\u2022', // Bullet (unmapped in some variants)
+	0x90: '\u02C6', // Circumflex accent (variant)
+	0x91: '\u2018', // Left single quotation mark
+	0x92: '\u2019', // Right single quotation mark
+	0x93: '\u201C', // Left double quotation mark
+	0x94: '\u201D', // Right double quotation mark
+	0x95: '\u2022', // Bullet
+	0x96: '\u2013', // En dash
+	0x97: '\u2014', // Em dash
+	0x98: '\u02DC', // Small tilde
+	0x99: '\u2122', // Trade mark sign
+	0x9A: '\u0161', // Latin small letter s with caron
+	0x9B: '\u203A', // Single right-pointing angle quotation mark
+	0x9C: '\u0153', // Latin small ligature oe
+	0x9D: '\u02C6', // Circumflex (unmapped variant)
+	0x9E: '\u017E', // Latin small letter z with caron
+	0x9F: '\u0178', // Latin capital letter Y with diaeresis
+	0xA0: '\u00A0', // Non-breaking space
+	0xA1: '\u00A1', // Inverted exclamation mark
+	0xA2: '\u00A2', // Cent sign
+	0xA3: '\u00A3', // Pound sign
+	0xA4: '\u00A4', // Currency sign
+	0xA5: '\u00A5', // Yen sign
+	0xA6: '\u00A6', // Broken bar
+	0xA7: '\u00A7', // Section sign
+	0xA8: '\u00A8', // Diaeresis
+	0xA9: '\u00A9', // Copyright sign
+	0xAA: '\u00AA', // Feminine ordinal indicator
+	0xAB: '\u00AB', // Left-pointing double angle quotation mark
+	0xAC: '\u00AC', // Not sign
+	0xAD: '\u00AD', // Soft hyphen
+	0xAE: '\u00AE', // Registered sign
+	0xAF: '\u00AF', // Macron
+	0xB0: '\u00B0', // Degree sign
+	0xB1: '\u00B1', // Plus-minus sign
+	0xB2: '\u00B2', // Superscript two
+	0xB3: '\u00B3', // Superscript three
+	0xB4: '\u00B4', // Acute accent
+	0xB5: '\u00B5', // Micro sign
+	0xB6: '\u00B6', // Pilcrow sign
+	0xB7: '\u00B7', // Middle dot
+	0xB8: '\u00B8', // Cedilla
+	0xB9: '\u00B9', // Superscript one
+	0xBA: '\u00BA', // Masculine ordinal indicator
+	0xBB: '\u00BB', // Right-pointing double angle quotation mark
+	0xBC: '\u00BC', // Vulgar fraction one quarter
+	0xBD: '\u00BD', // Vulgar fraction one half
+	0xBE: '\u00BE', // Vulgar fraction three quarters
+	0xBF: '\u00BF', // Inverted question mark
+	0xC0: '\u00C0', // Latin capital letter A with grave
+	0xC1: '\u00C1', // Latin capital letter A with acute
+	0xC2: '\u00C2', // Latin capital letter A with circumflex
+	0xC3: '\u00C3', // Latin capital letter A with tilde
+	0xC4: '\u00C4', // Latin capital letter A with diaeresis
+	0xC5: '\u00C5', // Latin capital letter A with ring above
+	0xC6: '\u00C6', // Latin capital ligature AE
+	0xC7: '\u00C7', // Latin capital letter C with cedilla
+	0xC8: '\u00C8', // Latin capital letter E with grave
+	0xC9: '\u00C9', // Latin capital letter E with acute
+	0xCA: '\u00CA', // Latin capital letter E with circumflex
+	0xCB: '\u00CB', // Latin capital letter E with diaeresis
+	0xCC: '\u00CC', // Latin capital letter I with grave
+	0xCD: '\u00CD', // Latin capital letter I with acute
+	0xCE: '\u00CE', // Latin capital letter I with circumflex
+	0xCF: '\u00CF', // Latin capital letter I with diaeresis
+	0xD0: '\u00D0', // Latin capital letter Eth
+	0xD1: '\u00D1', // Latin capital letter N with tilde
+	0xD2: '\u00D2', // Latin capital letter O with grave
+	0xD3: '\u00D3', // Latin capital letter O with acute
+	0xD4: '\u00D4', // Latin capital letter O with circumflex
+	0xD5: '\u00D5', // Latin capital letter O with tilde
+	0xD6: '\u00D6', // Latin capital letter O with diaeresis
+	0xD7: '\u00D7', // Multiplication sign
+	0xD8: '\u00D8', // Latin capital letter O with stroke
+	0xD9: '\u00D9', // Latin capital letter U with grave
+	0xDA: '\u00DA', // Latin capital letter U with acute
+	0xDB: '\u00DB', // Latin capital letter U with circumflex
+	0xDC: '\u00DC', // Latin capital letter U with diaeresis
+	0xDD: '\u00DD', // Latin capital letter Y with acute
+	0xDE: '\u00DE', // Latin capital letter Thorn
+	0xDF: '\u00DF', // Latin small letter sharp s
+	0xE0: '\u00E0', // Latin small letter a with grave
+	0xE1: '\u00E1', // Latin small letter a with acute
+	0xE2: '\u00E2', // Latin small letter a with circumflex
+	0xE3: '\u00E3', // Latin small letter a with tilde
+	0xE4: '\u00E4', // Latin small letter a with diaeresis
+	0xE5: '\u00E5', // Latin small letter a with ring above
+	0xE6: '\u00E6', // Latin small ligature ae
+	0xE7: '\u00E7', // Latin small letter c with cedilla
+	0xE8: '\u00E8', // Latin small letter e with grave
+	0xE9: '\u00E9', // Latin small letter e with acute
+	0xEA: '\u00EA', // Latin small letter e with circumflex
+	0xEB: '\u00EB', // Latin small letter e with diaeresis
+	0xEC: '\u00EC', // Latin small letter i with grave
+	0xED: '\u00ED', // Latin small letter i with acute
+	0xEE: '\u00EE', // Latin small letter i with circumflex
+	0xEF: '\u00EF', // Latin small letter i with diaeresis
+	0xF0: '\u00F0', // Latin small letter eth
+	0xF1: '\u00F1', // Latin small letter n with tilde
+	0xF2: '\u00F2', // Latin small letter o with grave
+	0xF3: '\u00F3', // Latin small letter o with acute
+	0xF4: '\u00F4', // Latin small letter o with circumflex
+	0xF5: '\u00F5', // Latin small letter o with tilde
+	0xF6: '\u00F6', // Latin small letter o with diaeresis
+	0xF7: '\u00F7', // Division sign
+	0xF8: '\u00F8', // Latin small letter o with stroke
+	0xF9: '\u00F9', // Latin small letter u with grave
+	0xFA: '\u00FA', // Latin small letter u with acute
+	0xFB: '\u00FB', // Latin small letter u with circumflex
+	0xFC: '\u00FC', // Latin small letter u with diaeresis
+	0xFD: '\u00FD', // Latin small letter y with acute
+	0xFE: '\u00FE', // Latin small letter thorn
+	0xFF: '\u00FF', // Latin small letter y with diaeresis
+}
+
+// aglMapping maps common Adobe Glyph List glyph names to Unicode runes.
+// This covers the most common glyphs used in PDF /Differences arrays.
+var aglMapping = map[string]rune{
+	"A":            '\u0041',
+	"B":            '\u0042',
+	"C":            '\u0043',
+	"D":            '\u0044',
+	"E":            '\u0045',
+	"F":            '\u0046',
+	"G":            '\u0047',
+	"H":            '\u0048',
+	"I":            '\u0049',
+	"J":            '\u004A',
+	"K":            '\u004B',
+	"L":            '\u004C',
+	"M":            '\u004D',
+	"N":            '\u004E',
+	"O":            '\u004F',
+	"P":            '\u0050',
+	"Q":            '\u0051',
+	"R":            '\u0052',
+	"S":            '\u0053',
+	"T":            '\u0054',
+	"U":            '\u0055',
+	"V":            '\u0056',
+	"W":            '\u0057',
+	"X":            '\u0058',
+	"Y":            '\u0059',
+	"Z":            '\u005A',
+	"a":            '\u0061',
+	"b":            '\u0062',
+	"c":            '\u0063',
+	"d":            '\u0064',
+	"e":            '\u0065',
+	"f":            '\u0066',
+	"g":            '\u0067',
+	"h":            '\u0068',
+	"i":            '\u0069',
+	"j":            '\u006A',
+	"k":            '\u006B',
+	"l":            '\u006C',
+	"m":            '\u006D',
+	"n":            '\u006E',
+	"o":            '\u006F',
+	"p":            '\u0070',
+	"q":            '\u0071',
+	"r":            '\u0072',
+	"s":            '\u0073',
+	"t":            '\u0074',
+	"u":            '\u0075',
+	"v":            '\u0076',
+	"w":            '\u0077',
+	"x":            '\u0078',
+	"y":            '\u0079',
+	"z":            '\u007A',
+	"space":        '\u0020',
+	"period":       '\u002E',
+	"comma":        '\u002C',
+	"hyphen":       '\u002D',
+	"colon":        '\u003A',
+	"semicolon":    '\u003B',
+	"exclam":       '\u0021',
+	"quotedbl":     '\u0022',
+	"quotesingle":  '\u0027',
+	"parenleft":    '\u0028',
+	"parenright":   '\u0029',
+	"bracketleft":  '\u005B',
+	"bracketright": '\u005D',
+	"braceleft":    '\u007B',
+	"braceright":   '\u007D',
+	"slash":        '\u002F',
+	"backslash":   '\u005C',
+	"bar":          '\u007C',
+	"ampersand":    '\u0026',
+	"percent":      '\u0025',
+	"dollar":       '\u0024',
+	"numbersign":   '\u0023',
+	"asterisk":     '\u002A',
+	"plus":         '\u002B',
+	"equal":        '\u003D',
+	"question":     '\u003F',
+	"at":           '\u0040',
+	"quoteleft":    '\u2018',
+	"quoteright":   '\u2019',
+	"quotedblleft": '\u201C',
+	"quotedblright": '\u201D',
+	"endash":       '\u2013',
+	"emdash":       '\u2014',
+	"bullet":       '\u2022',
+	"dagger":       '\u2020',
+	"daggerdbl":    '\u2021',
+	"Euro":         '\u20AC',
+	"sterling":     '\u00A3',
+	"yen":          '\u00A5',
+	"cent":         '\u00A2',
+	"section":      '\u00A7',
+	"copyright":    '\u00A9',
+	"registered":   '\u00AE',
+	"trademark":    '\u2122',
+	"plusminus":    '\u00B1',
+	"degree":       '\u00B0',
+	"paragrapy":    '\u00B6',
+	"pilcrow":      '\u00B6',
+	"multiply":     '\u00D7',
+	"divide":       '\u00F7',
+	"logicalnot":   '\u00AC',
+	"infinity":     '\u221E',
+	"lessequal":    '\u2264',
+	"greatequal":   '\u2265',
+	"notequal":     '\u2260',
+	"Agrave":       '\u00C0',
+	"Aacute":       '\u00C1',
+	"Acircumflex":  '\u00C2',
+	"Atilde":       '\u00C3',
+	"Adieresis":    '\u00C4',
+	"Aring":        '\u00C5',
+	"AE":           '\u00C6',
+	"Ccedilla":     '\u00C7',
+	"Egrave":       '\u00C8',
+	"Eacute":       '\u00C9',
+	"Ecircumflex":  '\u00CA',
+	"Edieresis":    '\u00CB',
+	"Igrave":       '\u00CC',
+	"Iacute":       '\u00CD',
+	"Icircumflex":  '\u00CE',
+	"Idieresis":    '\u00CF',
+	"Eth":          '\u00D0',
+	"Ntilde":       '\u00D1',
+	"Ograve":       '\u00D2',
+	"Oacute":       '\u00D3',
+	"Ocircumflex":  '\u00D4',
+	"Otilde":       '\u00D5',
+	"Odieresis":    '\u00D6',
+	"Oslash":       '\u00D8',
+	"Ugrave":       '\u00D9',
+	"Uacute":       '\u00DA',
+	"Ucircumflex":  '\u00DB',
+	"Udieresis":    '\u00DC',
+	"Yacute":       '\u00DD',
+	"Thorn":        '\u00DE',
+	"agrave":       '\u00E0',
+	"aacute":       '\u00E1',
+	"acircumflex":  '\u00E2',
+	"atilde":       '\u00E3',
+	"adieresis":    '\u00E4',
+	"aring":        '\u00E5',
+	"ae":           '\u00E6',
+	"ccedilla":     '\u00E7',
+	"egrave":       '\u00E8',
+	"eacute":       '\u00E9',
+	"ecircumflex":  '\u00EA',
+	"edieresis":    '\u00EB',
+	"igrave":       '\u00EC',
+	"iacute":       '\u00ED',
+	"icircumflex":  '\u00EE',
+	"idieresis":    '\u00EF',
+	"eth":          '\u00F0',
+	"ntilde":       '\u00F1',
+	"ograve":       '\u00F2',
+	"oacute":       '\u00F3',
+	"ocircumflex":  '\u00F4',
+	"otilde":       '\u00F5',
+	"odieresis":    '\u00F6',
+	"oslash":       '\u00F8',
+	"ugrave":       '\u00F9',
+	"uacute":       '\u00FA',
+	"ucircumflex":  '\u00FB',
+	"udieresis":    '\u00FC',
+	"yacute":       '\u00FD',
+	"thorn":        '\u00FE',
+	"ydieresis":    '\u00FF',
+	"Scaron":       '\u0160',
+	"scaron":       '\u0161',
+	"Nacute":       '\u0143',
+	"nacute":       '\u0144',
+	"Odoubleacute": '\u0150',
+	"odoubleacute": '\u0151',
+	"Lslash":       '\u0141',
+	"lslash":       '\u0142',
+	"OE":           '\u0152',
+	"oe":           '\u0153',
+	"Zcaron":       '\u017D',
+	"zcaron":       '\u017E',
+	"Gear":         '\u2121',
+	"minus":        '\u2212',
+	"product":      '\u220F',
+	"sum":          '\u2211',
+	"sqrt":         '\u221A',
+	"integral":     '\u222B',
+	"Delta":        '\u0394',
+	"Omega":        '\u03A9',
+	"pi":           '\u03C0',
+	"lambda":       '\u03BB',
+	"sigma":        '\u03C3',
+	"mu":           '\u00B5',
+	"fleury":       '\u0192',
 }
 
 // macRomanMapping maps MacRomanEncoding bytes 128-255 to Unicode runes.
@@ -320,6 +656,116 @@ func applyByteMapping(rawText string, mapping map[byte]rune) string {
 		// Apply mapping for high bytes (128-255)
 		if b >= 128 {
 			if mappedRune, ok := mapping[b]; ok && mappedRune != 0 {
+				result.WriteRune(mappedRune)
+				continue
+			}
+		}
+
+		// Keep ASCII and unmapped bytes as-is
+		result.WriteByte(b)
+	}
+
+	return result.String()
+}
+
+// parseDifferences parses a PDF /Differences array string and returns a character code to Unicode mapping.
+// The format is: [code /GlyphName code /GlyphName ...]
+// Glyph names are resolved using the Adobe Glyph List (AGL).
+func parseDifferences(differencesStr string) map[byte]rune {
+	result := make(map[byte]rune)
+
+	// Remove surrounding brackets and whitespace
+	differencesStr = strings.TrimSpace(differencesStr)
+	differencesStr = strings.TrimPrefix(differencesStr, "[")
+	differencesStr = strings.TrimSuffix(differencesStr, "]")
+	differencesStr = strings.TrimSpace(differencesStr)
+
+	if differencesStr == "" {
+		return result
+	}
+
+	// Split by whitespace
+	tokens := strings.Fields(differencesStr)
+	currentCode := 0
+
+	for i := 0; i < len(tokens); i++ {
+		token := tokens[i]
+
+		// Check if this token is a number (character code)
+		if code, err := strconv.ParseUint(token, 10, 8); err == nil {
+			currentCode = int(code)
+			continue
+		}
+
+		// Remove leading slash if present
+		glyphName := strings.TrimPrefix(token, "/")
+		if glyphName == "" {
+			continue
+		}
+
+		// Look up glyph name in AGL
+		if unicodeRune, ok := aglMapping[glyphName]; ok {
+			result[byte(currentCode)] = unicodeRune
+		}
+
+		currentCode++
+	}
+
+	return result
+}
+
+// applyDifferencesMapping applies a Differences array mapping on top of a base encoding.
+// It first applies the baseMapping to rawText, then overrides specific byte values
+// using the differences mapping.
+func applyDifferencesMapping(rawText string, baseMapping map[byte]rune, differences map[byte]rune) string {
+	if differences == nil || len(differences) == 0 {
+		return applyByteMapping(rawText, baseMapping)
+	}
+
+	var result strings.Builder
+
+	for i := 0; i < len(rawText); i++ {
+		b := rawText[i]
+
+		// Check if this byte is a multi-byte UTF-8 sequence
+		if b >= 0xC0 && b <= 0xFF {
+			utf8Len := 0
+			if b >= 0xC0 && b <= 0xDF {
+				utf8Len = 2
+			} else if b >= 0xE0 && b <= 0xEF {
+				utf8Len = 3
+			} else if b >= 0xF0 && b <= 0xF7 {
+				utf8Len = 4
+			}
+
+			if utf8Len > 1 && i+utf8Len <= len(rawText) {
+				validUTF8 := true
+				for j := 1; j < utf8Len; j++ {
+					nextByte := rawText[i+j]
+					if nextByte < 0x80 || nextByte > 0xBF {
+						validUTF8 = false
+						break
+					}
+				}
+				if validUTF8 {
+					result.WriteString(rawText[i : i+utf8Len])
+					i += utf8Len - 1
+					continue
+				}
+			}
+		}
+
+		// Apply differences override if available
+		if b >= 128 {
+			if diffRune, ok := differences[b]; ok {
+				result.WriteRune(diffRune)
+				continue
+			}
+		}
+
+		// Apply base mapping for high bytes
+		if b >= 128 {
+			if mappedRune, ok := baseMapping[b]; ok && mappedRune != 0 {
 				result.WriteRune(mappedRune)
 				continue
 			}

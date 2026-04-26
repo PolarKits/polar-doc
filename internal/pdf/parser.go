@@ -429,6 +429,22 @@ func DictGetArray(d PDFDict, key string) (PDFArray, bool) {
 	return arr, ok
 }
 
+// DictGetString retrieves a string value (PDFLiteralString or PDFHexString) from the dictionary.
+// The second return value reports whether the key exists and is of a string type.
+func DictGetString(d PDFDict, key string) (string, bool) {
+	v, ok := d[PDFName(key)]
+	if !ok {
+		return "", false
+	}
+	switch s := v.(type) {
+	case PDFLiteralString:
+		return string(s), true
+	case PDFHexString:
+		return string(s), true
+	}
+	return "", false
+}
+
 // DictGetDict retrieves a nested dictionary value from the dictionary by key.
 // The second return value reports whether the key exists and is of type PDFDict.
 func DictGetDict(d PDFDict, key string) (PDFDict, bool) {

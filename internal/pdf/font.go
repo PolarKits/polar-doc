@@ -22,6 +22,8 @@ type FontInfo struct {
 	ToUnicodeRef PDFRef
 	// ToUnicode is the parsed CMap (character code → Unicode string), if available.
 	ToUnicode map[rune]string
+	// Differences is the parsed /Differences array (character code → Unicode), if available.
+	Differences map[byte]rune
 }
 
 // resolvePageFonts resolves all fonts referenced by a page's Resources dictionary.
@@ -171,6 +173,14 @@ func parseFontDict(dict PDFDict, name string) FontInfo {
 	} else if encodingRef, ok := DictGetRef(dict, "Encoding"); ok && encodingRef.ObjNum != 0 {
 		// Encoding is a reference, mark it for later resolution
 		info.Encoding = fmt.Sprintf("%d %d R", encodingRef.ObjNum, encodingRef.GenNum)
+	} else if encodingDict, ok := DictGetDict(dict, "Encoding"); ok {
+		// Encoding is an inline dictionary (may contain /Differences and /BaseEncoding)
+		if baseEnc, ok := DictGetName(encodingDict, "BaseEncoding"); ok {
+			info.Encoding = string(baseEnc)
+		}
+		if diffStr, ok := DictGetString(encodingDict, "Differences"); ok {
+			info.Differences = parseDifferences(diffStr)
+		}
 	}
 
 	// Get ToUnicode reference

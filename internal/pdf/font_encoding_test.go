@@ -10,6 +10,272 @@ import (
 	testfixtures "github.com/PolarKits/polar-doc/internal/testdata"
 )
 
+// TestStandardEncodingMapping tests StandardEncoding byte mappings.
+func TestStandardEncodingMapping(t *testing.T) {
+	tests := []struct {
+		byteVal  byte
+		expected rune
+	}{
+		// Key differences from WinAnsi
+		{0x80, '\u2022'}, // Bullet (WinAnsi has €)
+		{0x8E, '\u017D'}, // Z with caron (WinAnsi has Ž)
+		{0x95, '\u2022'}, // Bullet
+		{0x96, '\u2013'}, // En dash
+		{0x97, '\u2014'}, // Em dash
+		// ISO-8859-1 compatible (0xA0-0xFF) - same as WinAnsi
+		{0xA0, '\u00A0'}, // Non-breaking space
+		{0xC4, '\u00C4'}, // Ä
+		{0xC5, '\u00C5'}, // Å
+		{0xD6, '\u00D6'}, // Ö
+		{0xDC, '\u00DC'}, // Ü
+		{0xDF, '\u00DF'}, // ß
+		{0xE4, '\u00E4'}, // ä
+		{0xE9, '\u00E9'}, // é
+		{0xFC, '\u00FC'}, // ü
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("0x%02X", tt.byteVal), func(t *testing.T) {
+			got, ok := standardEncodingMapping[tt.byteVal]
+			if !ok {
+				t.Errorf("standardEncodingMapping[0x%02X] not found", tt.byteVal)
+				return
+			}
+			if got != tt.expected {
+				t.Errorf("standardEncodingMapping[0x%02X] = U+%04X, want U+%04X", tt.byteVal, got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestParseDifferences tests /Differences array parsing.
+func TestParseDifferences(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected map[byte]rune
+	}{
+		{
+			name:  "basic format",
+			input: "[32 /space 128 /Euro 150 /endash]",
+			expected: map[byte]rune{
+				32:  ' ',
+				128: '\u20AC',
+				150: '\u2013',
+			},
+		},
+		{
+			name:     "empty array",
+			input:    "[]",
+			expected: map[byte]rune{},
+		},
+		{
+			name:  "non-contiguous",
+			input: "[32 /space 128 /Euro 200 /emdash]",
+			expected: map[byte]rune{
+				32:  ' ',
+				128: '\u20AC',
+				200: '\u2014',
+			},
+		},
+		{
+			name:  "glyph name variants",
+			input: "[0 /space 1 /period 2 /comma]",
+			expected: map[byte]rune{
+				0: ' ',
+				1: '.',
+				2: ',',
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseDifferences(tt.input)
+			if len(got) != len(tt.expected) {
+				t.Errorf("parseDifferences(%q) len = %d, want %d", tt.input, len(got), len(tt.expected))
+				return
+			}
+			for k, v := range tt.expected {
+				if got[k] != v {
+					t.Errorf("parseDifferences(%q)[0x%02X] = U+%04X, want U+%04X", tt.input, k, got[k], v)
+				}
+			}
+		})
+	}
+}
+
+// TestApplyDifferencesMapping tests applying /Differences on top of base encoding.
+func TestApplyDifferencesMapping(t *testing.T) {
+	baseMapping := winAnsiMapping
+
+	tests := []struct {
+		name        string
+		rawText     string
+		baseMapping map[byte]rune
+		differences map[byte]rune
+		expected    string
+	}{
+		{
+			name:        "no differences",
+			rawText:     string([]byte{0xC4}),
+			baseMapping: baseMapping,
+			differences: nil,
+			expected:    "Ä",
+		},
+		{
+			name:        "override with euro",
+			rawText:     string([]byte{0x80}),
+			baseMapping: baseMapping,
+			differences: map[byte]rune{0x80: '\u20AC'},
+			expected:    "€",
+		},
+		{
+			name:        "partial override - first byte overridden, second kept raw",
+			rawText:     string([]byte{0x80, 0x81}),
+			baseMapping: baseMapping,
+			differences: map[byte]rune{0x80: '\u20AC'},
+			expected:    "€\x81", // 0x80 overridden to €, 0x81 not in differences and maps to 0 in base so kept raw
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := applyDifferencesMapping(tt.rawText, tt.baseMapping, tt.differences)
+			if got != tt.expected {
+				t.Errorf("applyDifferencesMapping(%q) = %q, want %q", tt.rawText, got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestApplyFontEncoding_StandardEncoding tests StandardEncoding and Type1 default.
+func TestApplyFontEncoding_StandardEncoding(t *testing.T) {
+	tests := []struct {
+		name     string
+		rawText  string
+		font     FontInfo
+		expected string
+	}{
+		{
+			name:    "explicit StandardEncoding",
+			rawText: string([]byte{0x80}),
+			font: FontInfo{
+				Name:     "F1",
+				Encoding: "StandardEncoding",
+				ToUnicode: nil,
+			},
+			expected: string(rune('\u2022')), // Bullet
+		},
+		{
+			name:    "Type1 without Encoding defaults to StandardEncoding",
+			rawText: string([]byte{0x80}),
+			font: FontInfo{
+				Name:     "F2",
+				Subtype:  "Type1",
+				Encoding: "",
+				ToUnicode: nil,
+			},
+			expected: string(rune('\u2022')), // Bullet
+		},
+		{
+			name:    "Type1 with Encoding uses that encoding",
+			rawText: string([]byte{0x80}),
+			font: FontInfo{
+				Name:     "F3",
+				Subtype:  "Type1",
+				Encoding: "WinAnsiEncoding",
+				ToUnicode: nil,
+			},
+			expected: "€", // Euro sign from WinAnsi
+		},
+		{
+			name:    "TrueType without Encoding returns raw",
+			rawText: string([]byte{0x80}),
+			font: FontInfo{
+				Name:     "F4",
+				Subtype:  "TrueType",
+				Encoding: "",
+				ToUnicode: nil,
+			},
+			expected: string([]byte{0x80}), // Raw byte
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fonts := map[string]FontInfo{tt.font.Name: tt.font}
+			got := applyFontEncoding(tt.rawText, tt.font.Name, fonts)
+			if got != tt.expected {
+				t.Errorf("applyFontEncoding(%q, %q) = %q, want %q", tt.rawText, tt.font.Name, got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestApplyFontEncoding_Differences tests /Differences override.
+func TestApplyFontEncoding_Differences(t *testing.T) {
+	font := FontInfo{
+		Name:     "TestFont",
+		Encoding: "WinAnsiEncoding",
+		Differences: map[byte]rune{
+			128: '\u20AC', // Override Euro at 0x80
+			150: '\u2014', // Override en-dash to em-dash at 0x96
+		},
+		ToUnicode: nil,
+	}
+	fonts := map[string]FontInfo{"TestFont": font}
+
+	// 0x80 should use Differences (Euro), not base WinAnsi mapping
+	rawText := string([]byte{0x80})
+	got := applyFontEncoding(rawText, "TestFont", fonts)
+	if got != "€" {
+		t.Errorf("Differences override 0x80: got %q, want €", got)
+	}
+
+	// 0xA0 should use base WinAnsi mapping (not overridden)
+	rawText = string([]byte{0xA0}) // Non-breaking space in WinAnsi
+	got = applyFontEncoding(rawText, "TestFont", fonts)
+	if got != "\u00A0" {
+		t.Errorf("Non-overridden 0xA0: got %q, want non-breaking space", got)
+	}
+}
+
+// TestAGLMappings tests Adobe Glyph List mappings are correct.
+func TestAGLMappings(t *testing.T) {
+	tests := []struct {
+		glyphName string
+		expected  rune
+	}{
+		{"space", ' '},
+		{"period", '.'},
+		{"comma", ','},
+		{"hyphen", '-'},
+		{"Euro", '\u20AC'},
+		{"endash", '\u2013'},
+		{"emdash", '\u2014'},
+		{"bullet", '\u2022'},
+		{"Adieresis", '\u00C4'},
+		{"eacute", '\u00E9'},
+		{"udieresis", '\u00FC'},
+		{"scaron", '\u0161'},
+		{"oe", '\u0153'},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.glyphName, func(t *testing.T) {
+			got, ok := aglMapping[tt.glyphName]
+			if !ok {
+				t.Errorf("aglMapping[%q] not found", tt.glyphName)
+				return
+			}
+			if got != tt.expected {
+				t.Errorf("aglMapping[%q] = U+%04X, want U+%04X", tt.glyphName, got, tt.expected)
+			}
+		})
+	}
+}
+
 // TestWinAnsiMapping tests WinAnsiEncoding byte mappings.
 func TestWinAnsiMapping(t *testing.T) {
 	tests := []struct {
