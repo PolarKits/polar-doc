@@ -39,6 +39,8 @@ PolarDoc currently focuses on explicit PDF and OFD document capabilities in a Go
 
 ## Recently Delivered (Post Stage 1-9)
 
+- PDF font encoding: StandardEncoding support and /Differences array parsing (font_encoding.go)
+- OFD FirstPageInfo: PhysicalBox extraction from Document.xml mapped to MediaBox
 - PDF write pipeline: `RewriteFile` — normalizes incremental PDFs to single-revision output
 - PDF metadata: `parsePDFName` delimiter fix enabling correct Info dict key parsing
 - PDF xref: Prev chain traversal for incremental/linearized PDFs
@@ -52,7 +54,7 @@ PolarDoc currently focuses on explicit PDF and OFD document capabilities in a Go
 
 ## Deferred
 
-- OFD preview and first-page inspection
+- OFD preview rendering
 - rendering implementations in `internal/render`
 - signing and trust implementations in `internal/security`
 

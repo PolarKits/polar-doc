@@ -69,10 +69,10 @@
 //   - stream_filter.go: multi-filter framework (FlateDecode, ASCIIHexDecode, ASCII85Decode,
 //     LZWDecode; supports filter chains)
 //   - font_encoding.go: built-in encoding tables (WinAnsiEncoding 128-255, MacRomanEncoding
-//     128-255, applyByteMapping for font-to-Unicode mapping)
+//     128-255, StandardEncoding, /Differences array parsing, applyByteMapping for
+//     font-to-Unicode mapping)
 //
 // Not implemented in phase-1 (future work):
-//   - StandardEncoding (PDF 1.0 default) and custom /Differences encoding support
 //   - CIDFont CMap-based font encoding
 //   - Incremental update writer pipeline
 //   - Preview rendering and thumbnail generation
@@ -85,10 +85,9 @@
 // This package does NOT claim to implement PDF 2.0, 1.7, or 1.4 fully or faithfully.
 // Phase-1 covers structural open, header version, trailer /ID, InfoDict metadata,
 // xref/XRef stream traversal, full-document text extraction with content operator parsing,
-// multi-filter stream decoding, partial font encoding (WinAnsi/MacRoman/ToUnicode),
-// CopyFile, and single-revision RewriteFile. CIDFont CMap, StandardEncoding,
-// /Differences encoding, incremental updates, signatures, and version upgrade
-// are not implemented.
+// multi-filter stream decoding, font encoding (WinAnsi/MacRoman/StandardEncoding/ToUnicode,
+// /Differences array), CopyFile, and single-revision RewriteFile. CIDFont CMap,
+// incremental updates, signatures, and version upgrade are not implemented.
 //
 // The comments in this package use "phase-1" and "not implemented" to clearly
 // mark the current boundary between intent and reality.

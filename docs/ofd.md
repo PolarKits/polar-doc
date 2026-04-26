@@ -22,7 +22,7 @@ It keeps OFD semantics explicit and separate from PDF internals.
 - resource mapping and resolution (Resources.xml, multi-document references)
 - signature structure parsing and validation (Signatures.xml, Seal files)
 - write valid OFD package output (serialization and modification)
-- preview rendering and first page inspection
+- preview rendering
 - complex layout and font handling
 
 ## Core Components
@@ -55,6 +55,7 @@ It keeps OFD semantics explicit and separate from PDF internals.
 - ✅ validate package structure (OFD.xml, Document.xml presence, DocRoot integrity)
 - ✅ extract text from TextCode elements across all pages
 - ✅ extract basic metadata (format, path, size, version, page count)
+- ✅ extract first page info (PhysicalBox from PageArea mapped to MediaBox)
 
 ## Phase-1 Non-Goals (Current Limitations)
 
@@ -62,6 +63,6 @@ It keeps OFD semantics explicit and separate from PDF internals.
 - resource mapping and resolution
 - signature parsing and validation
 - writer/serialization capabilities
-- preview rendering and first page inspection
+- preview rendering (first page inspection implemented via PhysicalBox→MediaBox)
 - advanced editing workflows
 - complex layout and font handling

@@ -71,9 +71,21 @@ It is not a roadmap or design document.
 - current implementation supports FlateDecode, ASCIIHexDecode, ASCII85Decode, and LZWDecode (framework)
 - **关闭原因**: Documentation updated to reflect multi-filter support including filter chain handling.
 
+### G14 — PDF StandardEncoding and /Differences documented as not implemented — **Closed / 已关闭** (2026-04-27)
+- commit e934d0f implemented StandardEncoding and /Differences array support in internal/pdf/font_encoding.go
+- internal/pdf/doc.go, docs/pdf.md 已更新以反映此实现
+- **关闭原因**: StandardEncoding 编码表和 /Differences 数组解析已实现并测试通过
+
+### G15 — OFD FirstPageInfo documented as not implemented — **Closed / 已关闭** (2026-04-27)
+- commit 3ad58de implemented FirstPageInfo with PhysicalBox support in internal/ofd/service.go
+- internal/ofd/doc.go, docs/ofd.md, docs/current-status.md 已更新
+- **关闭原因**: OFD FirstPageInfo 已实现，PhysicalBox 解析和 MediaBox 映射测试通过
+
 ## Notes
 
 - G0, G4, G7, G8, G9 are Closed as of 2026-04-21.
 - G10 is Closed as of 2026-04-24 — see G10 entry for rationale.
+- G11, G12, G13 are Closed as of 2026-04-24.
+- G14, G15 are Closed as of 2026-04-27.
 - G1, G2, G3, G5, G6, and earlier G10 items were addressed by prior documentation work.
 - C1 was resolved by earlier doc fixes.

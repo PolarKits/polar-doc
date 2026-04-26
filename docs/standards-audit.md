@@ -133,7 +133,7 @@ This check was added to prevent silent failure on cross-format misuse.
 ### Gaps
 
 1. **Pages tree complexity**: Some PDFs have Pages trees that cannot be fully traversed with current parser.
-2. **Advanced font encoding**: StandardEncoding, /Differences array, and CIDFont CMap resolution not implemented. WinAnsi/MacRoman/ToUnicode CMap are supported.
+2. **Advanced font encoding**: CIDFont CMap resolution not implemented. StandardEncoding, /Differences array, WinAnsi/MacRoman/ToUnicode are supported.
 3. **Text layout analysis**: Full text layout analysis (word spacing, character positioning, multi-column) not implemented.
 4. **No preview rendering**: PreviewRenderer returns error.
 5. **No signing**: Signer capability is a stub.
@@ -215,6 +215,7 @@ GB/T 33190-2016 §4 (Document structure), §5 (Document body), §6 (Page descrip
 | Open | Opens ZIP package, acquires zip.Reader | §4.1 OFD package structure |
 | Validate | Checks OFD.xml and Document.xml entry presence; validates DocRoot points to existing file | §4 package requirements |
 | ExtractText | Traverses Document.xml page list, extracts TextCode elements from each page's Content.xml | §6 Page description, §5 Document body |
+| FirstPageInfo | Extracts PhysicalBox from Document.xml PageArea, maps to MediaBox | §4.3, §5 |
 
 #### NOT Covered (Phase-1 + Future)
 
@@ -297,11 +298,11 @@ Cryptographic signatures, trust, and policy concerns.
 - **OFD**: ZIP package open + entry presence checks + OFD.xml DocRoot extraction/validation + Document.xml page list traversal + Content.xml TextCode extraction for all pages
 
 **Partially implemented (functional but incomplete):**
-- PDF: Content streams (4 filters: FlateDecode, ASCIIHexDecode, ASCII85Decode, LZWDecode framework), text extraction (operator parsing with Tj/TJ support; font encoding and layout analysis not implemented), XRef streams (format decoded, ObjStm entries resolved via `resolveFromObjStm`)
+- PDF: Content streams (4 filters: FlateDecode, ASCIIHexDecode, ASCII85Decode, LZWDecode framework), text extraction (operator parsing with Tj/TJ support; advanced font encoding (CIDFont CMap) and layout analysis not implemented; StandardEncoding and /Differences are implemented), XRef streams (format decoded, ObjStm entries resolved via `resolveFromObjStm`)
 - OFD: XML content model (DocRoot, page list, TextCode only; no resource mapping, fonts, or complex layouts)
 
 **Not implemented:**
-- PDF: advanced font encoding (StandardEncoding, /Differences, CIDFont CMap), full layout analysis, graphics, color spaces, interactive features, digital signatures, writer/upgrade pipeline, preview rendering, DCTDecode/CCITTFaxDecode stream filters
+- PDF: CIDFont CMap font encoding, full layout analysis, graphics, color spaces, interactive features, digital signatures, writer/upgrade pipeline, preview rendering, DCTDecode/CCITTFaxDecode stream filters
 - OFD: Resource mapping, font handling, digital signatures, writer pipeline, preview rendering, full page layout engine
 
 ### Key Future Capabilities (Not Yet Implemented)

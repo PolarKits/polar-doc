@@ -24,6 +24,7 @@
 //     path resolves to an existing file in the package
 //   - ExtractText: traverses Document.xml page list and extracts TextCode elements
 //     from each page's Content.xml across all pages
+//   - FirstPageInfo: extracts PhysicalBox from Document.xml PageArea and maps to MediaBox
 //
 // Not implemented in phase-1 (future work):
 //   - Complete OFD XML object model (Doc_0/*.xml body elements beyond page list and TextCode)
@@ -31,7 +32,7 @@
 //   - Signature structure parsing and validation (Signatures.xml, Seal files)
 //   - Writer / package generation pipeline
 //   - OFD version upgrade (older OFD → newer OFD output)
-//   - Preview rendering and first page inspection
+//   - Preview rendering
 //   - Complex layout, font handling, and content objects beyond TextCode
 //
 // # What This Package Does NOT Claim
