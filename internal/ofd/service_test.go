@@ -16,14 +16,14 @@ import (
 	"github.com/PolarKits/polar-doc/internal/pdf"
 )
 
-// TestServiceFirstPageInfoUnsupported verifies that FirstPageInfo returns
-// an error for OFD format since this operation is not implemented for OFD.
-func TestServiceFirstPageInfoUnsupported(t *testing.T) {
+// TestFirstPageInfo_WithPhysicalBox verifies that FirstPageInfo returns
+// the PhysicalBox mapped to MediaBox when present in Document.xml.
+func TestFirstPageInfo_WithPhysicalBox(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.ofd")
 	content := buildOFDPackage(t, map[string]string{
-		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd><Version>1.0</Version><DocRoot>Doc_0/Document.xml</DocRoot></ofd>`,
-		"Doc_0/Document.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd:Document xmlns:ofd="http://www.ofd.cn/2016/F最低配"><ofd:Pages><ofd:Page ID="1"/></ofd:Pages></ofd:Document>`,
+		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd:OFD xmlns:ofd="http://www.ofdspec.org/2016" Version="1.0"><ofd:DocBody><ofd:DocRoot>Doc_0/Document.xml</ofd:DocRoot></ofd:DocBody></ofd:OFD>`,
+		"Doc_0/Document.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd:Document xmlns:ofd="http://www.ofdspec.org/2016"><ofd:CommonData><ofd:PageArea><ofd:PhysicalBox>0 0 210 297</ofd:PhysicalBox></ofd:PageArea></ofd:CommonData><ofd:Pages><ofd:Page ID="1"/></ofd:Pages></ofd:Document>`,
 	})
 	if err := os.WriteFile(path, content, 0o644); err != nil {
 		t.Fatalf("write sample OFD: %v", err)
@@ -36,12 +36,194 @@ func TestServiceFirstPageInfoUnsupported(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = d.Close() })
 
-	_, err = svc.FirstPageInfo(context.Background(), d)
-	if err == nil {
-		t.Fatal("FirstPageInfo: expected error for OFD, got nil")
+	result, err := svc.FirstPageInfo(context.Background(), d)
+	if err != nil {
+		t.Fatalf("FirstPageInfo: unexpected error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "not supported") {
-		t.Fatalf("error = %q, want contains 'not supported'", err.Error())
+	if result == nil {
+		t.Fatal("FirstPageInfo: expected non-nil result")
+	}
+	if result.Path != path {
+		t.Fatalf("Path = %q, want %q", result.Path, path)
+	}
+	if len(result.MediaBox) != 4 {
+		t.Fatalf("MediaBox len = %d, want 4", len(result.MediaBox))
+	}
+	// PhysicalBox "0 0 210 297" (x y w h) → MediaBox [0, 0, 210, 297] (llx lly urx ury)
+	if result.MediaBox[0] != 0 || result.MediaBox[1] != 0 || result.MediaBox[2] != 210 || result.MediaBox[3] != 297 {
+		t.Fatalf("MediaBox = %v, want [0, 0, 210, 297]", result.MediaBox)
+	}
+}
+
+// TestFirstPageInfo_NoPhysicalBox verifies that FirstPageInfo returns
+// (nil, nil) when PhysicalBox is absent, not an error.
+func TestFirstPageInfo_NoPhysicalBox(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd:OFD xmlns:ofd="http://www.ofdspec.org/2016" Version="1.0"><ofd:DocBody><ofd:DocRoot>Doc_0/Document.xml</ofd:DocRoot></ofd:DocBody></ofd:OFD>`,
+		"Doc_0/Document.xml": `<?xml version="1.0" encoding="UTF-8"?><ofd:Document xmlns:ofd="http://www.ofdspec.org/2016"><ofd:Pages><ofd:Page ID="1"/></ofd:Pages></ofd:Document>`,
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write sample OFD: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: path})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	result, err := svc.FirstPageInfo(context.Background(), d)
+	if err != nil {
+		t.Fatalf("FirstPageInfo: unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("FirstPageInfo: expected non-nil result")
+	}
+	if result.MediaBox != nil {
+		t.Fatalf("MediaBox = %v, want nil", result.MediaBox)
+	}
+}
+
+// TestFirstPageInfo_WrongDocType verifies that FirstPageInfo returns
+// an error when passed a non-OFD document.
+func TestFirstPageInfo_WrongDocType(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdf")
+	pdfContent := []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")
+	if err := os.WriteFile(path, pdfContent, 0o644); err != nil {
+		t.Fatalf("write sample PDF: %v", err)
+	}
+
+	pdfSvc := pdf.NewService()
+	pdfDoc, err := pdfSvc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: path})
+	if err != nil {
+		t.Fatalf("open PDF: %v", err)
+	}
+	t.Cleanup(func() { _ = pdfDoc.Close() })
+
+	ofdSvc := NewService()
+	_, err = ofdSvc.FirstPageInfo(context.Background(), pdfDoc)
+	if err == nil {
+		t.Fatalf("FirstPageInfo with PDF doc: expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "unsupported document type") {
+		t.Fatalf("error = %q, want contains %q", err.Error(), "unsupported document type")
+	}
+}
+
+// TestFirstPageInfo_HelloWorld verifies FirstPageInfo using the real test fixture.
+func TestFirstPageInfo_HelloWorld(t *testing.T) {
+	const helloPath = "../../testdata/ofd/test_core_helloworld.ofd"
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: helloPath})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	result, err := svc.FirstPageInfo(context.Background(), d)
+	if err != nil {
+		t.Fatalf("FirstPageInfo: %v", err)
+	}
+	if result == nil {
+		t.Fatal("FirstPageInfo: expected non-nil result")
+	}
+	if result.MediaBox == nil {
+		t.Fatal("FirstPageInfo: expected MediaBox from helloworld.ofd PhysicalBox")
+	}
+	if len(result.MediaBox) != 4 {
+		t.Fatalf("MediaBox len = %d, want 4", len(result.MediaBox))
+	}
+	t.Logf("helloworld.ofd MediaBox: %v", result.MediaBox)
+}
+
+// TestFirstPageInfo_Multipage verifies FirstPageInfo using the real multipage fixture.
+func TestFirstPageInfo_Multipage(t *testing.T) {
+	const multiPath = "../../testdata/ofd/test_core_multipage.ofd"
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: multiPath})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	result, err := svc.FirstPageInfo(context.Background(), d)
+	if err != nil {
+		t.Fatalf("FirstPageInfo: %v", err)
+	}
+	if result == nil {
+		t.Fatal("FirstPageInfo: expected non-nil result")
+	}
+	if result.MediaBox == nil {
+		t.Fatal("FirstPageInfo: expected MediaBox from multipage.ofd PhysicalBox")
+	}
+	t.Logf("multipage.ofd MediaBox: %v", result.MediaBox)
+}
+
+// TestParsePhysicalBox tests parsePhysicalBox with various inputs.
+func TestParsePhysicalBox(t *testing.T) {
+	tests := []struct {
+		name    string
+		xml     string
+		want    []float64
+		wantNil bool
+	}{
+		{
+			name: "standard A4",
+			xml:  `<?xml version="1.0"?><ofd:Document xmlns:ofd="http://www.ofdspec.org/2016"><ofd:CommonData><ofd:PageArea><ofd:PhysicalBox>0 0 210 297</ofd:PhysicalBox></ofd:PageArea></ofd:CommonData></ofd:Document>`,
+			want: []float64{0, 0, 210, 297},
+		},
+		{
+			name: "A5 landscape",
+			xml:  `<?xml version="1.0"?><ofd:Document xmlns:ofd="http://www.ofdspec.org/2016"><ofd:CommonData><ofd:PageArea><ofd:PhysicalBox>0 0 148 210</ofd:PhysicalBox></ofd:PageArea></ofd:CommonData></ofd:Document>`,
+			want: []float64{0, 0, 148, 210},
+		},
+		{
+			name:    "no PhysicalBox",
+			xml:     `<?xml version="1.0"?><ofd:Document xmlns:ofd="http://www.ofdspec.org/2016"><ofd:Pages/></ofd:Document>`,
+			wantNil: true,
+		},
+		{
+			name:    "empty PhysicalBox",
+			xml:     `<?xml version="1.0"?><ofd:Document xmlns:ofd="http://www.ofdspec.org/2016"><ofd:CommonData><ofd:PageArea><ofd:PhysicalBox></ofd:PhysicalBox></ofd:PageArea></ofd:CommonData></ofd:Document>`,
+			wantNil: true,
+		},
+		{
+			name:    "malformed PhysicalBox",
+			xml:     `<?xml version="1.0"?><ofd:Document xmlns:ofd="http://www.ofdspec.org/2016"><ofd:CommonData><ofd:PageArea><ofd:PhysicalBox>not numbers</ofd:PhysicalBox></ofd:PageArea></ofd:CommonData></ofd:Document>`,
+			wantNil: true,
+		},
+		{
+			name:    "incomplete PhysicalBox",
+			xml:     `<?xml version="1.0"?><ofd:Document xmlns:ofd="http://www.ofdspec.org/2016"><ofd:CommonData><ofd:PageArea><ofd:PhysicalBox>0 0 210</ofd:PhysicalBox></ofd:PageArea></ofd:CommonData></ofd:Document>`,
+			wantNil: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parsePhysicalBox([]byte(tt.xml))
+			if tt.wantNil {
+				if got != nil {
+					t.Fatalf("parsePhysicalBox = %v, want nil", got)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatalf("parsePhysicalBox = nil, want %v", tt.want)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("len(MediaBox) = %d, want %d", len(got), len(tt.want))
+			}
+			for i := range tt.want {
+				if got[i] != tt.want[i] {
+					t.Fatalf("MediaBox[%d] = %v, want %v", i, got[i], tt.want[i])
+				}
+			}
+		})
 	}
 }
 

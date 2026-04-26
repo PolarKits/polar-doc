@@ -22,7 +22,8 @@ type Service interface {
 }
 
 // FirstPageInfoProvider defines the interface for extracting first page information.
-// OFD does not support this operation; implementations always return an error.
+// OFD implementations extract PhysicalBox from Document.xml's PageArea and map it to MediaBox.
+// Returns (nil, nil) when PhysicalBox is absent; returns error only on parse failure.
 type FirstPageInfoProvider interface {
 	FirstPageInfo(ctx context.Context, d doc.Document) (*doc.FirstPageInfoResult, error)
 }

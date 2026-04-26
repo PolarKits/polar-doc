@@ -206,14 +206,14 @@ type SignResult struct {
 
 // FirstPageInfoResult holds first page structure information.
 //
-// This is a PDF-only capability. OFD does not support this capability and
-// will return (nil, error) if called. The result type itself is format-neutral
-// (plain Go types) to avoid leaking PDF internals to the command layer.
+// The result type is format-neutral (plain Go types) to avoid leaking format
+// internals to the command layer.
 //
 // PDF implementations populate fields from PDF page primitives (page tree,
-// page dictionary, content stream references). The MediaBox reflects the
-// page's declared bounding box. Resources and Contents are indirect reference
-// chains that may fail to resolve for some PDF structures (parser limitations).
+// page dictionary, content stream references). OFD implementations map
+// PhysicalBox from Document.xml's PageArea to MediaBox; other fields remain
+// zero-valued since OFD does not have equivalent concepts (no indirect
+// reference model, no /Resources or /Contents dictionary chains).
 type FirstPageInfoResult struct {
 	// Path is the file path of the document.
 	Path string

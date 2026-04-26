@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -341,14 +342,97 @@ func (s *service) RenderPreview(_ context.Context, d doc.Document, _ doc.Preview
 	return doc.PreviewResult{}, fmt.Errorf("preview is not implemented for %q", doc.FormatOFD)
 }
 
-// FirstPageInfo returns an error indicating first page info is not supported for OFD.
-// This operation is intentionally not implemented for OFD format.
+// FirstPageInfo returns first page information for OFD documents.
+// It extracts the PhysicalBox from Document.xml's PageArea as MediaBox.
+// Returns (nil, nil) if PhysicalBox is not present; returns error only on parse failure.
 func (s *service) FirstPageInfo(_ context.Context, d doc.Document) (*doc.FirstPageInfoResult, error) {
-	_, ok := d.(*document)
+	ofdDoc, ok := d.(*document)
 	if !ok {
 		return nil, fmt.Errorf("unsupported document type %T", d)
 	}
-	return nil, fmt.Errorf("first page info not supported for OFD")
+
+	docData, err := readDocumentXML(ofdDoc.zipReader.File)
+	if err != nil {
+		return nil, fmt.Errorf("read Document.xml: %w", err)
+	}
+
+	mediaBox := parsePhysicalBox(docData)
+
+	result := &doc.FirstPageInfoResult{
+		Path:     ofdDoc.ref.Path,
+		MediaBox: mediaBox,
+	}
+	return result, nil
+}
+
+// readDocumentXML reads the Document.xml file from the OFD package.
+// It returns the raw XML content.
+func readDocumentXML(files []*zip.File) ([]byte, error) {
+	fileIndex := make(map[string]*zip.File, len(files))
+	for _, f := range files {
+		name := strings.TrimPrefix(f.Name, "./")
+		fileIndex[name] = f
+	}
+
+	docRoot, err := getDocRoot(files)
+	if err != nil {
+		return nil, fmt.Errorf("get DocRoot: %w", err)
+	}
+	docRoot = strings.TrimPrefix(docRoot, "./")
+
+	docFile, ok := fileIndex[docRoot]
+	if !ok {
+		return nil, fmt.Errorf("Document.xml not found at %q", docRoot)
+	}
+
+	rc, err := docFile.Open()
+	if err != nil {
+		return nil, fmt.Errorf("open Document.xml: %w", err)
+	}
+	return readLimited(rc, maxXMLReadSize, "Document.xml")
+}
+
+// parsePhysicalBox parses the PhysicalBox element from Document.xml data.
+// Returns nil if PhysicalBox is not found.
+// PhysicalBox format: "x y width height" → []float64{x, y, x+width, y+height} (MediaBox format).
+func parsePhysicalBox(data []byte) []float64 {
+	decoder := xml.NewDecoder(bytes.NewReader(data))
+	for {
+		tok, err := decoder.Token()
+		if err != nil {
+			break
+		}
+		se, ok := tok.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		if se.Name.Local == "PhysicalBox" {
+			var content string
+			if err := decoder.DecodeElement(&content, &se); err != nil {
+				return nil
+			}
+			content = strings.TrimSpace(content)
+			if content == "" {
+				return nil
+			}
+			parts := strings.Fields(content)
+			if len(parts) != 4 {
+				return nil
+			}
+			var vals [4]float64
+			for i := 0; i < 4; i++ {
+				v, err := strconv.ParseFloat(parts[i], 64)
+				if err != nil {
+					return nil
+				}
+				vals[i] = v
+			}
+			// Convert to MediaBox format [llx, lly, urx, ury]
+			// PhysicalBox is "x y width height", MediaBox is "x1 y1 x2 y2"
+			return []float64{vals[0], vals[1], vals[0] + vals[2], vals[1] + vals[3]}
+		}
+	}
+	return nil
 }
 
 // ofdPageIterator provides sequential streaming access to OFD pages.
