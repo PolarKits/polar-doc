@@ -19,7 +19,7 @@ This document audits PolarDoc's current implementation against its stated format
 
 ### Compatibility Goals (Read)
 
-- **PDF**: Read-only compatibility for PDF 2.0, 1.7, 1.4 files. "Compatible read" at phase-1 means: the file can be opened, its header declared version read, xref/XRef streams traversed (XRef stream format decoded, including recognition of ObjStm type entries), trailer /ID read, and Catalog→Pages→first Page chain traversed to extract Page metadata. Object stream (ObjStm) internal content is not parsed or decompressed. See internal/pdf Coverage Assessment for full details.
+- **PDF**: Read-only compatibility for PDF 2.0, 1.7, 1.4 files. "Compatible read" at phase-1 means: the file can be opened, its header declared version read, xref/XRef streams traversed (XRef stream format decoded, ObjStm type entries resolved via resolveFromObjStm), trailer /ID read, and Catalog→Pages→first Page chain traversed to extract Page metadata. Object stream (ObjStm) content is resolved but compression is read-only. See internal/pdf Coverage Assessment for full details.
 - **OFD**: Read-only compatibility for OFD files conforming to GB/T 33190-2016.
 
 ### Compatibility Goals (Write / Upgrade)
@@ -95,25 +95,26 @@ ISO 32000-2:2020 §7 (Document Structure), §8 (File Structure), §12.8 (Digital
 | MediaBox inheritance | Reads /MediaBox from Page or ancestor Pages | §7.7 (inheritable attribute) |
 | Resources inheritance | Reads /Resources from Page or ancestor Pages | §7.7 (inheritable attribute) |
 | Rotate inheritance | Reads /Rotate from Page or ancestor Pages | §7.7 (inheritable attribute) |
-| ExtractText | Full-document text extraction with content operator parsing (BT/ET blocks, Tj/TJ operators, TJ array spacing analysis). Supports all standard stream filters. | §8.5, §8.8, §14.8 |
+| ExtractText | Full-document text extraction with content operator parsing (BT/ET blocks, Tj/TJ operators, TJ array spacing analysis). Supports WinAnsiEncoding, MacRomanEncoding, and ToUnicode CMap font encodings. Supports all standard stream filters. | §8.5, §8.8, §14.8 |
+| ParseObjStm | Parses PDF object streams (ObjStm), decompresses compressed xref entries, and resolves object references from compressed storage. | §7.7.3 |
+| DecodeStreams | Decodes stream data using FlateDecode, ASCIIHexDecode, ASCII85Decode, and LZWDecode filters. Supports filter chains. | §8.5 |
+| ParseContentStreams | Parses content stream operators (BT/ET text blocks, Tj/TJ showing operators, TJ arrays) with full operator-aware extraction. | §8.8 |
+| ResolveXRefStreams | Decodes XRef streams (compressed cross-reference tables) and resolves ObjStm type entries via resolveFromObjStm. | §7.7, §8.6 |
 
 #### NOT Covered (Phase-1 + Future)
 
 | ISO 32000-2 Clause | Feature | Status |
 |--------------------|---------|--------|
-| §7.7 | Cross-reference table (xref) | Traditional xref + XRef stream decoding implemented; ObjStm entries recognized and resolved via `resolveFromObjStm` |
+| §7.7 | Cross-reference table (xref) | Traditional xref + XRef stream decoding |
 | §7.7.2 | Trailer and trailer dictionary | Basic parsing + /ID byte strings extracted |
-| §7.7.3 | Object streams | **Implemented** — ObjStm entries recognized in xref index and resolved via `resolveFromObjStm` (xref.go): decompresses the ObjStm, reads object index, extracts objects by index position |
-| §7.7.4 | Incremental updates | Detected via `probeDocumentFeatures` (`HasIncrementalUpdates` flag) — read support only; write/append not implemented |
-| §7.7.5 | Linearized PDF | Detected via `probeDocumentFeatures` (`IsLinearized` flag) — full linearized PDF read not implemented |
-| §7.8 | File trailer / startxref | startxref keyword parsing; XRef stream decoding implemented |
-| §8.2 | Object structure | Indirect object reading + XRef stream traversal; ObjStm compressed objects resolved via `resolveFromObjStm` |
+| §7.7.4 | Incremental updates | Detected (HasIncrementalUpdates flag); write/append not implemented |
+| §7.7.5 | Linearized PDF | Detected (IsLinearized flag); full read not implemented |
+| §7.8 | File trailer / startxref | startxref keyword parsing; XRef stream decoding |
+| §8.2 | Object structure | Indirect object reading + XRef stream traversal |
 | §8.3 | Strings, numbers, booleans, arrays | Primitives parsed; byte strings in arrays not handled |
 | §8.4 | Names and dictionaries | Basic parsing only |
-| §8.5 | Streams and filters | **Implemented** — Filter framework with support for FlateDecode (zlib), ASCIIHexDecode, ASCII85Decode, and LZWDecode (framework-level). Filter chains (e.g., `[/ASCII85Decode /FlateDecode]`) are supported. |
-| §8.6 | Document information dictionary | Implemented — reads Title, Author, Creator, Producer from Info dictionary |
-| §8.7 | File identifiers | Implemented — reads /ID array from trailer (both traditional xref and XRef streams) |
-| §8.8 | Content streams and operators | **Implemented** — Content stream parser handles BT/ET text blocks, Tj/TJ text showing operators, and TJ array spacing analysis. Full-document text extraction across all pages via content operator parsing (not just literal/hex string scanning). |
+| §8.6 | Document information dictionary | Reads Title, Author, Creator, Producer from Info dict |
+| §8.7 | File identifiers | Reads /ID array from trailer (traditional xref and XRef streams) |
 | §8.9 | Metadata streams | Not implemented |
 | §9.1–§9.6 | Color spaces | Not implemented |
 | §10.1–§10.10 | Graphics | Not implemented |
@@ -122,7 +123,6 @@ ISO 32000-2:2020 §7 (Document Structure), §8 (File Structure), §12.8 (Digital
 | **§12.8** | **Digital signatures** | **Not implemented** |
 | §13.1–§13.12 | Multimedia | Not implemented |
 | §14.1–§14.12 | Marked text / accessibility | Not implemented |
-| **§14.8** | **Text extraction** | **Implemented** — Full-document text extraction with content operator parsing (BT/ET blocks, Tj/TJ operators, TJ array spacing analysis). Replaces deprecated literal/hex string extraction approach. |
 
 ### Document Type Validation
 
@@ -132,9 +132,9 @@ This check was added to prevent silent failure on cross-format misuse.
 
 ### Gaps
 
-1. **Object streams (ObjStm)**: Implemented — `resolveFromObjStm` decompresses ObjStm and extracts the requested object by index. Multiple stream filters supported (FlateDecode, ASCIIHexDecode, ASCII85Decode, LZWDecode framework).
-2. **Pages tree complexity**: Some PDFs have Pages trees that cannot be fully traversed with current parser.
-3. **Content stream advanced features**: Font mapping and text layout analysis not fully implemented; graphics state tracking limited.
+1. **Pages tree complexity**: Some PDFs have Pages trees that cannot be fully traversed with current parser.
+2. **Advanced font encoding**: StandardEncoding, /Differences array, and CIDFont CMap resolution not implemented. WinAnsi/MacRoman/ToUnicode CMap are supported.
+3. **Text layout analysis**: Full text layout analysis (word spacing, character positioning, multi-column) not implemented.
 4. **No preview rendering**: PreviewRenderer returns error.
 5. **No signing**: Signer capability is a stub.
 6. **No writer/upgrade pipeline**: Converting PDF 1.4 → PDF 2.0 is not implemented.
@@ -165,19 +165,19 @@ The current code performs:
 Limitations:
 - Object streams (ObjStm): Type 2 entries are recognized and resolved via `resolveFromObjStm`; FlateDecode decompression supported
 - Some Pages tree structures cannot be fully traversed
-- Content stream parsing is limited to literal/hex string extraction; full operator parsing and text layout not implemented
+- Content stream parsing: full-document extraction with content operator parsing (BT/ET, Tj/TJ, TJ spacing); partial font encoding (WinAnsi/MacRoman/ToUnicode); text layout analysis not implemented
 - Known-bad samples with XRef corruption are explicitly handled via test assertions, not silently skipped
 
 #### Read Compatibility Scope
 
 | Version | Read Support | Scope |
 |---------|-------------|-------|
-| PDF 2.0 (ISO 32000-2:2020) | Header + xref/XRef stream + trailer /ID + Info dict + Page metadata + first-page text extraction | Header validated; xref/XRef streams decoded; trailer /ID extracted; Info dict read; first Page metadata extracted; content stream text extraction (limited) |
-| PDF 1.7 (ISO 32000-1:2008) | Header + xref/XRef stream + trailer /ID + Info dict + Page metadata + first-page text extraction | Header validated; xref/XRef streams decoded; trailer /ID extracted; Info dict read; first Page metadata extracted; content stream text extraction (limited) |
-| PDF 1.4 (ISO 32000-1:2005) | Header + xref + trailer /ID + Info dict + Page metadata + first-page text extraction | Header validated; xref traversed; trailer /ID extracted; Info dict read; first Page metadata extracted; content stream text extraction (limited) |
-| Pre-1.4 | Header + xref + trailer /ID + Info dict + Page metadata + first-page text extraction | Header validated; xref traversed; trailer /ID extracted; Info dict read; first Page metadata extracted; content stream text extraction (limited) |
+| PDF 2.0 (ISO 32000-2:2020) | Header + xref/XRef stream + trailer /ID + Info dict + Page metadata + full-document text extraction | Header validated; xref/XRef streams decoded; trailer /ID extracted; Info dict read; first Page metadata extracted; content stream text extraction with operator parsing |
+| PDF 1.7 (ISO 32000-1:2008) | Header + xref/XRef stream + trailer /ID + Info dict + Page metadata + full-document text extraction | Header validated; xref/XRef streams decoded; trailer /ID extracted; Info dict read; first Page metadata extracted; content stream text extraction with operator parsing |
+| PDF 1.4 (ISO 32000-1:2005) | Header + xref + trailer /ID + Info dict + Page metadata + full-document text extraction | Header validated; xref traversed; trailer /ID extracted; Info dict read; first Page metadata extracted; content stream text extraction with operator parsing |
+| Pre-1.4 | Header + xref + trailer /ID + Info dict + Page metadata + full-document text extraction | Header validated; xref traversed; trailer /ID extracted; Info dict read; first Page metadata extracted; content stream text extraction with operator parsing |
 
-"Read compatibility" at this phase means: for xref-based PDFs, the file can be opened and minimum Page metadata (MediaBox, Resources, Contents, Rotate) is extracted. XRef streams are supported (format decoded, ObjStm entries recognized). Object stream (ObjStm) content is not parsed or decompressed. Full semantic compatibility with the respective ISO specification is NOT claimed. Known-bad samples with XRef corruption are explicitly handled via test assertions.
+"Read compatibility" at this phase means: for xref-based PDFs, the file can be opened and minimum Page metadata (MediaBox, Resources, Contents, Rotate) is extracted. XRef streams are supported (format decoded, ObjStm entries resolved via resolveFromObjStm). Full semantic compatibility with the respective ISO specification is NOT claimed. Known-bad samples with XRef corruption are explicitly handled via test assertions.
 
 #### Write / Upgrade Strategy
 
@@ -301,7 +301,7 @@ Cryptographic signatures, trust, and policy concerns.
 - OFD: XML content model (DocRoot, page list, TextCode only; no resource mapping, fonts, or complex layouts)
 
 **Not implemented:**
-- PDF: Font encoding/CMap resolution, full layout analysis, graphics, color spaces, interactive features, digital signatures, writer/upgrade pipeline, preview rendering, DCTDecode/CCITTFaxDecode stream filters
+- PDF: advanced font encoding (StandardEncoding, /Differences, CIDFont CMap), full layout analysis, graphics, color spaces, interactive features, digital signatures, writer/upgrade pipeline, preview rendering, DCTDecode/CCITTFaxDecode stream filters
 - OFD: Resource mapping, font handling, digital signatures, writer pipeline, preview rendering, full page layout engine
 
 ### Key Future Capabilities (Not Yet Implemented)
