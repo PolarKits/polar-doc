@@ -165,7 +165,7 @@ The current code performs:
 Limitations:
 - Object streams (ObjStm): Type 2 entries are recognized and resolved via `resolveFromObjStm`; FlateDecode decompression supported
 - Some Pages tree structures cannot be fully traversed
-- Content stream parsing: full-document extraction with content operator parsing (BT/ET, Tj/TJ, TJ spacing); partial font encoding (WinAnsi/MacRoman/ToUnicode); text layout analysis not implemented
+- Content stream parsing: full-document extraction with content operator parsing (BT/ET, Tj/TJ, TJ spacing); font encoding (WinAnsi/MacRoman/StandardEncoding/ToUnicode, /Differences); text layout analysis not implemented
 - Known-bad samples with XRef corruption are explicitly handled via test assertions, not silently skipped
 
 #### Read Compatibility Scope
