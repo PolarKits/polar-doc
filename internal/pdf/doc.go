@@ -24,12 +24,13 @@
 //   - FirstPageInfo: Catalog→Pages→Page traversal with MediaBox/Resources/Contents/Rotate extraction
 //   - Full-document text extraction from content streams via content operator parsing
 //   - Stream filter support: FlateDecode, ASCIIHexDecode, ASCII85Decode, LZWDecode, RunLengthDecode
+//   - Font encoding: WinAnsiEncoding, MacRomanEncoding, StandardEncoding, MacExpertEncoding,
 //
 // Full semantic compatibility with ISO 32000-2 or ISO 32000-1 is NOT claimed.
 // Specifically: ObjStm entries are resolved via resolveFromObjStm but object stream
 // compression is read-only; content operator parsing is implemented for BT/ET, Tj/TJ,
-// and TJ array spacing; font mapping supports WinAnsiEncoding, MacRomanEncoding, and
-// ToUnicode CMap (partial); xref/trailer/InfoDict are read but comprehensive
+// and TJ array spacing; font mapping supports WinAnsi/MacRoman/Standard/MacExpertEncoding
+// and ToUnicode CMap (partial); xref/trailer/InfoDict are read but comprehensive
 // integrity validation is not performed.
 //
 // ## Write / Upgrade Policy
@@ -85,7 +86,7 @@
 // This package does NOT claim to implement PDF 2.0, 1.7, or 1.4 fully or faithfully.
 // Phase-1 covers structural open, header version, trailer /ID, InfoDict metadata,
 // xref/XRef stream traversal, full-document text extraction with content operator parsing,
-// multi-filter stream decoding, font encoding (WinAnsi/MacRoman/StandardEncoding/ToUnicode,
+// multi-filter stream decoding, font encoding (WinAnsi/MacRoman/Standard/MacExpertEncoding/ToUnicode,
 // /Differences array), CopyFile, and single-revision RewriteFile. CIDFont CMap,
 // incremental updates, signatures, and version upgrade are not implemented.
 //

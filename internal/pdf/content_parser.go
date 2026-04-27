@@ -884,8 +884,7 @@ func applyFontEncoding(rawText string, fontName string, fonts map[string]FontInf
 	case "StandardEncoding":
 		baseMapping = standardEncodingMapping
 	case "MacExpertEncoding":
-		// Not supported yet - return original
-		return rawText
+		baseMapping = macExpertMapping
 	default:
 		// No encoding info or unsupported encoding - return original
 		return rawText
