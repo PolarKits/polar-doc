@@ -24,6 +24,8 @@ const (
 	LevelCatalog
 	// LevelPages checks pages tree basic integrity.
 	LevelPages
+	// LevelFonts checks font resource reference integrity.
+	LevelFonts
 )
 
 // LevelResult holds validation outcome for a single level.
@@ -392,7 +394,89 @@ func validatePages(f *os.File) LevelResult {
 		result.Warnings = append(result.Warnings, "pages: /Kids array is empty")
 	}
 
+	// Check each individual Page dict for required fields.
+	validatePageDictFields(f, pagesRefStr, &result, 0, map[string]struct{}{})
+
 	return result
+}
+
+// validatePageDictFields recursively walks the Pages tree and checks each Page
+// dict for required fields: /MediaBox (error if absent even after inheritance
+// lookup) and /Resources (warning if absent).
+func validatePageDictFields(f *os.File, pagesRef string, result *LevelResult, depth int, visited map[string]struct{}) {
+	if depth > maxPageTreeDepth {
+		return
+	}
+	if _, seen := visited[pagesRef]; seen {
+		return
+	}
+	visited[pagesRef] = struct{}{}
+
+	pagesObj, err := readObject(f, pagesRef)
+	if err != nil {
+		return
+	}
+	pagesDict, err := extractDictFromObject(pagesObj)
+	if err != nil {
+		return
+	}
+
+	kidsArr, ok := DictGetArray(pagesDict, "Kids")
+	if !ok {
+		return
+	}
+
+	for _, kidRef := range ArrayToRefs(kidsArr) {
+		refStr := RefToString(kidRef)
+		if _, seen := visited[refStr]; seen {
+			continue
+		}
+
+		kidObj, err := readObject(f, refStr)
+		if err != nil {
+			continue
+		}
+		kidDict, err := extractDictFromObject(kidObj)
+		if err != nil {
+			continue
+		}
+
+		kidType, ok := DictGetName(kidDict, "Type")
+		if !ok {
+			continue
+		}
+
+		if kidType == "Pages" {
+			validatePageDictFields(f, refStr, result, depth+1, visited)
+			continue
+		}
+
+		if kidType != "Page" {
+			continue
+		}
+
+		// Check /MediaBox: required either directly or via ancestor inheritance.
+		_, hasMediaBox := DictGetArray(kidDict, "MediaBox")
+		if !hasMediaBox {
+			_, err := lookupMediaBoxFromAncestors(refStr, f)
+			hasMediaBox = (err == nil)
+		}
+		if !hasMediaBox {
+			result.Passed = false
+			result.Errors = append(result.Errors, fmt.Sprintf("page %s: required /MediaBox not found (no inherited value)", refStr))
+		}
+
+		// Check /Resources: recommended; warn if absent even after inheritance lookup.
+		_, hasRes := DictGetRef(kidDict, "Resources")
+		_, hasInlineRes := DictGetDict(kidDict, "Resources")
+		if !hasRes && !hasInlineRes {
+			_, err := lookupResourcesFromAncestors(refStr, f)
+			hasRes = (err == nil)
+		}
+		if !hasRes && !hasInlineRes {
+			result.Warnings = append(result.Warnings, fmt.Sprintf("page %s: /Resources not found (no inherited value)", refStr))
+		}
+	}
 }
 
 // LevelName returns human-readable name for a validation level.
