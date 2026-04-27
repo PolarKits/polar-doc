@@ -1744,20 +1744,23 @@ func readTrailerDictLines(rd *bufio.Reader) (string, bool, error) {
 			var trailerDict string
 			if strings.HasPrefix(line, "trailer<<") {
 				trailerDict = line[len("trailer"):]
+			} else {
+				rest := strings.TrimLeft(line[len("trailer"):], " \t\r\n")
+				if strings.HasPrefix(rest, "<<") {
+					trailerDict = rest
+				}
 			}
 
-			dictLine, err := rd.ReadString('\n')
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return "", false, err
-			}
-			dictLine = strings.TrimRight(dictLine, "\r\n")
 			if trailerDict == "" {
+				dictLine, err := rd.ReadString('\n')
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					return "", false, err
+				}
+				dictLine = strings.TrimRight(dictLine, "\r\n")
 				trailerDict = dictLine
-			} else {
-				trailerDict += dictLine
 			}
 
 			openBrackets := strings.Count(trailerDict, "<<") - strings.Count(trailerDict, ">>")
