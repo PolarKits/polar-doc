@@ -618,6 +618,85 @@ func (s *service) ExtractText(_ context.Context, d doc.Document) (doc.TextResult
 	return doc.TextResult{Text: strings.TrimSpace(text.String())}, nil
 }
 
+// ExtractTextPage extracts text from a single page (1-based page number).
+func (s *service) ExtractTextPage(_ context.Context, d doc.Document, pageNum int) (doc.TextResult, error) {
+	pdfDoc, ok := d.(*document)
+	if !ok {
+		return doc.TextResult{}, fmt.Errorf("unsupported document type %T", d)
+	}
+
+	if pageNum < 1 {
+		return doc.TextResult{}, fmt.Errorf("page %d out of range (document has %d pages)", pageNum, 0)
+	}
+
+	xrefOffset, err := readStartxref(pdfDoc.file)
+	if err != nil {
+		return doc.TextResult{}, fmt.Errorf("text extraction: %w", err)
+	}
+
+	rootRefStr, err := readTrailerRootRef(pdfDoc.file, xrefOffset)
+	if err != nil {
+		return doc.TextResult{}, fmt.Errorf("text extraction: %w", err)
+	}
+
+	catalogObj, err := readObject(pdfDoc.file, rootRefStr)
+	if err != nil {
+		return doc.TextResult{}, fmt.Errorf("text extraction: %w", err)
+	}
+
+	pagesRefStr, err := readPagesRefFromCatalog(catalogObj)
+	if err != nil {
+		return doc.TextResult{}, fmt.Errorf("text extraction: %w", err)
+	}
+
+	pages, err := readAllPages(pdfDoc.file, pagesRefStr)
+	if err != nil {
+		return doc.TextResult{}, fmt.Errorf("text extraction: %w", err)
+	}
+
+	if pageNum > len(pages) {
+		return doc.TextResult{}, fmt.Errorf("page %d out of range (document has %d pages)", pageNum, len(pages))
+	}
+
+	pageIndex := pageNum - 1
+	fonts, err := resolvePageFonts(pdfDoc.file, xrefOffset, pagesRefStr, pageIndex)
+	if err != nil {
+		lastErr := err
+		if len(pages[pageIndex].Contents) == 0 {
+			return doc.TextResult{}, fmt.Errorf("text extraction: %v", lastErr)
+		}
+	}
+
+	var text strings.Builder
+	var lastErr error
+	for _, contentRef := range pages[pageIndex].Contents {
+		ref := PDFRef{ObjNum: contentRef.ObjNum, GenNum: contentRef.GenNum}
+		streamData, err := readContentStream(pdfDoc.file, ref)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		operators, err := parseContentStream(streamData)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		extracted := extractTextWithFonts(operators, fonts)
+		if extracted != "" {
+			text.WriteString(extracted)
+			text.WriteString(" ")
+		}
+	}
+
+	if text.Len() == 0 {
+		if lastErr != nil {
+			return doc.TextResult{}, fmt.Errorf("text extraction: %v", lastErr)
+		}
+		return doc.TextResult{}, fmt.Errorf("text extraction: page %d contains no extractable text content", pageNum)
+	}
+	return doc.TextResult{Text: strings.TrimSpace(text.String())}, nil
+}
+
 func readContentStream(f *os.File, ref PDFRef) ([]byte, error) {
 	xrefOffset, err := readStartxref(f)
 	if err != nil {

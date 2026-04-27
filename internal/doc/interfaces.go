@@ -77,6 +77,15 @@ type TextExtractor interface {
 	ExtractText(ctx context.Context, d Document) (TextResult, error)
 }
 
+// PagedTextExtractor extends TextExtractor with single-page extraction.
+// Format services may optionally implement this interface to support
+// the --page flag in the extract command.
+type PagedTextExtractor interface {
+	// ExtractTextPage extracts text from a single page (1-based page number).
+	// Returns an error if pageNum is out of range.
+	ExtractTextPage(ctx context.Context, d Document, pageNum int) (TextResult, error)
+}
+
 // PreviewRenderer renders a preview for a format-specific document handle.
 //
 // Preview output is format-defined. The contract returns a byte payload and a
