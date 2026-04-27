@@ -23,7 +23,7 @@
 //   - PageCount from root /Pages /Count
 //   - FirstPageInfo: Catalog→Pages→Page traversal with MediaBox/Resources/Contents/Rotate extraction
 //   - Full-document text extraction from content streams via content operator parsing
-//   - Stream filter support: FlateDecode, ASCIIHexDecode, ASCII85Decode, LZWDecode, RunLengthDecode
+//   - Stream filter support: FlateDecode, ASCIIHexDecode, ASCII85Decode, LZWDecode, RunLengthDecode, CCITTFaxDecode/CCF, JBIG2Decode, DCTDecode, JPXDecode (last four: pass-through stubs)
 //   - Font encoding: WinAnsiEncoding, MacRomanEncoding, StandardEncoding, MacExpertEncoding,
 //
 // Full semantic compatibility with ISO 32000-2 or ISO 32000-1 is NOT claimed.
@@ -52,7 +52,7 @@
 //   - Open: acquires file handle, reads %PDF-X.Y header version
 //   - Info: provides DeclaredVersion, SizeBytes, Format, PageCount (from /Pages /Count),
 //     FileIdentifiers (from trailer /ID array), Title/Author/Creator/Producer (from InfoDict)
-//   - Validate: 5-level structural validation (Header → XRef → Trailer → Catalog → Pages)
+//   - Validate: 6-level structural validation (Header → XRef → Trailer → Catalog → Pages → Fonts)
 //   - FirstPageInfo: traverses Catalog→Pages→Page chain, extracts MediaBox, Resources,
 //     Contents, Rotate (with inheritance)
 //   - xref traversal: reads traditional xref tables and XRef streams (including Prev chain);
@@ -67,8 +67,7 @@
 //     xref table and fresh trailer; ObjStm objects are preserved but not expanded
 //   - content_parser.go: content stream operator parsing (text blocks, string operands,
 //     hex strings, content operators, TJ array spacing analysis)
-//   - stream_filter.go: multi-filter framework (FlateDecode, ASCIIHexDecode, ASCII85Decode,
-	//     LZWDecode, RunLengthDecode; supports filter chains)
+//   - stream_filter.go: multi-filter framework (FlateDecode, ASCIIHexDecode, ASCII85Decode, LZWDecode, RunLengthDecode; CCITTFaxDecode/CCF, JBIG2Decode, DCTDecode, JPXDecode as pass-through stubs; supports filter chains)
 //   - font_encoding.go: built-in encoding tables (WinAnsiEncoding 128-255, MacRomanEncoding
 //     128-255, StandardEncoding, /Differences array parsing, applyByteMapping for
 //     font-to-Unicode mapping)
