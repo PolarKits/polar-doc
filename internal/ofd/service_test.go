@@ -450,6 +450,53 @@ func TestServiceValidateSealMissing(t *testing.T) {
 	}
 }
 
+func TestServiceValidateResourceMissing(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "withres.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd><Version>1.0</Version><DocRoot>Doc_0/Document.xml</DocRoot></ofd>`,
+		"Doc_0/Document.xml": "<document><Pages><Page ID=\"1\"/></Pages></document>",
+		"Doc_0/PublicRes.xml": `<?xml version="1.0" encoding="UTF-8"?>
+<Resources xmlns="http://www.ofdspec.org/2016">
+  <Font ID="10" FontName="TestFont">
+    <FontFile>Doc_0/Res/MissingFont.otf</FontFile>
+  </Font>
+</Resources>`,
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write OFD: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: path})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	report, err := svc.Validate(context.Background(), d)
+	if err != nil {
+		t.Fatalf("validate OFD: %v", err)
+	}
+
+	if !report.Valid {
+		t.Fatalf("valid = false, want true (resource issues are warnings, not errors)")
+	}
+	if len(report.Warnings) == 0 {
+		t.Fatal("warnings is empty, want font missing warning")
+	}
+	found := false
+	for _, w := range report.Warnings {
+		if strings.Contains(w, "font") && strings.Contains(w, "file not found") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("warnings = %v, want one containing 'font ... file not found'", report.Warnings)
+	}
+}
+
 func buildOFDPackage(t *testing.T, files map[string]string) []byte {
 	t.Helper()
 

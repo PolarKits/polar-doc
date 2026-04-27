@@ -447,7 +447,53 @@ func (s *service) Validate(_ context.Context, d doc.Document) (doc.ValidationRep
 		report.Warnings = append(report.Warnings, warnText)
 	}
 
+	// Check resource file references if Resources.xml exists.
+	for _, warnText := range s.validateResources(ofdDoc.zipReader.File) {
+		report.Warnings = append(report.Warnings, warnText)
+	}
+
 	return report, nil
+}
+
+// validateResources checks that font and multimedia files referenced in
+// Resources.xml actually exist in the OFD package. Missing files are
+// added as warnings, not errors.
+func (s *service) validateResources(files []*zip.File) []string {
+	resources, err := ParseResourcesXML(files)
+	if err != nil || resources == nil {
+		return nil
+	}
+
+	var warnings []string
+	fileIndex := make(map[string]*zip.File, len(files))
+	for _, f := range files {
+		name := strings.TrimPrefix(f.Name, "./")
+		fileIndex[name] = f
+	}
+
+	for _, font := range resources.Fonts {
+		if font.FilePath == "" {
+			continue
+		}
+		fpath := strings.TrimPrefix(font.FilePath, "./")
+		fpath = strings.TrimPrefix(fpath, "/") // absolute path from OFD may start with "/"
+		if _, ok := fileIndex[fpath]; !ok {
+			warnings = append(warnings, fmt.Sprintf("font %d: file not found: %s", font.ID, font.FilePath))
+		}
+	}
+
+	for _, mm := range resources.MultiMedias {
+		if mm.FilePath == "" {
+			continue
+		}
+		fpath := strings.TrimPrefix(mm.FilePath, "./")
+		fpath = strings.TrimPrefix(fpath, "/") // absolute path from OFD may start with "/"
+		if _, ok := fileIndex[fpath]; !ok {
+			warnings = append(warnings, fmt.Sprintf("multimedia %d: file not found: %s", mm.ID, mm.FilePath))
+		}
+	}
+
+	return warnings
 }
 
 // validateSeals checks signature seal structure integrity.
