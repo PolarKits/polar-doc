@@ -95,9 +95,9 @@ ISO 32000-2:2020 §7 (Document Structure), §8 (File Structure), §12.8 (Digital
 | MediaBox inheritance | Reads /MediaBox from Page or ancestor Pages | §7.7 (inheritable attribute) |
 | Resources inheritance | Reads /Resources from Page or ancestor Pages | §7.7 (inheritable attribute) |
 | Rotate inheritance | Reads /Rotate from Page or ancestor Pages | §7.7 (inheritable attribute) |
-| ExtractText | Full-document text extraction with content operator parsing (BT/ET blocks, Tj/TJ operators, TJ array spacing analysis). Supports WinAnsiEncoding, MacRomanEncoding, and ToUnicode CMap font encodings. Supports all standard stream filters. | §8.5, §8.8, §14.8 |
+| ExtractText | Full-document text extraction with content operator parsing (BT/ET blocks, Tj/TJ operators, TJ array spacing analysis). Supports WinAnsiEncoding, MacRomanEncoding, MacExpertEncoding, and ToUnicode CMap font encodings. Supports all standard stream filters. | §8.5, §8.8, §14.8 |
 | ParseObjStm | Parses PDF object streams (ObjStm), decompresses compressed xref entries, and resolves object references from compressed storage. | §7.7.3 |
-| DecodeStreams | Decodes stream data using FlateDecode, ASCIIHexDecode, ASCII85Decode, and LZWDecode filters. Supports filter chains. | §8.5 |
+| DecodeStreams | Decodes stream data using FlateDecode, ASCIIHexDecode, ASCII85Decode, LZWDecode, and RunLengthDecode filters. Supports filter chains. | §8.5 |
 | ParseContentStreams | Parses content stream operators (BT/ET text blocks, Tj/TJ showing operators, TJ arrays) with full operator-aware extraction. | §8.8 |
 | ResolveXRefStreams | Decodes XRef streams (compressed cross-reference tables) and resolves ObjStm type entries via resolveFromObjStm. | §7.7, §8.6 |
 
@@ -115,7 +115,7 @@ ISO 32000-2:2020 §7 (Document Structure), §8 (File Structure), §12.8 (Digital
 | §8.4 | Names and dictionaries | Basic parsing only |
 | §8.6 | Document information dictionary | Reads Title, Author, Creator, Producer from Info dict |
 | §8.7 | File identifiers | Reads /ID array from trailer (traditional xref and XRef streams) |
-| §8.9 | Metadata streams | Not implemented |
+| §8.9 | Metadata streams (XMP) | Partial — XMP metadata stream parsed from PDF Catalog /Metadata entry; title/creator/producer extracted and integrated into Info output |
 | §9.1–§9.6 | Color spaces | Not implemented |
 | §10.1–§10.10 | Graphics | Not implemented |
 | §11.1–§11.7 | Text | Not implemented |
@@ -213,7 +213,7 @@ GB/T 33190-2016 §4 (Document structure), §5 (Document body), §6 (Page descrip
 | Capability | What It Does | GB/T 33190-2016 Mapping |
 |------------|--------------|--------------------------|
 | Open | Opens ZIP package, acquires zip.Reader | §4.1 OFD package structure |
-| Validate | Checks OFD.xml and Document.xml entry presence; validates DocRoot points to existing file | §4 package requirements |
+| Validate | Checks OFD.xml and Document.xml entry presence; validates DocRoot points to existing file; validates seal structure integrity; validates resource reference integrity (Resources.xml ↔ Document.xml/Content.xml) | §4 package requirements |
 | ExtractText | Traverses Document.xml page list, extracts TextCode elements from each page's Content.xml | §6 Page description, §5 Document body |
 | FirstPageInfo | Extracts PhysicalBox from Document.xml PageArea, maps to MediaBox | §4.3, §5 |
 
@@ -221,11 +221,11 @@ GB/T 33190-2016 §4 (Document structure), §5 (Document body), §6 (Page descrip
 
 | GB/T 33190 Clause | Feature | Status |
 |-------------------|---------|--------|
-| §4.2 | OFD.xml structure and DocRoot | Partial — DocRoot extracted and validated |
-| §4.3 | Document.xml structure | Partial — page list traversal implemented for text extraction |
-| §5 | Document body / Doc_0 content model | Partial — page-level text extraction only |
+| §4.2 | OFD.xml structure and DocRoot | Partial — OFD.xml + Document.xml entry presence + DocRoot validation + seal structure + resource reference integrity |
+| §4.3 | Document.xml structure | Partial — page list traversal, per-page PhysicalBox extraction, per-page info output |
+| §5 | Document body / Doc_0 content model | Partial — page-level text extraction, per-page info (PhysicalBox), resource listing (fonts, multimedia), annotation metadata, seal metadata |
 | §6 | Page description language (page, template, content) | Partial — TextCode extraction only |
-| §7 | Resource and mapping | Not implemented |
+| §7 | Resource and mapping | Partial — Resources.xml parsed: font names and multimedia file names extracted; resource reference integrity validated against Document.xml and Content.xml |
 | §8 | Font handling | Not implemented |
 | **§9** | **Digital signatures** | **Not implemented** |
 | §10 | Rendering and display | Not implemented |

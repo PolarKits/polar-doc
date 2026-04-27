@@ -20,16 +20,23 @@ PolarDoc currently focuses on explicit PDF and OFD document capabilities in a Go
   - LRU content stream cache
   - PDFFeatureSet structural probing at Open time
   - CompatFix system fully activated (8 fixes: FixBrokenStartxref, FixMissingEOF, FixStreamLengthMismatch, FixNullObjectRef, FixInfoDictUTF16NoBOM, FixEmptyEncryptDict, FixTrailerPrevChain warning, FixHybridXRef)
-  - content stream operator parser (`content_parser.go`): handles BT/ET text blocks, Tj/TJ text showing operators, character spacing analysis in TJ arrays
-  - stream filter framework (`stream_filter.go`): supports FlateDecode, ASCIIHexDecode, ASCII85Decode, LZWDecode (framework)
+  - content stream operator parser (`content_parser.go`): handles BT/ET text blocks, Tj/TJ text showing operators, character spacing analysis in TJ arrays, dictionary operands
+  - stream filter framework (`stream_filter.go`): supports FlateDecode, ASCIIHexDecode, ASCII85Decode, LZWDecode, RunLengthDecode
+  - XMP metadata stream parsing (parseXMPMetadata) and integration into Info output
+  - MacExpertEncoding font encoding support
 - OFD phase-1 read-oriented capabilities:
   - open package
   - read version metadata (from OFD.xml Version attribute)
   - count pages (from Document.xml Page elements)
-  - validate package structure
+  - validate package structure (seal structure integrity, resource reference integrity)
   - extract text (TextCode elements across all pages via Content.xml)
   - PageIterator + Navigator
   - metadata lazy loading (sync.Once)
+  - Resources.xml parsing (font names, multimedia file names)
+  - per-page physical dimensions (PhysicalBox) in info output
+  - Annotations.xml basic parsing (annotation metadata in info output)
+  - Seal.esl basic parsing (seal metadata in info output)
+  - info command with --page flag for OFD
 - MCP handlers implemented in-process:
   - `pdf_first_page_info`
   - `document_info`
@@ -60,7 +67,7 @@ PolarDoc currently focuses on explicit PDF and OFD document capabilities in a Go
 
 ## Working Facts
 
-- `go test ./...` passes (as of 2026-04-24)
+- `go test ./...` passes (as of 2026-04-27)
 - worktree is clean (no uncommitted changes)
 - 4 commits ahead of origin/main with new capabilities:
   - content stream parser for PDF text extraction
