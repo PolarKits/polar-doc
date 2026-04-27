@@ -401,6 +401,47 @@ func (l *contentLexer) readArray() ([]ContentOperand, error) {
 	return elements, nil
 }
 
+// readDictionary reads a PDF dictionary << ... >>.
+// It skips over the dictionary contents without building a data structure,
+// since dictionaries in content streams are used for graphics state and
+// do not affect text extraction.
+func (l *contentLexer) readDictionary() (string, error) {
+	// Consume '<<'
+	l.advance() // first '<'
+	l.advance() // second '<'
+
+	depth := 1
+	for l.pos < l.length && depth > 0 {
+		ch := l.peek()
+		if ch == '<' {
+			if l.pos+1 < l.length && l.data[l.pos+1] == '<' {
+				l.advance()
+				depth++
+			} else {
+				l.advance()
+			}
+		} else if ch == '>' {
+			if l.pos+1 < l.length && l.data[l.pos+1] == '>' {
+				l.advance()
+				depth--
+				if depth == 0 {
+					l.advance() // consume second '>'
+					break
+				}
+			}
+			l.advance()
+		} else {
+			l.advance()
+		}
+	}
+
+	if depth > 0 {
+		return "", fmt.Errorf("unterminated dictionary")
+	}
+
+	return "", nil
+}
+
 // readOperand reads a single operand based on its prefix.
 func (l *contentLexer) readOperand() (ContentOperand, error) {
 	l.skipWhitespace()
@@ -421,7 +462,15 @@ func (l *contentLexer) readOperand() (ContentOperand, error) {
 	case '<':
 		// Check for "<<" dictionary marker vs "<" hex string
 		if l.pos+1 < l.length && l.data[l.pos+1] == '<' {
-			return ContentOperand{}, fmt.Errorf("dictionaries not supported as operands")
+			// Dictionary operand found. PDF dictionaries in content streams
+			// (e.g., << /Key Value >>) are used for graphics state but don't
+			// affect text extraction. We return an empty string operand so the
+			// parser continues without error.
+			_, err := l.readDictionary()
+			if err != nil {
+				return ContentOperand{}, err
+			}
+			return ContentOperand{Kind: OperandString, StrVal: ""}, nil
 		}
 		str, err := l.readHexString()
 		if err != nil {
