@@ -156,7 +156,76 @@ func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error
 	// Collect per-page physical dimensions from Document.xml.
 	info.Pages = collectPageInfo(ofdDoc.zipReader.File)
 
+	// Collect per-page annotation metadata from Annotations.xml.
+	info.Annotations = collectAnnotationInfo(ofdDoc.zipReader.File)
+
 	return info, nil
+}
+
+// collectAnnotationInfo parses Annotations.xml and per-page annotation files
+// to build per-page annotation summaries. Returns nil if no annotations found.
+func collectAnnotationInfo(files []*zip.File) []doc.AnnotationSummary {
+	annotationsDoc, err := ParseAnnotationsXML(files)
+	if err != nil || annotationsDoc == nil || len(annotationsDoc.Pages) == 0 {
+		return nil
+	}
+
+	fileIndex := make(map[string]*zip.File, len(files))
+	for _, f := range files {
+		name := strings.TrimPrefix(f.Name, "./")
+		fileIndex[name] = f
+	}
+
+	var summaries []doc.AnnotationSummary
+	for _, pageIdx := range annotationsDoc.Pages {
+		if pageIdx.FilePath == "" {
+			continue
+		}
+
+		fpath := strings.TrimPrefix(pageIdx.FilePath, "./")
+		f, ok := fileIndex[fpath]
+		if !ok {
+			continue
+		}
+
+		data, readErr := readFileContent(f)
+		if readErr != nil {
+			continue
+		}
+
+		annots, parseErr := ParsePageAnnotations(data)
+		if parseErr != nil {
+			continue
+		}
+
+		if len(annots) == 0 {
+			continue
+		}
+
+		// Deduplicate types.
+		typeSet := make(map[string]struct{})
+		for _, a := range annots {
+			if a.Type != "" {
+				typeSet[string(a.Type)] = struct{}{}
+			}
+		}
+
+		var types []string
+		for t := range typeSet {
+			types = append(types, t)
+		}
+
+		summaries = append(summaries, doc.AnnotationSummary{
+			PageID: pageIdx.PageID,
+			Count:  len(annots),
+			Types:  types,
+		})
+	}
+
+	if len(summaries) == 0 {
+		return nil
+	}
+	return summaries
 }
 
 // collectPageInfo parses Document.xml to extract per-page physical dimensions.

@@ -97,6 +97,11 @@ type InfoResult struct {
 	// nil if the document has no pages or is not OFD.
 	// For OFD: populated from Document.xml Page elements and PageArea/PhysicalBox.
 	Pages []PageInfo
+
+	// Annotations holds per-page annotation metadata for OFD documents.
+	// nil if the document has no annotations or is not OFD.
+	// For OFD: populated from Annotations.xml and per-page annotation files.
+	Annotations []AnnotationSummary
 }
 
 // SealSummary holds basic electronic seal metadata from an OFD document.
@@ -142,6 +147,17 @@ type PageInfo struct {
 	Width float64
 	// Height is the page height in points (1/72 inch). Zero if unknown.
 	Height float64
+}
+
+// AnnotationSummary holds annotation metadata aggregated by page.
+// Types contains deduplicated annotation types found on the page.
+type AnnotationSummary struct {
+	// PageID is the OFD page identifier this summary describes.
+	PageID int64
+	// Count is the number of annotations on this page.
+	Count int
+	// Types is a deduplicated list of annotation types present on the page.
+	Types []string
 }
 
 // ValidationReport is a structured validation output.
