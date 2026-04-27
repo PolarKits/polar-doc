@@ -569,6 +569,24 @@ func (s *service) ExtractText(_ context.Context, d doc.Document) (doc.TextResult
 	return doc.TextResult{Text: strings.TrimSpace(text)}, nil
 }
 
+// ExtractTextPage extracts text from a single page (1-based page number).
+// Implements doc.PagedTextExtractor.
+func (s *service) ExtractTextPage(_ context.Context, d doc.Document, pageNum int) (doc.TextResult, error) {
+	ofdDoc, ok := d.(*document)
+	if !ok {
+		return doc.TextResult{}, fmt.Errorf("unsupported document type %T", d)
+	}
+	if ofdDoc.zipReader == nil {
+		return doc.TextResult{}, fmt.Errorf("OFD package is not open")
+	}
+
+	text, err := extractOFDTextPage(ofdDoc.zipReader.File, pageNum)
+	if err != nil {
+		return doc.TextResult{}, err
+	}
+	return doc.TextResult{Text: strings.TrimSpace(text)}, nil
+}
+
 // extractOFDText reads all page Content.xml files and collects TextCode text.
 // It follows the Document.xml page list to enumerate pages in order, then
 // scans each page's Content.xml for TextObject/TextCode elements.
@@ -635,6 +653,71 @@ func extractOFDText(files []*zip.File) (string, error) {
 	}
 
 	return sb.String(), nil
+}
+
+// extractOFDTextPage extracts text from a single page (1-based page number).
+// It follows the same file lookup and Document.xml parsing logic as extractOFDText.
+func extractOFDTextPage(files []*zip.File, pageNum int) (string, error) {
+	if pageNum < 1 {
+		return "", fmt.Errorf("page %d out of range", pageNum)
+	}
+
+	fileIndex := make(map[string]*zip.File, len(files))
+	for _, f := range files {
+		name := strings.TrimPrefix(f.Name, "./")
+		fileIndex[name] = f
+	}
+
+	docRoot, err := getDocRoot(files)
+	if err != nil {
+		return "", fmt.Errorf("extractOFDTextPage: %w", err)
+	}
+	docRoot = strings.TrimPrefix(docRoot, "./")
+
+	docFile, ok := fileIndex[docRoot]
+	if !ok {
+		return "", fmt.Errorf("extractOFDTextPage: Document.xml not found at %q", docRoot)
+	}
+
+	rc, err := docFile.Open()
+	if err != nil {
+		return "", fmt.Errorf("extractOFDTextPage: open Document.xml: %w", err)
+	}
+	docData, err := readLimited(rc, maxXMLReadSize, "Document.xml")
+	if err != nil {
+		return "", fmt.Errorf("extractOFDTextPage: %w", err)
+	}
+	_ = rc.Close()
+
+	docDir := ""
+	if slash := strings.LastIndex(docRoot, "/"); slash >= 0 {
+		docDir = docRoot[:slash+1]
+	}
+
+	pageLocations := ofdPageLocations(docData)
+	if pageNum > len(pageLocations) {
+		return "", fmt.Errorf("page %d out of range (document has %d pages)", pageNum, len(pageLocations))
+	}
+
+	relLoc := pageLocations[pageNum-1]
+	absLoc := docDir + strings.TrimPrefix(relLoc, "./")
+	contentFile, found := fileIndex[absLoc]
+	if !found {
+		return "", fmt.Errorf("extractOFDTextPage: Content.xml not found at %q", absLoc)
+	}
+
+	cr, err := contentFile.Open()
+	if err != nil {
+		return "", fmt.Errorf("extractOFDTextPage: open Content.xml: %w", err)
+	}
+	pageData, err := readLimited(cr, maxXMLReadSize, "Content.xml")
+	if err != nil {
+		_ = cr.Close()
+		return "", fmt.Errorf("extractOFDTextPage: %w", err)
+	}
+	_ = cr.Close()
+
+	return extractTextCodesFromPage(pageData), nil
 }
 
 // ofdPageLocations parses a Document.xml byte slice and returns the BaseLoc
