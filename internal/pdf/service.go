@@ -346,6 +346,19 @@ func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error
 			info.Author = author
 			info.Creator = creator
 			info.Producer = producer
+
+			// Read XMP metadata to supplement InfoDict fields.
+			if xmpMap := readXMPMetadata(pdfDoc.file, xrefOffset); len(xmpMap) > 0 {
+				if info.Title == "" {
+					info.Title = xmpMap["title"]
+				}
+				if info.Creator == "" {
+					info.Creator = xmpMap["creator"]
+				}
+				if info.Producer == "" {
+					info.Producer = xmpMap["producer"]
+				}
+			}
 		}
 		if count, err := ReadPageCount(pdfDoc.file); err == nil {
 			info.PageCount = count
@@ -1393,6 +1406,88 @@ func readInfoMetadata(f *os.File, xrefOffset int64) (title, author, creator, pro
 	}
 
 	return title, author, creator, producer
+}
+
+// readXMPMetadata reads the XMP metadata stream from the PDF catalog.
+// It retrieves the /Metadata reference from the catalog, reads and decompresses
+// the stream if needed, then parses the XMP XML to extract metadata fields.
+// Returns nil if no XMP stream is present or if reading fails.
+func readXMPMetadata(f *os.File, xrefOffset int64) map[string]string {
+	catalogRef, err := readTrailerRootRef(f, xrefOffset)
+	if err != nil || catalogRef == "" {
+		return nil
+	}
+
+	catalogObj, err := readObject(f, catalogRef)
+	if err != nil {
+		return nil
+	}
+
+	catalogDict, err := extractDictFromObject(catalogObj)
+	if err != nil {
+		return nil
+	}
+
+	metadataRef, ok := DictGetRef(catalogDict, "Metadata")
+	if !ok {
+		return nil
+	}
+
+	metadataObj, err := readObject(f, RefToString(metadataRef))
+	if err != nil {
+		return nil
+	}
+
+	streamData, err := extractStreamFromObject(metadataObj)
+	if err != nil || len(streamData) == 0 {
+		return nil
+	}
+
+	return parseXMPMetadata(streamData)
+}
+
+// extractStreamFromObject extracts decompressed stream data from a PDF object.
+// It handles the dictionary with /Length and /Filter entries and returns
+// the decompressed content. Returns nil on failure.
+func extractStreamFromObject(objStr string) ([]byte, error) {
+	dict, err := extractDictFromObject(objStr)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, ok := DictGetInt(dict, "Length"); !ok {
+		return nil, fmt.Errorf("stream object has no /Length")
+	}
+
+	streamIdx := strings.Index(objStr, "stream")
+	if streamIdx < 0 {
+		return nil, fmt.Errorf("no stream keyword found")
+	}
+
+	// PDF spec: stream keyword must be followed by exactly one newline before stream data begins.
+	streamStart := streamIdx + len("stream")
+	for streamStart < len(objStr) && (objStr[streamStart] == '\n' || objStr[streamStart] == '\r') {
+		streamStart++
+	}
+
+	streamEndIdx := len(objStr)
+	endstreamIdx := strings.Index(objStr, "endstream")
+	if endstreamIdx > streamIdx {
+		streamEndIdx = endstreamIdx
+	}
+
+	streamBytes := objStr[streamStart:streamEndIdx]
+
+	filters := parseFilterNames(objStr)
+	if len(filters) > 0 {
+		result, err := decodeStream([]byte(streamBytes), filters)
+		if err != nil {
+			return nil, fmt.Errorf("stream decode: %w", err)
+		}
+		return result, nil
+	}
+
+	return []byte(streamBytes), nil
 }
 
 func readTrailerInfoRef(f *os.File, xrefOffset int64) (string, error) {
