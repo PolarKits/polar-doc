@@ -18,7 +18,7 @@ It keeps PDF behavior explicit and isolated from OFD.
 - full-document text extraction: extract text from content streams via content operator parsing (BT/ET blocks, Tj/TJ operators, TJ array spacing); supports WinAnsiEncoding, MacRomanEncoding, ToUnicode CMap font encoding; stream filter support: FlateDecode, ASCIIHexDecode, ASCII85Decode, LZWDecode
 - CopyFile: raw byte copy to destination path
 - RewriteFile: normalize incremental PDFs to single-revision output (preserves ObjStm via resolveFromObjStm)
-- validate: 5-level structural validation (Header → XRef → Trailer → Catalog → Pages)
+- validate: 6-level structural validation (Header → XRef → Trailer → Catalog → Pages → Fonts)
 - content_parser: content stream operator parsing (text blocks, string operands, hex strings, BT/ET/Tj/TJ operators, TJ array spacing analysis)
 - stream_filter: multi-filter framework (FlateDecode, ASCIIHexDecode, ASCII85Decode, LZWDecode; supports filter chains)
 - font_encoding: built-in encoding tables (WinAnsiEncoding 128-255, MacRomanEncoding 128-255, StandardEncoding 128-255, /Differences array parsing, applyByteMapping for font-to-Unicode)
@@ -39,7 +39,7 @@ It keeps PDF behavior explicit and isolated from OFD.
 - **parser**: reads header, xref/trailer (traditional and XRef streams), Info dictionary, first page structure
 - **model**: stores PDF-native structures (FirstPageInfo, PDFRef, PDFDict) for phase-1 operations
 - **text extractor**: full-document text extraction with content operator parsing (BT/ET, Tj/TJ, TJ spacing); supports WinAnsi/MacRoman/ToUnicode encoding; multi-filter framework
-- **validator**: 5-level structural validation (Header → XRef → Trailer → Catalog → Pages)
+- **validator**: 6-level structural validation (Header → XRef → Trailer → Catalog → Pages → Fonts)
 - **writer (minimal)**: CopyFile (raw byte copy), RewriteFile (normalize to single-revision)
 - **content_parser**: content stream operator parsing (text blocks, string operands, hex strings, content operators, TJ array spacing analysis)
 - **stream_filter**: multi-filter framework (FlateDecode, ASCIIHexDecode, ASCII85Decode, LZWDecode; supports filter chains)

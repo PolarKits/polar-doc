@@ -90,7 +90,7 @@ ISO 32000-2:2020 §7 (Document Structure), §8 (File Structure), §12.8 (Digital
 |------------|--------------|---------------------|
 | Open | Opens file handle | §7.1 (File Header / Header) |
 | Info | Reads header version, trailer /ID, Info dict metadata, page count | §7.1, §7.7.2, §8.6, §8.7 |
-| Validate | Multi-level structural validation: Header (prefix/version) → XRef (integrity) → Trailer (/Root, /Size) → Catalog (/Type, /Pages) → Pages (/Type, /Count, /Kids) | §7.1, §7.7, §7.7.2 |
+| Validate | Multi-level structural validation: Header (prefix/version) → XRef (integrity) → Trailer (/Root, /Size) → Catalog (/Type, /Pages) → Pages (/Type, /Count, /Kids, /MediaBox, /Resources) → Fonts (/Type, /Subtype, /BaseFont) | §7.1, §7.7, §7.7.2 |
 | ReadFirstPageInfo | Traverses Catalog→Pages→Page, extracts Page metadata | §7.7, §7.7.2, §7.8, §8.2 (partial) |
 | MediaBox inheritance | Reads /MediaBox from Page or ancestor Pages | §7.7 (inheritable attribute) |
 | Resources inheritance | Reads /Resources from Page or ancestor Pages | §7.7 (inheritable attribute) |
@@ -191,7 +191,7 @@ The writer/upgrade pipeline is listed as unimplemented in the Gaps section.
 
 ### Implementation Risks
 
-- **Multi-level validation reduces fragility**: Files now undergo 5-level structural validation (Header → XRef → Trailer → Catalog → Pages). Files with valid headers but missing structure are correctly marked invalid.
+- **Multi-level validation reduces fragility**: Files now undergo 6-level structural validation (Header → XRef → Trailer → Catalog → Pages → Fonts). Files with valid headers but missing structure are correctly marked invalid.
 - **No incremental update write support**: Even if a document is readable, modifications cannot be written back without a writer pipeline. Incremental updates are detected but not writable.
 
 ---
@@ -294,7 +294,7 @@ Cryptographic signatures, trust, and policy concerns.
 
 **No. The internal code does NOT fully cover either standard. Phase-1 covers the following:**
 
-- **PDF**: file open + header version read + multi-level structural validation (Header, XRef, Trailer, Catalog, Pages) + xref/XRef stream traversal + trailer /ID extraction + Info dictionary (Title/Author/Creator/Producer) + full-document content stream text extraction (operator-aware parsing: BT/ET blocks, Tj/TJ, kerning analysis)
+- **PDF**: file open + header version read + multi-level structural validation (Header, XRef, Trailer, Catalog, Pages, Fonts) + xref/XRef stream traversal + trailer /ID extraction + Info dictionary (Title/Author/Creator/Producer) + full-document content stream text extraction (operator-aware parsing: BT/ET blocks, Tj/TJ, kerning analysis)
 - **OFD**: ZIP package open + entry presence checks + OFD.xml DocRoot extraction/validation + Document.xml page list traversal + Content.xml TextCode extraction for all pages
 
 **Partially implemented (functional but incomplete):**

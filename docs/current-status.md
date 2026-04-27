@@ -12,7 +12,7 @@ PolarDoc currently focuses on explicit PDF and OFD document capabilities in a Go
 - PDF phase-1 read-oriented capabilities:
   - open
   - basic info
-  - multi-level structural validation (Header → XRef → Trailer → Catalog → Pages)
+  - multi-level structural validation (Header → XRef → Trailer → Catalog → Pages → Fonts)
   - first-page inspection
   - full-document text extraction with content stream operator parsing (handles BT/ET blocks, Tj/TJ operators, spacing analysis)
   - copy/save to a destination path
@@ -54,7 +54,7 @@ PolarDoc currently focuses on explicit PDF and OFD document capabilities in a Go
 - PDF page count: `ReadPageCount` reads /Count from root /Pages dict; now populated in `Info`
 - PDF content stream parser: full operator parsing for text extraction (content_parser.go)
 - PDF stream filters: multi-filter support (FlateDecode, ASCIIHexDecode, ASCII85Decode, LZWDecode framework)
-- PDF validation: 5-level structural validation (validation.go)
+- PDF validation: 6-level structural validation: Header, XRef, Trailer, Catalog, Pages (with /MediaBox and /Resources per-page checks), Fonts (font reference integrity) (validation.go)
 - OFD text extraction: full implementation traversing Document.xml → page Content.xml → TextCode elements
 - OFD sample registry: `internal/testdata/ofd_samples.go` mirrors PDF fixture registry
 - CLI: real OFD extraction tests (hello-world, keyword-search, JSON output)
@@ -72,7 +72,7 @@ PolarDoc currently focuses on explicit PDF and OFD document capabilities in a Go
 - 4 commits ahead of origin/main with new capabilities:
   - content stream parser for PDF text extraction
   - stream filter framework (4 filter types)
-  - multi-level PDF structural validation
+  - 6-level PDF structural validation (Header → XRef → Trailer → Catalog → Pages → Fonts)
 
 ## Stage 1-9 Completion Summary (2026-04-20 Evening)
 

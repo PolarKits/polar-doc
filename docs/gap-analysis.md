@@ -63,7 +63,7 @@ It is not a roadmap or design document.
 
 ### G12 — PDF validation described as "header-only" in docs — **Closed / 已关闭** (2026-04-24)
 - docs described validation as only checking %PDF- prefix
-- current implementation provides 5-level structural validation (Header → XRef → Trailer → Catalog → Pages)
+- current implementation provides 6-level structural validation (Header → XRef → Trailer → Catalog → Pages → Fonts)
 - **关闭原因**: Documentation updated to reflect multi-level validation with xref integrity, trailer field checks, catalog structure, and pages tree validation.
 
 ### G13 — Stream filters described as "FlateDecode only" in docs — **Closed / 已关闭** (2026-04-24)
