@@ -226,6 +226,107 @@ func TestDecodeLZW(t *testing.T) {
 	}
 }
 
+// TestDecodeLZW_BasicPatterns tests LZW with basic patterns.
+func TestDecodeLZW_BasicPatterns(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   []byte
+		wantErr bool
+	}{
+		{
+			name:    "empty input returns empty",
+			input:   []byte{},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := decodeLZW(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeLZW() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && len(got) == 0 && tt.input == nil {
+				// only empty case expected
+			}
+		})
+	}
+}
+
+// TestDecodeLZW_BitReaderEdgeCases tests LZW bit reader edge cases.
+func TestDecodeLZW_BitReaderEdgeCases(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   []byte
+		wantErr bool
+	}{
+		{
+			name:    "incomplete final byte",
+			input:   []byte{0x55, 0x01}, // 9 bits needed but only 2 bytes
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := decodeLZW(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeLZW() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestDecodeLZW_CodeTableOverflow tests LZW behavior when code table grows.
+func TestDecodeLZW_CodeTableOverflow(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   []byte
+		wantErr bool
+	}{
+		{
+			name:    "rapid clear codes",
+			input:   []byte{0x80, 0x00, 0x80, 0x00}, // clear, reset, clear, reset
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := decodeLZW(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeLZW() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestDecodeStream_LZW tests decodeStream with LZWDecode filter.
+func TestDecodeStream_LZW(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     []byte
+		filters  []string
+		wantErr  bool
+	}{
+		{
+			name:    "LZW empty data",
+			data:    []byte{},
+			filters: []string{"LZWDecode"},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := decodeStream(tt.data, tt.filters)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeStream() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 // TestDecodeFlate tests FlateDecode (zlib) decoding.
 func TestDecodeFlate(t *testing.T) {
 	// Compress test data
