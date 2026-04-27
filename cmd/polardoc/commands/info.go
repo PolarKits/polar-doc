@@ -87,9 +87,6 @@ func RunInfo(ctx context.Context, resolver app.ServiceResolver, args []string) e
 	}
 
 	if input.page {
-		if format != doc.FormatPDF {
-			return fmt.Errorf("--page is only supported for PDF")
-		}
 		return runInfoPage(input, resolver)
 	}
 
@@ -163,12 +160,17 @@ type infoResponse struct {
 }
 
 func runInfoPage(input infoInput, resolver app.ServiceResolver) error {
-	svc, ok := resolver.ByFormat(doc.FormatPDF)
-	if !ok {
-		return fmt.Errorf("no service for format %q", doc.FormatPDF)
+	format, err := detectFormatByExtension(input.path)
+	if err != nil {
+		return err
 	}
 
-	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: input.path})
+	svc, ok := resolver.ByFormat(format)
+	if !ok {
+		return fmt.Errorf("no service for format %q", format)
+	}
+
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: format, Path: input.path})
 	if err != nil {
 		return err
 	}
@@ -181,35 +183,39 @@ func runInfoPage(input infoInput, resolver app.ServiceResolver) error {
 
 	if input.json {
 		out := pageInfoOutput{
-			Path: input.path,
-			PagesRef: pageRef{
-				ObjNum: result.PagesRef.ObjNum,
-				GenNum: result.PagesRef.GenNum,
-			},
-			PageRef: pageRef{
-				ObjNum: result.PageRef.ObjNum,
-				GenNum: result.PageRef.GenNum,
-			},
-			Parent: pageRef{
-				ObjNum: result.Parent.ObjNum,
-				GenNum: result.Parent.GenNum,
-			},
+			Path:     input.path,
 			MediaBox: result.MediaBox,
-			Resources: pageRef{
-				ObjNum: result.Resources.ObjNum,
-				GenNum: result.Resources.GenNum,
-			},
-			Contents: refsToPageRefs(result.Contents),
-			Rotate:   result.Rotate,
 		}
+		if result.PagesRef.ObjNum != 0 {
+			out.PagesRef = pageRef{ObjNum: result.PagesRef.ObjNum, GenNum: result.PagesRef.GenNum}
+		}
+		if result.PageRef.ObjNum != 0 {
+			out.PageRef = pageRef{ObjNum: result.PageRef.ObjNum, GenNum: result.PageRef.GenNum}
+		}
+		if result.Parent.ObjNum != 0 {
+			out.Parent = pageRef{ObjNum: result.Parent.ObjNum, GenNum: result.Parent.GenNum}
+		}
+		if result.Resources.ObjNum != 0 {
+			out.Resources = pageRef{ObjNum: result.Resources.ObjNum, GenNum: result.Resources.GenNum}
+		}
+		if len(result.Contents) > 0 {
+			out.Contents = refsToPageRefs(result.Contents)
+		}
+		out.Rotate = result.Rotate
 		return writeJSON(out)
 	}
 
 	fmt.Printf("path: %s\n", input.path)
-	fmt.Printf("pages_ref: %d %d R\n", result.PagesRef.ObjNum, result.PagesRef.GenNum)
-	fmt.Printf("page_ref: %d %d R\n", result.PageRef.ObjNum, result.PageRef.GenNum)
-	fmt.Printf("parent: %d %d R\n", result.Parent.ObjNum, result.Parent.GenNum)
 	fmt.Printf("media_box: %v\n", result.MediaBox)
+	if result.PagesRef.ObjNum != 0 || result.PagesRef.GenNum != 0 {
+		fmt.Printf("pages_ref: %d %d R\n", result.PagesRef.ObjNum, result.PagesRef.GenNum)
+	}
+	if result.PageRef.ObjNum != 0 || result.PageRef.GenNum != 0 {
+		fmt.Printf("page_ref: %d %d R\n", result.PageRef.ObjNum, result.PageRef.GenNum)
+	}
+	if result.Parent.ObjNum != 0 || result.Parent.GenNum != 0 {
+		fmt.Printf("parent: %d %d R\n", result.Parent.ObjNum, result.Parent.GenNum)
+	}
 	fmt.Printf("resources: %d %d R\n", result.Resources.ObjNum, result.Resources.GenNum)
 	if len(result.Contents) > 0 {
 		fmt.Printf("contents: ")

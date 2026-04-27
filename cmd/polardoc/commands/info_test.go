@@ -358,26 +358,17 @@ func TestRunInfoPageKnownBad(t *testing.T) {
 	t.Logf("info --page correctly fails for known-bad PDF: %s", errMsg)
 }
 
-func TestRunInfoPageOFDUnsupported(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "sample.ofd")
-	content := buildOFDPackage(t, map[string]string{
-		"OFD.xml":            "<ofd/>",
-		"Doc_0/Document.xml": "<document/>",
-	})
-	if err := os.WriteFile(path, content, 0o644); err != nil {
-		t.Fatalf("write sample OFD: %v", err)
-	}
-
+func TestRunInfoPageOFD(t *testing.T) {
+	path := requireOFDSample(t, "core-helloworld")
 	resolver := app.NewPhase1Resolver()
-	err := RunInfo(context.Background(), resolver, []string{"--page", path})
-	if err == nil {
-		t.Fatal("run info --page OFD should fail")
-	}
+	output := captureStdout(t, func() {
+		if err := RunInfo(context.Background(), resolver, []string{"--page", path}); err != nil {
+			t.Fatalf("run info --page OFD: %v", err)
+		}
+	})
 
-	if !strings.Contains(err.Error(), "--page is only supported for PDF") {
-		t.Fatalf("expected --page is only supported for PDF, got: %s", err.Error())
-	}
+	mustContain(t, output, "path: "+path)
+	mustContain(t, output, "media_box:")
 }
 
 func TestRunInfoJSONPDFRealSample(t *testing.T) {
