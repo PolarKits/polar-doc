@@ -88,6 +88,13 @@ type InfoResult struct {
 	// Zero value means modification date is not available or unparseable.
 	ModDate time.Time
 
+	// IsEncrypted: PDF populates from /Encrypt dictionary presence; OFD does not populate.
+	IsEncrypted bool
+
+	// EncryptionAlgorithm: PDF populates from /Encrypt dictionary algorithm; OFD does not populate.
+	// Values: "RC4-40", "RC4-128", "AES-128", "AES-256", "unknown". Empty when IsEncrypted is false.
+	EncryptionAlgorithm string
+
 	// Seals holds electronic seal metadata for OFD documents.
 	// nil if the document has no electronic seals or is not OFD.
 	// For OFD: populated from parsing Signatures.xml and associated Seal.esl files.

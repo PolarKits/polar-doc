@@ -350,6 +350,11 @@ func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error
 			info.CreationDate = creationDate
 			info.ModDate = modDate
 
+			if pdfDoc.features.IsEncrypted {
+				info.IsEncrypted = true
+				info.EncryptionAlgorithm = encryptionAlgorithmName(pdfDoc.features.EncryptionAlgorithm)
+			}
+
 			// Read XMP metadata to supplement InfoDict fields.
 			if xmpMap := readXMPMetadata(pdfDoc.file, xrefOffset); len(xmpMap) > 0 {
 				if info.Title == "" {
@@ -1442,6 +1447,24 @@ func parsePDFDateString(s string) time.Time {
 		}
 	}
 	return time.Date(year, time.Month(month), day, hour, minute, second, 0, loc)
+}
+
+// encryptionAlgorithmName converts an EncryptionAlgorithm enum value to a human-readable string.
+func encryptionAlgorithmName(a EncryptionAlgorithm) string {
+	switch a {
+	case EncryptRC4_40:
+		return "RC4-40"
+	case EncryptRC4_128:
+		return "RC4-128"
+	case EncryptAES_128:
+		return "AES-128"
+	case EncryptAES_256:
+		return "AES-256"
+	case EncryptUnknown:
+		return "unknown"
+	default:
+		return ""
+	}
 }
 
 func readInfoMetadata(f *os.File, xrefOffset int64) (title, author, creator, producer string, creationDate, modDate time.Time) {

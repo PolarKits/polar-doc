@@ -123,23 +123,25 @@ func RunInfo(ctx context.Context, resolver app.ServiceResolver, args []string) e
 			modDate = &t
 		}
 		return writeJSON(infoResponse{
-			Format:          info.Format,
-			Path:            info.Path,
-			SizeBytes:       info.SizeBytes,
-			DeclaredVersion: info.DeclaredVersion,
-			PageCount:       info.PageCount,
-			FileIdentifiers: info.FileIdentifiers,
-			Title:           info.Title,
-			Author:          info.Author,
-			Creator:         info.Creator,
-			Producer:        info.Producer,
-			CreationDate:    creationDate,
-			ModDate:         modDate,
-			Seals:          info.Seals,
-			Fonts:          info.Fonts,
-			MediaFiles:      info.MediaFiles,
-			Pages:           info.Pages,
-			Annotations:     info.Annotations,
+			Format:             info.Format,
+			Path:               info.Path,
+			SizeBytes:          info.SizeBytes,
+			DeclaredVersion:    info.DeclaredVersion,
+			PageCount:          info.PageCount,
+			FileIdentifiers:    info.FileIdentifiers,
+			Title:              info.Title,
+			Author:             info.Author,
+			Creator:            info.Creator,
+			Producer:           info.Producer,
+			CreationDate:       creationDate,
+			ModDate:            modDate,
+			IsEncrypted:        info.IsEncrypted,
+			EncryptionAlgorithm: info.EncryptionAlgorithm,
+			Seals:             info.Seals,
+			Fonts:             info.Fonts,
+			MediaFiles:         info.MediaFiles,
+			Pages:              info.Pages,
+			Annotations:        info.Annotations,
 		})
 	}
 
@@ -154,6 +156,9 @@ func RunInfo(ctx context.Context, resolver app.ServiceResolver, args []string) e
 	}
 	if !info.ModDate.IsZero() {
 		fmt.Printf("mod_date: %s\n", info.ModDate.Format(time.RFC3339))
+	}
+	if info.IsEncrypted {
+		fmt.Printf("encrypted: true (%s)\n", info.EncryptionAlgorithm)
 	}
 	return nil
 }
@@ -185,6 +190,10 @@ type infoResponse struct {
 	CreationDate *time.Time `json:"creation_date,omitempty"`
 	// ModDate is the document modification date from PDF InfoDict (PDF only).
 	ModDate *time.Time `json:"mod_date,omitempty"`
+	// IsEncrypted reports whether the document is encrypted (PDF only).
+	IsEncrypted bool `json:"is_encrypted,omitempty"`
+	// EncryptionAlgorithm is the encryption algorithm name when IsEncrypted is true (PDF only).
+	EncryptionAlgorithm string `json:"encryption_algorithm,omitempty"`
 	// Seals is the list of electronic seal summaries (OFD only).
 	Seals []doc.SealSummary `json:"seals,omitempty"`
 	// Fonts is the list of font resource summaries (OFD only).
