@@ -128,6 +128,7 @@ func parseName(s string) string {
 //   - ASCII85Decode: Base85 (Adobe variant) decoding
 //   - LZWDecode: LZW decompression
 //   - RunLengthDecode: run-length encoding decoding
+//   - CCITTFaxDecode / CCF: CCITT Group 3/4 fax compression (pass-through; not decoded)
 //
 // Returns an error if an unsupported filter is encountered.
 func decodeStream(data []byte, filters []string) ([]byte, error) {
@@ -149,6 +150,8 @@ func decodeStream(data []byte, filters []string) ([]byte, error) {
 			result, err = decodeLZW(result)
 		case "RunLengthDecode":
 			result, err = decodeRunLength(result)
+		case "CCITTFaxDecode", "CCF":
+			result, err = decodeCCITTFax(result)
 		default:
 			return nil, fmt.Errorf("unsupported filter: %s", filter)
 		}
@@ -522,4 +525,11 @@ func getString(table []lzwEntry, code uint16) []byte {
 	}
 
 	return result
+}
+
+// decodeCCITTFax is a stub for CCITT Group 3/4 fax decompression.
+// Go's standard library does not include a CCITT decoder.
+// The raw data is returned unchanged; callers should not expect decompressed output.
+func decodeCCITTFax(data []byte) ([]byte, error) {
+	return data, nil
 }

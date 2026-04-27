@@ -723,3 +723,85 @@ func TestDecodeStream_RunLength(t *testing.T) {
 		})
 	}
 }
+
+// TestDecodeCCITTFax tests decodeCCITTFax pass-through stub.
+func TestDecodeCCITTFax(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []byte
+		expected []byte
+		wantErr  bool
+	}{
+		{
+			name:     "CCITTFaxDecode empty data",
+			input:    []byte{},
+			expected: []byte{},
+			wantErr:  false,
+		},
+		{
+			name:     "CCITTFaxDecode with data",
+			input:    []byte("some raw fax data"),
+			expected: []byte("some raw fax data"),
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := decodeCCITTFax(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeCCITTFax() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !bytes.Equal(got, tt.expected) {
+				t.Errorf("decodeCCITTFax() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestDecodeStream_CCITTFax tests decodeStream with CCITTFaxDecode and CCF filters.
+func TestDecodeStream_CCITTFax(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     []byte
+		filters  []string
+		expected []byte
+		wantErr  bool
+	}{
+		{
+			name:     "CCITTFaxDecode empty data",
+			data:     []byte{},
+			filters:  []string{"CCITTFaxDecode"},
+			expected: []byte{},
+			wantErr:  false,
+		},
+		{
+			name:     "CCITTFaxDecode with data",
+			data:     []byte("raw fax bytes"),
+			filters:  []string{"CCITTFaxDecode"},
+			expected: []byte("raw fax bytes"),
+			wantErr:  false,
+		},
+		{
+			name:     "CCF short name with data",
+			data:     []byte("more fax bytes"),
+			filters:  []string{"CCF"},
+			expected: []byte("more fax bytes"),
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := decodeStream(tt.data, tt.filters)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeStream() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !bytes.Equal(got, tt.expected) {
+				t.Errorf("decodeStream() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
