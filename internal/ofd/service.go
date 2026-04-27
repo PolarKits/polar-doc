@@ -153,7 +153,128 @@ func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error
 		}
 	}
 
+	// Collect per-page physical dimensions from Document.xml.
+	info.Pages = collectPageInfo(ofdDoc.zipReader.File)
+
 	return info, nil
+}
+
+// collectPageInfo parses Document.xml to extract per-page physical dimensions.
+// It first reads the document-level PhysicalBox (from PageArea) as default,
+// then iterates over Page elements to get per-page Area/PhysicalBox if present.
+func collectPageInfo(files []*zip.File) []doc.PageInfo {
+	docData, err := readDocumentXML(files)
+	if err != nil {
+		return nil
+	}
+
+	// Parse document-level PhysicalBox as default dimensions.
+	defaultBox := parsePhysicalBox(docData)
+	var defaultWidth, defaultHeight float64
+	if len(defaultBox) == 4 {
+		// MediaBox layout: [llx, lly, urx, ury]; width = urx-llx, height = ury-lly
+		defaultWidth = defaultBox[2] - defaultBox[0]
+		defaultHeight = defaultBox[3] - defaultBox[1]
+	}
+
+	// Parse page list with per-page Area/PhysicalBox.
+	pages := parsePageInfoList(docData, defaultWidth, defaultHeight)
+	if len(pages) == 0 {
+		return nil
+	}
+	return pages
+}
+
+// parsePageInfoList parses Page elements from Document.xml and returns page info.
+// Uses document-level default width/height if page has no Area/PhysicalBox.
+func parsePageInfoList(docData []byte, defaultWidth, defaultHeight float64) []doc.PageInfo {
+	decoder := xml.NewDecoder(bytes.NewReader(docData))
+	var pages []doc.PageInfo
+	pageNum := 0
+
+	for {
+		tok, err := decoder.Token()
+		if err != nil {
+			break
+		}
+
+		se, ok := tok.(xml.StartElement)
+		if !ok {
+			continue
+		}
+
+		local := strings.TrimPrefix(se.Name.Local, "ofd:")
+		if local != "Page" {
+			continue
+		}
+
+		pageNum++
+		pageInfo := doc.PageInfo{PageNumber: pageNum}
+
+		// Check if Page has Area/PhysicalBox.
+		if box := parsePagePhysicalBox(decoder, &se); len(box) == 4 {
+			// MediaBox layout: [llx, lly, urx, ury]; width = urx-llx, height = ury-lly
+			pageInfo.Width = box[2] - box[0]
+			pageInfo.Height = box[3] - box[1]
+		} else if defaultWidth > 0 || defaultHeight > 0 {
+			pageInfo.Width = defaultWidth
+			pageInfo.Height = defaultHeight
+		}
+
+		pages = append(pages, pageInfo)
+	}
+
+	return pages
+}
+
+// parsePagePhysicalBox parses the PhysicalBox from a Page element's Area child.
+// It consumes tokens until the Page end element and returns the parsed box.
+func parsePagePhysicalBox(decoder *xml.Decoder, pageStart *xml.StartElement) []float64 {
+	for {
+		tok, err := decoder.Token()
+		if err != nil {
+			return nil
+		}
+
+		switch v := tok.(type) {
+		case xml.EndElement:
+			if strings.TrimPrefix(v.Name.Local, "ofd:") == "Page" {
+				return nil
+			}
+		case xml.StartElement:
+			local := strings.TrimPrefix(v.Name.Local, "ofd:")
+			if local == "Area" {
+				if box := parseAreaPhysicalBox(decoder); len(box) == 4 {
+					return box
+				}
+			}
+		}
+	}
+}
+
+// parseAreaPhysicalBox parses PhysicalBox within an Area element.
+func parseAreaPhysicalBox(decoder *xml.Decoder) []float64 {
+	for {
+		tok, err := decoder.Token()
+		if err != nil {
+			return nil
+		}
+
+		switch v := tok.(type) {
+		case xml.EndElement:
+			if strings.TrimPrefix(v.Name.Local, "ofd:") == "Area" {
+				return nil
+			}
+		case xml.StartElement:
+			local := strings.TrimPrefix(v.Name.Local, "ofd:")
+			if local == "PhysicalBox" {
+				var content string
+				if err := decoder.DecodeElement(&content, &v); err == nil {
+					return parsePhysicalBox([]byte(content))
+				}
+			}
+		}
+	}
 }
 
 // collectSealSummaries parses Signatures.xml and associated Seal.esl files

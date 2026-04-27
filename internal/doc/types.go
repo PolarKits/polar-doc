@@ -92,6 +92,11 @@ type InfoResult struct {
 	// nil if the document has no multimedia or is not OFD.
 	// For OFD: populated from parsing PublicRes.xml and DocumentRes.xml.
 	MediaFiles []MediaSummary
+
+	// Pages holds per-page metadata including physical dimensions for OFD documents.
+	// nil if the document has no pages or is not OFD.
+	// For OFD: populated from Document.xml Page elements and PageArea/PhysicalBox.
+	Pages []PageInfo
 }
 
 // SealSummary holds basic electronic seal metadata from an OFD document.
@@ -126,6 +131,17 @@ type MediaSummary struct {
 	MediaType string
 	// Format is the file format of the media (e.g. "PNG", "JPEG", "MP3").
 	Format string
+}
+
+// PageInfo holds basic page metadata including physical dimensions.
+// This is a phase-1 transport struct; content within pages is not parsed.
+type PageInfo struct {
+	// PageNumber is the 1-indexed page number within the document.
+	PageNumber int
+	// Width is the page width in points (1/72 inch). Zero if unknown.
+	Width float64
+	// Height is the page height in points (1/72 inch). Zero if unknown.
+	Height float64
 }
 
 // ValidationReport is a structured validation output.

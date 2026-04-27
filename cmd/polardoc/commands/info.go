@@ -126,6 +126,7 @@ func RunInfo(ctx context.Context, resolver app.ServiceResolver, args []string) e
 			Seals:          info.Seals,
 			Fonts:          info.Fonts,
 			MediaFiles:      info.MediaFiles,
+			Pages:           info.Pages,
 		})
 	}
 
@@ -167,6 +168,8 @@ type infoResponse struct {
 	Fonts []doc.FontSummary `json:"fonts,omitempty"`
 	// MediaFiles is the list of multimedia resource summaries (OFD only).
 	MediaFiles []doc.MediaSummary `json:"media_files,omitempty"`
+	// Pages is the list of per-page metadata including physical dimensions (OFD only).
+	Pages []doc.PageInfo `json:"pages,omitempty"`
 }
 
 func runInfoPage(input infoInput, resolver app.ServiceResolver) error {
