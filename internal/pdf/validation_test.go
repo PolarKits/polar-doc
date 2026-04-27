@@ -347,6 +347,7 @@ func TestLevelName(t *testing.T) {
 		{LevelTrailer, "Trailer"},
 		{LevelCatalog, "Catalog"},
 		{LevelPages, "Pages"},
+		{LevelFonts, "Fonts"},
 		{ValidationLevel(99), "Level99"}, // Unknown level
 	}
 
@@ -415,5 +416,37 @@ func TestValidate_Warnings(t *testing.T) {
 	// This test establishes the pattern for future warning checks
 	if len(report.Warnings) > 0 {
 		t.Logf("Warnings found (may be expected for specific features): %v", report.Warnings)
+	}
+}
+
+// TestValidate_FontsLevel validates that LevelFonts validation is executed.
+func TestValidate_FontsLevel(t *testing.T) {
+	svc := NewService()
+
+	sample, ok := testfixtures.PDFSampleByKey("core-minimal")
+	if !ok {
+		t.Fatal("Sample 'core-minimal' not found")
+	}
+
+	doc, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatPDF, Path: sample.Path()})
+	if err != nil {
+		t.Fatalf("Failed to open PDF: %v", err)
+	}
+	defer doc.Close()
+
+	report, err := svc.Validate(nil, doc)
+	if err != nil {
+		t.Fatalf("Validate() error: %v", err)
+	}
+
+	fontsErrorFound := false
+	for _, err := range report.Errors {
+		if strings.Contains(strings.ToLower(err), "font") {
+			fontsErrorFound = true
+			break
+		}
+	}
+	if fontsErrorFound {
+		t.Errorf("Unexpected fonts error in valid PDF: %v", report.Errors)
 	}
 }

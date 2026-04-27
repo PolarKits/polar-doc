@@ -85,6 +85,14 @@ func validateDocument(f *os.File) (doc.ValidationReport, error) {
 		report.Valid = false
 	}
 
+	// Level 6: Fonts reference check
+	fontsResult := validateFonts(f)
+	report.Errors = append(report.Errors, fontsResult.Errors...)
+	report.Warnings = append(report.Warnings, fontsResult.Warnings...)
+	if !fontsResult.Passed {
+		report.Valid = false
+	}
+
 	return report, nil
 }
 
@@ -479,6 +487,194 @@ func validatePageDictFields(f *os.File, pagesRef string, result *LevelResult, de
 	}
 }
 
+// validateFonts checks font resource reference integrity for all pages.
+// It traverses the Pages tree, extracts /Resources dictionaries, and validates
+// each font entry has required fields (/Type, /Subtype, /BaseFont).
+func validateFonts(f *os.File) LevelResult {
+	result := LevelResult{Level: LevelFonts, Passed: true}
+
+	xrefOffset, err := readStartxref(f)
+	if err != nil {
+		result.Passed = false
+		result.Errors = append(result.Errors, fmt.Sprintf("fonts: cannot find xref: %v", err))
+		return result
+	}
+
+	rootRefStr, err := readTrailerRootRef(f, xrefOffset)
+	if err != nil {
+		result.Passed = false
+		result.Errors = append(result.Errors, fmt.Sprintf("fonts: cannot get root ref: %v", err))
+		return result
+	}
+
+	catalogObj, err := readObject(f, rootRefStr)
+	if err != nil {
+		result.Passed = false
+		result.Errors = append(result.Errors, fmt.Sprintf("fonts: cannot read catalog: %v", err))
+		return result
+	}
+
+	catalogDict, err := extractDictFromObject(catalogObj)
+	if err != nil {
+		result.Warnings = append(result.Warnings, fmt.Sprintf("fonts: cannot extract catalog dict: %v", err))
+		return result
+	}
+
+	pagesRef, ok := DictGetRef(catalogDict, "Pages")
+	if !ok {
+		result.Passed = false
+		result.Errors = append(result.Errors, "fonts: /Pages reference not found in catalog")
+		return result
+	}
+
+	pagesRefStr := fmt.Sprintf("%d %d R", pagesRef.ObjNum, pagesRef.GenNum)
+	validateFontResources(f, pagesRefStr, &result, 0, map[string]struct{}{})
+
+	return result
+}
+
+// validateFontResources recursively walks the Pages tree and checks font
+// entries in each Page's /Resources dictionary for required fields.
+func validateFontResources(f *os.File, pagesRef string, result *LevelResult, depth int, visited map[string]struct{}) {
+	if depth > maxPageTreeDepth {
+		return
+	}
+	if _, seen := visited[pagesRef]; seen {
+		return
+	}
+	visited[pagesRef] = struct{}{}
+
+	pagesObj, err := readObject(f, pagesRef)
+	if err != nil {
+		return
+	}
+	pagesDict, err := extractDictFromObject(pagesObj)
+	if err != nil {
+		return
+	}
+
+	kidsArr, ok := DictGetArray(pagesDict, "Kids")
+	if !ok {
+		return
+	}
+
+	for _, kidRef := range ArrayToRefs(kidsArr) {
+		refStr := RefToString(kidRef)
+		if _, seen := visited[refStr]; seen {
+			continue
+		}
+
+		kidObj, err := readObject(f, refStr)
+		if err != nil {
+			continue
+		}
+		kidDict, err := extractDictFromObject(kidObj)
+		if err != nil {
+			continue
+		}
+
+		kidType, ok := DictGetName(kidDict, "Type")
+		if !ok {
+			continue
+		}
+
+		if kidType == "Pages" {
+			validateFontResources(f, refStr, result, depth+1, visited)
+			continue
+		}
+
+		if kidType != "Page" {
+			continue
+		}
+
+		pageResources, _ := getPageResources(refStr, f)
+		if pageResources == nil {
+			continue
+		}
+
+		fontsDict, ok := DictGetDict(pageResources, "Font")
+		if !ok {
+			continue
+		}
+
+		for name, fontVal := range fontsDict {
+			fontDictVal, ok := fontVal.(PDFDict)
+			if !ok {
+				fontRef, isRef := fontVal.(PDFRef)
+				if !isRef {
+					continue
+				}
+				fontObj, err := readObject(f, RefToString(fontRef))
+				if err != nil {
+					result.Warnings = append(result.Warnings, fmt.Sprintf("font %s: cannot read font object: %v", RefToString(fontRef), err))
+					continue
+				}
+				fontDictVal, err = extractDictFromObject(fontObj)
+				if err != nil {
+					result.Warnings = append(result.Warnings, fmt.Sprintf("font %s: cannot extract font dict: %v", RefToString(fontRef), err))
+					continue
+				}
+			}
+			validateFontDict(fontDictVal, string(name), result)
+		}
+	}
+}
+
+// validateFontDict checks that a font dictionary has the required /Type, /Subtype,
+// and /BaseFont fields. Missing /Type is a warning (since /Type may be inherited
+// in some font types), missing /Subtype or /BaseFont are warnings.
+func validateFontDict(fontDictVal PDFDict, name string, result *LevelResult) {
+	if fontDictVal == nil {
+		return
+	}
+
+	if typ, ok := DictGetName(fontDictVal, "Type"); !ok {
+		result.Warnings = append(result.Warnings, fmt.Sprintf("font %s: /Type not found", name))
+	} else if typ != "Font" {
+		result.Errors = append(result.Errors, fmt.Sprintf("font %s: /Type is /%s, expected /Font", name, typ))
+	}
+
+	if _, ok := DictGetName(fontDictVal, "Subtype"); !ok {
+		result.Warnings = append(result.Warnings, fmt.Sprintf("font %s: /Subtype not found", name))
+	}
+
+	if _, ok := DictGetName(fontDictVal, "BaseFont"); !ok {
+		result.Warnings = append(result.Warnings, fmt.Sprintf("font %s: /BaseFont not found", name))
+	}
+}
+
+// getPageResources returns the /Resources dict for a page, checking direct
+// resources first then falling back to ancestor inheritance lookup.
+func getPageResources(pageRefStr string, f *os.File) (PDFDict, bool) {
+	pageObj, err := readObject(f, pageRefStr)
+	if err != nil {
+		return nil, false
+	}
+	pageDict, err := extractDictFromObject(pageObj)
+	if err != nil {
+		return nil, false
+	}
+
+	if resDict, ok := DictGetDict(pageDict, "Resources"); ok {
+		return resDict, true
+	}
+
+	resRef, err := lookupResourcesFromAncestors(pageRefStr, f)
+	if err != nil {
+		return nil, false
+	}
+
+	resObj, err := readObject(f, RefToString(resRef))
+	if err != nil {
+		return nil, false
+	}
+	resDict, err := extractDictFromObject(resObj)
+	if err != nil {
+		return nil, false
+	}
+	return resDict, true
+}
+
 // LevelName returns human-readable name for a validation level.
 func LevelName(level ValidationLevel) string {
 	switch level {
@@ -492,6 +688,8 @@ func LevelName(level ValidationLevel) string {
 		return "Catalog"
 	case LevelPages:
 		return "Pages"
+	case LevelFonts:
+		return "Fonts"
 	default:
 		return fmt.Sprintf("Level%d", level)
 	}
