@@ -319,7 +319,7 @@ Cryptographic signatures, trust, and policy concerns.
 ### Priority Recommendations
 
 1. **High**: Complete PDF text extraction with full content operator parsing and font mapping
-2. **High**: Implement PDF object stream (ObjStm) parsing and decompression to read compressed objects
+2. **High**: ~~Implement PDF object stream (ObjStm) parsing and decompression~~ **IMPLEMENTED** — `resolveFromObjStm` resolves Type 2 entries; FlateDecode supported
 3. **Medium**: Complete OFD XML content model with full resource mapping and font handling
 4. **Medium**: Preview rendering pipeline (requires complete text extraction and content parsing)
 5. **Low**: Signing infrastructure (depends on crypto provider decisions)

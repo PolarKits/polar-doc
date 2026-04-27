@@ -106,7 +106,7 @@ PolarDoc currently focuses on explicit PDF and OFD document capabilities in a Go
 |------|--------|----------|
 | PDF fixture generation with correct xref offsets | Tests cannot validate edge cases | Debug builder.Len() tracking, or use existing valid PDFs |
 | ~~OFD text extraction complexity~~ | ~~Cannot extract text for search/analytics~~ | ~~IMPLEMENTED~~ — TextCode extraction delivered; complex text objects remain future work |
-| MCP transport layer not implemented | MCP server unusable by official clients | Implement MCP protocol spec or document JSON-over-stdin limitation |
+| ~~MCP transport layer not implemented~~ | ~~MCP server unusable by official clients~~ | ~~IMPLEMENTED~~ — MCP server implements full JSON-RPC 2.0 protocol in `internal/mcp` |
 | PDF incremental update writer pipeline | Cannot preserve incremental updates | Design writer pipeline architecture first |
 
 ### Files Modified Tonight (git log --name-only HEAD~15..HEAD)
