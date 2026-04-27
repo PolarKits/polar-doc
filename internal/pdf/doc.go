@@ -23,7 +23,7 @@
 //   - PageCount from root /Pages /Count
 //   - FirstPageInfo: Catalog→Pages→Page traversal with MediaBox/Resources/Contents/Rotate extraction
 //   - Full-document text extraction from content streams via content operator parsing
-//   - Stream filter support: FlateDecode, ASCIIHexDecode, ASCII85Decode, LZWDecode
+//   - Stream filter support: FlateDecode, ASCIIHexDecode, ASCII85Decode, LZWDecode, RunLengthDecode
 //
 // Full semantic compatibility with ISO 32000-2 or ISO 32000-1 is NOT claimed.
 // Specifically: ObjStm entries are resolved via resolveFromObjStm but object stream
@@ -67,7 +67,7 @@
 //   - content_parser.go: content stream operator parsing (text blocks, string operands,
 //     hex strings, content operators, TJ array spacing analysis)
 //   - stream_filter.go: multi-filter framework (FlateDecode, ASCIIHexDecode, ASCII85Decode,
-//     LZWDecode; supports filter chains)
+	//     LZWDecode, RunLengthDecode; supports filter chains)
 //   - font_encoding.go: built-in encoding tables (WinAnsiEncoding 128-255, MacRomanEncoding
 //     128-255, StandardEncoding, /Differences array parsing, applyByteMapping for
 //     font-to-Unicode mapping)

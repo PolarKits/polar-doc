@@ -475,3 +475,251 @@ func TestParseName(t *testing.T) {
 		})
 	}
 }
+
+// TestDecodeRunLength_BasicLiterals tests RunLengthDecode with literal sequences.
+func TestDecodeRunLength_BasicLiterals(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []byte
+		expected []byte
+		wantErr  bool
+	}{
+		{
+			name:     "empty input",
+			input:    []byte{},
+			expected: []byte{},
+			wantErr:  false,
+		},
+		{
+			name:     "single literal byte",
+			input:    []byte{0x00, 0x41}, // length=0 means 1 byte: 'A'
+			expected: []byte("A"),
+			wantErr:  false,
+		},
+		{
+			name:     "five literal bytes",
+			input:    []byte{0x04, 0x48, 0x45, 0x4C, 0x4C, 0x4F}, // length=4, "HELLO"
+			expected: []byte("HELLO"),
+			wantErr:  false,
+		},
+		{
+			name:     "literal with EOD",
+			input:    []byte{0x03, 0x54, 0x45, 0x53, 0x54, 0x80}, // "TEST" followed by EOD
+			expected: []byte("TEST"),
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := decodeRunLength(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeRunLength() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && !bytes.Equal(got, tt.expected) {
+				t.Errorf("decodeRunLength() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestDecodeRunLength_RepeatSequences tests RunLengthDecode with repeat sequences.
+func TestDecodeRunLength_RepeatSequences(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []byte
+		expected []byte
+		wantErr  bool
+	}{
+		{
+			name:     "repeat 6 times",
+			input:    []byte{0xFB, 0x41}, // 257-251=6 repeats of 'A'
+			expected: []byte("AAAAAA"),
+			wantErr:  false,
+		},
+		{
+			name:     "repeat 128 times",
+			input:    []byte{0x81, 0x42}, // 257-129=128 repeats of 'B'
+			expected: bytes.Repeat([]byte("B"), 128),
+			wantErr:  false,
+		},
+		{
+			name:     "repeat single byte",
+			input:    []byte{0xFF, 0x30}, // 257-255=2 repeats of '0'
+			expected: []byte("00"),
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := decodeRunLength(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeRunLength() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && !bytes.Equal(got, tt.expected) {
+				t.Errorf("decodeRunLength() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestDecodeRunLength_MixedSequences tests RunLengthDecode with mixed literal and repeat.
+func TestDecodeRunLength_MixedSequences(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []byte
+		expected []byte
+		wantErr  bool
+	}{
+		{
+			name:     "literal then repeat",
+			input:    []byte{0x01, 0x41, 0x42, 0xFD, 0x43}, // "AB" + 4 repeats of 'C' = "ABCCCC"
+			expected: []byte("ABCCCC"),
+			wantErr:  false,
+		},
+		{
+			name:     "repeat then literal",
+			input:    []byte{0xFF, 0x41, 0x01, 0x42, 0x43}, // 2 repeats of 'A' + "BC" = "AABC"
+			expected: []byte("AABC"),
+			wantErr:  false,
+		},
+		{
+			name:     "multiple segments",
+			input:    []byte{0x01, 0x41, 0x42, 0xFD, 0x43, 0x00, 0x44}, // "AB" + 4 repeats of 'C' + "D" = "ABCCCCD"
+			expected: []byte("ABCCCCD"),
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := decodeRunLength(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeRunLength() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && !bytes.Equal(got, tt.expected) {
+				t.Errorf("decodeRunLength() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestDecodeRunLength_EOD tests RunLengthDecode EOD marker handling.
+func TestDecodeRunLength_EOD(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []byte
+		expected []byte
+		wantErr  bool
+	}{
+		{
+			name:     "EOD immediately",
+			input:    []byte{0x80},
+			expected: []byte{},
+			wantErr:  false,
+		},
+		{
+			name:     "EOD with trailing bytes stops at EOD",
+			input:    []byte{0x00, 0x41, 0x80, 0xFF, 0x42}, // "A" + EOD + garbage
+			expected: []byte("A"),
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := decodeRunLength(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeRunLength() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && !bytes.Equal(got, tt.expected) {
+				t.Errorf("decodeRunLength() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestDecodeRunLength_TruncatedData tests RunLengthDecode error handling.
+func TestDecodeRunLength_TruncatedData(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   []byte
+		wantErr bool
+	}{
+		{
+			name:    "truncated literal run",
+			input:   []byte{0x04, 0x41, 0x42, 0x43}, // says 5 bytes (0x04) but only 3 provided
+			wantErr: true,
+		},
+		{
+			name:    "truncated repeat",
+			input:   []byte{0xFB}, // repeat marker but no byte to repeat
+			wantErr: true,
+		},
+		{
+			name:    "empty input",
+			input:   []byte{},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := decodeRunLength(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeRunLength() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestDecodeStream_RunLength tests decodeStream with RunLengthDecode filter.
+func TestDecodeStream_RunLength(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     []byte
+		filters  []string
+		expected []byte
+		wantErr  bool
+	}{
+		{
+			name:     "RunLength empty data",
+			data:     []byte{},
+			filters:  []string{"RunLengthDecode"},
+			expected: []byte{},
+			wantErr:  false,
+		},
+		{
+			name:     "RunLength with data",
+			data:     []byte{0x04, 0x48, 0x45, 0x4C, 0x4C, 0x4F},
+			filters:  []string{"RunLengthDecode"},
+			expected: []byte("HELLO"),
+			wantErr:  false,
+		},
+		{
+			name:     "RunLength EOD",
+			data:     []byte{0x02, 0x41, 0x42, 0x43, 0x80},
+			filters:  []string{"RunLengthDecode"},
+			expected: []byte("ABC"),
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := decodeStream(tt.data, tt.filters)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeStream() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && !bytes.Equal(got, tt.expected) {
+				t.Errorf("decodeStream() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}

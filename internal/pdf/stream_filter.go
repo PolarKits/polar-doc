@@ -127,6 +127,7 @@ func parseName(s string) string {
 //   - ASCIIHexDecode: hexadecimal decoding
 //   - ASCII85Decode: Base85 (Adobe variant) decoding
 //   - LZWDecode: LZW decompression
+//   - RunLengthDecode: run-length encoding decoding
 //
 // Returns an error if an unsupported filter is encountered.
 func decodeStream(data []byte, filters []string) ([]byte, error) {
@@ -146,6 +147,8 @@ func decodeStream(data []byte, filters []string) ([]byte, error) {
 			result, err = decodeASCII85(result)
 		case "LZWDecode":
 			result, err = decodeLZW(result)
+		case "RunLengthDecode":
+			result, err = decodeRunLength(result)
 		default:
 			return nil, fmt.Errorf("unsupported filter: %s", filter)
 		}
@@ -303,6 +306,55 @@ type lzwEntry struct {
 	prefix uint16
 	suffix byte
 	length int
+}
+
+// decodeRunLength decodes RunLengthDecode encoded data per ISO 32000-2 §7.4.5.
+//
+// RunLengthDecode is a simple lossless compression algorithm where data consists
+// of run-length encoded sequences. Each sequence begins with a length byte:
+//   - 0-127: copy the next (n+1) bytes as-is
+//   - 128: EOD (end of data) marker
+//   - 129-255: copy the next byte (257-n) times
+//
+// Example encoded sequence: 0x05 0x48 0x45 0x4C 0x4C 0x4F (length=5, "HELLO")
+// Example repeat sequence: 0xFB 0x41 (repeat 'A' 257-251=6 times)
+func decodeRunLength(data []byte) ([]byte, error) {
+	if len(data) == 0 {
+		return []byte{}, nil
+	}
+
+	var result bytes.Buffer
+	i := 0
+
+	for i < len(data) {
+		length := int(data[i])
+		i++
+
+		if length < 128 {
+			// Literal run: next (length+1) bytes are copied as-is
+			end := i + length + 1
+			if end > len(data) {
+				return nil, fmt.Errorf("run length decode: truncated literal run at index %d", i-1)
+			}
+			result.Write(data[i : i+length+1])
+			i = end
+		} else if length > 128 {
+			// Repeat run: next byte is repeated (257-length) times
+			if i >= len(data) {
+				return nil, fmt.Errorf("run length decode: missing byte after repeat marker at index %d", i-1)
+			}
+			repeat := byte(257 - length)
+			for j := 0; j < int(repeat); j++ {
+				result.WriteByte(data[i])
+			}
+			i++
+		} else {
+			// length == 128: EOD marker
+			break
+		}
+	}
+
+	return result.Bytes(), nil
 }
 
 // decodeLZW decodes LZW compressed data.
