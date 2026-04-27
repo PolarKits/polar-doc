@@ -400,6 +400,56 @@ func TestServiceValidateDocRootPointsToNonexistent(t *testing.T) {
 	}
 }
 
+func TestServiceValidateSealMissing(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "withseal.ofd")
+	content := buildOFDPackage(t, map[string]string{
+		"OFD.xml":            `<?xml version="1.0" encoding="UTF-8"?><ofd><Version>1.0</Version><DocRoot>Doc_0/Document.xml</DocRoot></ofd>`,
+		"Doc_0/Document.xml": "<document><Pages><Page ID=\"1\"/></Pages></document>",
+		"Doc_0/Signs/Signatures.xml": `<?xml version="1.0" encoding="UTF-8"?>
+<Signatures>
+  <Signature ID="1" BaseLoc="Doc_0/Signs/Sign_0/Signature.xml">
+    <SignedInfo>
+      <Provider ProviderName="TestProvider"/>
+      <Seal><BaseLoc>/Doc_0/Signs/Sign_0/Seal.esl</BaseLoc></Seal>
+    </SignedInfo>
+  </Signature>
+</Signatures>`,
+	})
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write OFD: %v", err)
+	}
+
+	svc := NewService()
+	d, err := svc.Open(context.Background(), doc.DocumentRef{Format: doc.FormatOFD, Path: path})
+	if err != nil {
+		t.Fatalf("open OFD: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	report, err := svc.Validate(context.Background(), d)
+	if err != nil {
+		t.Fatalf("validate OFD: %v", err)
+	}
+
+	if !report.Valid {
+		t.Fatalf("valid = false, want true (seal issues are warnings, not errors)")
+	}
+	if len(report.Warnings) == 0 {
+		t.Fatal("warnings is empty, want seal missing warning")
+	}
+	found := false
+	for _, w := range report.Warnings {
+		if strings.Contains(w, "Seal.esl not found") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("warnings = %v, want one containing 'Seal.esl not found'", report.Warnings)
+	}
+}
+
 func buildOFDPackage(t *testing.T, files map[string]string) []byte {
 	t.Helper()
 

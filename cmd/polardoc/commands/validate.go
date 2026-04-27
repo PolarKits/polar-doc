@@ -48,9 +48,10 @@ func RunValidate(ctx context.Context, resolver app.ServiceResolver, args []strin
 
 	if input.json {
 		err := writeJSON(validateResponse{
-			Valid:  report.Valid,
-			Errors: report.Errors,
-			Deep:   input.deepValidate,
+			Valid:    report.Valid,
+			Errors:   report.Errors,
+			Warnings: report.Warnings,
+			Deep:     input.deepValidate,
 		})
 		if err != nil {
 			return err
@@ -68,6 +69,9 @@ func RunValidate(ctx context.Context, resolver app.ServiceResolver, args []strin
 	for _, errText := range report.Errors {
 		fmt.Printf("error: %s\n", errText)
 	}
+	for _, warnText := range report.Warnings {
+		fmt.Printf("warning: %s\n", warnText)
+	}
 
 	if !report.Valid {
 		return ErrValidationFailed
@@ -81,6 +85,8 @@ type validateResponse struct {
 	Valid bool `json:"valid"`
 	// Errors contains validation error messages if Valid is false.
 	Errors []string `json:"errors"`
+	// Warnings contains non-fatal validation warnings (e.g., missing seal files).
+	Warnings []string `json:"warnings,omitempty"`
 	// Deep indicates whether deep validation was requested.
 	Deep bool `json:"deep,omitempty"`
 }

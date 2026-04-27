@@ -232,7 +232,67 @@ func (s *service) Validate(_ context.Context, d doc.Document) (doc.ValidationRep
 		}
 	}
 
+	// Check seal structure integrity if Signatures.xml exists.
+	for _, warnText := range s.validateSeals(ofdDoc.zipReader.File) {
+		report.Warnings = append(report.Warnings, warnText)
+	}
+
 	return report, nil
+}
+
+// validateSeals checks signature seal structure integrity.
+// It verifies each signature's SealBaseLoc points to an existing Seal.esl
+// file that can be parsed. Issues are added as warnings, not errors.
+func (s *service) validateSeals(files []*zip.File) []string {
+	sigs, err := ParseSignaturesXML(files)
+	if err != nil || len(sigs) == 0 {
+		return nil
+	}
+
+	var warnings []string
+	fileIndex := make(map[string]*zip.File, len(files))
+	for _, f := range files {
+		name := strings.TrimPrefix(f.Name, "./")
+		fileIndex[name] = f
+	}
+
+	for _, sig := range sigs {
+		if sig.SealBaseLoc == "" {
+			warnings = append(warnings, fmt.Sprintf("signature %d: missing SealBaseLoc", sig.ID))
+			continue
+		}
+		loc := strings.TrimPrefix(sig.SealBaseLoc, "./")
+		loc = strings.TrimPrefix(loc, "/") // absolute path from OFD may start with "/"
+
+		f, ok := fileIndex[loc]
+		if !ok {
+			warnings = append(warnings, fmt.Sprintf("signature %d: Seal.esl not found at %s", sig.ID, sig.SealBaseLoc))
+			continue
+		}
+
+		data, readErr := readSealFile(f)
+		if readErr != nil {
+			warnings = append(warnings, fmt.Sprintf("signature %d: failed to read Seal.esl: %v", sig.ID, readErr))
+			continue
+		}
+
+		_, parseErr := ParseSealESL(data)
+		if parseErr != nil {
+			warnings = append(warnings, fmt.Sprintf("signature %d: Seal.esl parse failed: %v", sig.ID, parseErr))
+		}
+	}
+
+	return warnings
+}
+
+// readSealFile reads and returns the content of a seal file.
+func readSealFile(f *zip.File) ([]byte, error) {
+	rc, err := f.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	return io.ReadAll(rc)
 }
 
 // ExtractText extracts text content from all pages in the OFD document.
