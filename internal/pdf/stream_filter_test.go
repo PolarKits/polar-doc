@@ -805,3 +805,78 @@ func TestDecodeStream_CCITTFax(t *testing.T) {
 		})
 	}
 }
+
+// TestDecodeJBIG2 tests decodeJBIG2 pass-through stub.
+func TestDecodeJBIG2(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []byte
+		expected []byte
+		wantErr  bool
+	}{
+		{
+			name:     "JBIG2Decode empty data",
+			input:    []byte{},
+			expected: []byte{},
+			wantErr:  false,
+		},
+		{
+			name:     "JBIG2Decode with data",
+			input:    []byte("raw JBIG2 data"),
+			expected: []byte("raw JBIG2 data"),
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := decodeJBIG2(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeJBIG2() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !bytes.Equal(got, tt.expected) {
+				t.Errorf("decodeJBIG2() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestDecodeStream_JBIG2 tests decodeStream with JBIG2Decode filter.
+func TestDecodeStream_JBIG2(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     []byte
+		filters  []string
+		expected []byte
+		wantErr  bool
+	}{
+		{
+			name:     "JBIG2Decode empty data",
+			data:     []byte{},
+			filters:  []string{"JBIG2Decode"},
+			expected: []byte{},
+			wantErr:  false,
+		},
+		{
+			name:     "JBIG2Decode with data",
+			data:     []byte("raw JBIG2 bytes"),
+			filters:  []string{"JBIG2Decode"},
+			expected: []byte("raw JBIG2 bytes"),
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := decodeStream(tt.data, tt.filters)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeStream() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !bytes.Equal(got, tt.expected) {
+				t.Errorf("decodeStream() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}

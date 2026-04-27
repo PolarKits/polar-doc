@@ -129,6 +129,7 @@ func parseName(s string) string {
 //   - LZWDecode: LZW decompression
 //   - RunLengthDecode: run-length encoding decoding
 //   - CCITTFaxDecode / CCF: CCITT Group 3/4 fax compression (pass-through; not decoded)
+//   - JBIG2Decode: JBIG2 bitonal image compression (pass-through; not decoded)
 //
 // Returns an error if an unsupported filter is encountered.
 func decodeStream(data []byte, filters []string) ([]byte, error) {
@@ -152,6 +153,8 @@ func decodeStream(data []byte, filters []string) ([]byte, error) {
 			result, err = decodeRunLength(result)
 		case "CCITTFaxDecode", "CCF":
 			result, err = decodeCCITTFax(result)
+		case "JBIG2Decode":
+			result, err = decodeJBIG2(result)
 		default:
 			return nil, fmt.Errorf("unsupported filter: %s", filter)
 		}
@@ -531,5 +534,12 @@ func getString(table []lzwEntry, code uint16) []byte {
 // Go's standard library does not include a CCITT decoder.
 // The raw data is returned unchanged; callers should not expect decompressed output.
 func decodeCCITTFax(data []byte) ([]byte, error) {
+	return data, nil
+}
+
+// decodeJBIG2 is a stub for JBIG2 bitonal image decompression (ISO 32000-2 §7.4.7).
+// Go's standard library does not include a JBIG2 decoder.
+// The raw data is returned unchanged; callers should not expect decompressed output.
+func decodeJBIG2(data []byte) ([]byte, error) {
 	return data, nil
 }
