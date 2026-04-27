@@ -28,12 +28,15 @@
 //   - Resources: parses PublicRes.xml and DocumentRes.xml for Font and MultiMedia entries
 //   - TextObject: parses TextObject/TextCode structure with positioning and font attributes
 //   - Annotations: parses Annotations.xml and Page annotation files for annotation metadata
+//   - Signatures: parses Signatures.xml for signature metadata (provider, datetime, seal location)
+//   - Seal: parses Seal.esl binary files for seal metadata (version, dimensions, picture data)
 //
 // Not implemented in phase-1 (future work):
 //   - Complete OFD XML object model (Doc_0/*.xml body elements beyond page list and TextCode)
 //   - Resource mapping and resolution (Resources.xml) — basic parsing implemented,
 //     but resolution and usage in content streams is not
-//   - Signature structure parsing and validation (Signatures.xml, Seal files)
+//   - Signature validation (signature verification, certificate chain validation)
+//   - Seal cryptographic verification (signature validation on Seal.esl contents)
 //   - Writer / package generation pipeline
 //   - OFD version upgrade (older OFD → newer OFD output)
 //   - Preview rendering
