@@ -27,6 +27,7 @@
 //   - FirstPageInfo: extracts PhysicalBox from Document.xml PageArea and maps to MediaBox
 //   - Resources: parses PublicRes.xml and DocumentRes.xml for Font and MultiMedia entries
 //   - TextObject: parses TextObject/TextCode structure with positioning and font attributes
+//   - Annotations: parses Annotations.xml and Page annotation files for annotation metadata
 //
 // Not implemented in phase-1 (future work):
 //   - Complete OFD XML object model (Doc_0/*.xml body elements beyond page list and TextCode)
