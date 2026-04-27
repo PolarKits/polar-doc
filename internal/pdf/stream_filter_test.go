@@ -858,11 +858,161 @@ func TestDecodeStream_JBIG2(t *testing.T) {
 			expected: []byte{},
 			wantErr:  false,
 		},
-		{
+{
 			name:     "JBIG2Decode with data",
 			data:     []byte("raw JBIG2 bytes"),
 			filters:  []string{"JBIG2Decode"},
 			expected: []byte("raw JBIG2 bytes"),
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := decodeStream(tt.data, tt.filters)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeStream() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !bytes.Equal(got, tt.expected) {
+				t.Errorf("decodeStream() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestDecodeDCT tests decodeDCT pass-through stub.
+func TestDecodeDCT(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []byte
+		expected []byte
+		wantErr  bool
+	}{
+		{
+			name:     "DCTDecode empty data",
+			input:    []byte{},
+			expected: []byte{},
+			wantErr:  false,
+		},
+		{
+			name:     "DCTDecode with data",
+			input:    []byte("raw JPEG data"),
+			expected: []byte("raw JPEG data"),
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := decodeDCT(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeDCT() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !bytes.Equal(got, tt.expected) {
+				t.Errorf("decodeDCT() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestDecodeJPX tests decodeJPX pass-through stub.
+func TestDecodeJPX(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []byte
+		expected []byte
+		wantErr  bool
+	}{
+		{
+			name:     "JPXDecode empty data",
+			input:    []byte{},
+			expected: []byte{},
+			wantErr:  false,
+		},
+		{
+			name:     "JPXDecode with data",
+			input:    []byte("raw JPEG2000 data"),
+			expected: []byte("raw JPEG2000 data"),
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := decodeJPX(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeJPX() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !bytes.Equal(got, tt.expected) {
+				t.Errorf("decodeJPX() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestDecodeStream_DCT tests decodeStream with DCTDecode filter.
+func TestDecodeStream_DCT(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     []byte
+		filters  []string
+		expected []byte
+		wantErr  bool
+	}{
+		{
+			name:     "DCTDecode empty data",
+			data:     []byte{},
+			filters:  []string{"DCTDecode"},
+			expected: []byte{},
+			wantErr:  false,
+		},
+		{
+			name:     "DCTDecode with data",
+			data:     []byte("raw JPEG bytes"),
+			filters:  []string{"DCTDecode"},
+			expected: []byte("raw JPEG bytes"),
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := decodeStream(tt.data, tt.filters)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeStream() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !bytes.Equal(got, tt.expected) {
+				t.Errorf("decodeStream() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestDecodeStream_JPX tests decodeStream with JPXDecode filter.
+func TestDecodeStream_JPX(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     []byte
+		filters  []string
+		expected []byte
+		wantErr  bool
+	}{
+		{
+			name:     "JPXDecode empty data",
+			data:     []byte{},
+			filters:  []string{"JPXDecode"},
+			expected: []byte{},
+			wantErr:  false,
+		},
+		{
+			name:     "JPXDecode with data",
+			data:     []byte("raw JPEG2000 bytes"),
+			filters:  []string{"JPXDecode"},
+			expected: []byte("raw JPEG2000 bytes"),
 			wantErr:  false,
 		},
 	}

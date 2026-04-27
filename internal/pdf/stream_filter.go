@@ -130,6 +130,8 @@ func parseName(s string) string {
 //   - RunLengthDecode: run-length encoding decoding
 //   - CCITTFaxDecode / CCF: CCITT Group 3/4 fax compression (pass-through; not decoded)
 //   - JBIG2Decode: JBIG2 bitonal image compression (pass-through; not decoded)
+//   - DCTDecode: JPEG lossy image compression (pass-through; not decoded)
+//   - JPXDecode: JPEG 2000 image compression (pass-through; not decoded)
 //
 // Returns an error if an unsupported filter is encountered.
 func decodeStream(data []byte, filters []string) ([]byte, error) {
@@ -155,6 +157,10 @@ func decodeStream(data []byte, filters []string) ([]byte, error) {
 			result, err = decodeCCITTFax(result)
 		case "JBIG2Decode":
 			result, err = decodeJBIG2(result)
+		case "DCTDecode":
+			result, err = decodeDCT(result)
+		case "JPXDecode":
+			result, err = decodeJPX(result)
 		default:
 			return nil, fmt.Errorf("unsupported filter: %s", filter)
 		}
@@ -541,5 +547,19 @@ func decodeCCITTFax(data []byte) ([]byte, error) {
 // Go's standard library does not include a JBIG2 decoder.
 // The raw data is returned unchanged; callers should not expect decompressed output.
 func decodeJBIG2(data []byte) ([]byte, error) {
+	return data, nil
+}
+
+// decodeDCT is a stub for DCT (JPEG) image decompression (ISO 32000-2 §7.4.8).
+// Go's standard library does not include a PDF DCT stream decoder.
+// The raw data is returned unchanged; callers should not expect decompressed output.
+func decodeDCT(data []byte) ([]byte, error) {
+	return data, nil
+}
+
+// decodeJPX is a stub for JPEG 2000 image decompression (ISO 32000-2 §7.4.9).
+// Go's standard library does not include a JPX stream decoder.
+// The raw data is returned unchanged; callers should not expect decompressed output.
+func decodeJPX(data []byte) ([]byte, error) {
 	return data, nil
 }
