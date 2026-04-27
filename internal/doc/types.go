@@ -1,5 +1,7 @@
 package doc
 
+import "time"
+
 // Format identifies a document format domain.
 //
 // These are routing identifiers, not standard version identifiers.
@@ -39,7 +41,7 @@ type DocumentRef struct {
 //   - DeclaredVersion: PDF reads %PDF-X.Y header; OFD reads Version attribute from OFD.xml root element
 //   - PageCount: PDF populated from /Count in root /Pages dict; OFD from Document.xml <Page> count
 //   - FileIdentifiers: PDF populates from trailer /ID array (Phase-1); OFD is unused (no FileIdentifiers equivalent in GB/T 33190-2016)
-//   - Title, Author, Creator, Producer: PDF populates from InfoDict; OFD does not
+//   - Title, Author, Creator, Producer, CreationDate, ModDate: PDF populates from InfoDict; OFD does not
 //
 // Empty string on optional fields means the metadata is not available.
 // Zero PageCount means page count is unknown or not yet implemented.
@@ -77,6 +79,14 @@ type InfoResult struct {
 	// Producer: PDF populates from InfoDict /Producer; OFD does not populate.
 	// Empty string means producer is not available.
 	Producer string
+
+	// CreationDate: PDF populates from InfoDict /CreationDate; OFD does not populate.
+	// Zero value means creation date is not available or unparseable.
+	CreationDate time.Time
+
+	// ModDate: PDF populates from InfoDict /ModDate; OFD does not populate.
+	// Zero value means modification date is not available or unparseable.
+	ModDate time.Time
 
 	// Seals holds electronic seal metadata for OFD documents.
 	// nil if the document has no electronic seals or is not OFD.

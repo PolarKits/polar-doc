@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/PolarKits/polar-doc/internal/doc"
 )
@@ -341,11 +342,13 @@ func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error
 			if ids, err := readTrailerID(pdfDoc.file, xrefOffset); err == nil {
 				info.FileIdentifiers = ids
 			}
-			title, author, creator, producer := readInfoMetadata(pdfDoc.file, xrefOffset)
+			title, author, creator, producer, creationDate, modDate := readInfoMetadata(pdfDoc.file, xrefOffset)
 			info.Title = title
 			info.Author = author
 			info.Creator = creator
 			info.Producer = producer
+			info.CreationDate = creationDate
+			info.ModDate = modDate
 
 			// Read XMP metadata to supplement InfoDict fields.
 			if xmpMap := readXMPMetadata(pdfDoc.file, xrefOffset); len(xmpMap) > 0 {
@@ -1373,20 +1376,88 @@ func extractStringFromObjContent(objStr string) string {
 	return ""
 }
 
-func readInfoMetadata(f *os.File, xrefOffset int64) (title, author, creator, producer string) {
+// parsePDFDateString parses a PDF date string into time.Time.
+// PDF date format: D:YYYYMMDDHHmmSSOHH'mm' or D:YYYYMMDDHHmmSSZ
+// The D: prefix is optional. The timezone can be +HH'mm', -HH'mm', Z, or absent.
+// Returns zero time.Time on parse failure.
+func parsePDFDateString(s string) time.Time {
+	if s == "" {
+		return time.Time{}
+	}
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "D:") {
+		s = s[2:]
+	}
+	if len(s) < 14 {
+		return time.Time{}
+	}
+	year, err := strconv.Atoi(s[0:4])
+	if err != nil {
+		return time.Time{}
+	}
+	month, err := strconv.Atoi(s[4:6])
+	if err != nil || month < 1 || month > 12 {
+		return time.Time{}
+	}
+	day, err := strconv.Atoi(s[6:8])
+	if err != nil || day < 1 || day > 31 {
+		return time.Time{}
+	}
+	hour, err := strconv.Atoi(s[8:10])
+	if err != nil || hour > 23 {
+		return time.Time{}
+	}
+	minute, err := strconv.Atoi(s[10:12])
+	if err != nil || minute > 59 {
+		return time.Time{}
+	}
+	second, err := strconv.Atoi(s[12:14])
+	if err != nil || second > 59 {
+		return time.Time{}
+	}
+	loc := time.UTC
+	tzStr := ""
+	if len(s) > 14 {
+		tzStr = s[14:]
+	}
+	if tzStr == "Z" {
+		loc = time.UTC
+	} else if len(tzStr) >= 7 && (tzStr[0] == '+' || tzStr[0] == '-') { // PDF timezone format +HH'mm' or -HH'mm': sign(1) + HH(2) + quote(1) + mm(2) + quote(1) = 7 bytes minimum
+		sign := 1
+		if tzStr[0] == '-' {
+			sign = -1
+		}
+		tzStr = tzStr[1:]
+		parts := strings.Split(tzStr, "'") // split on single-quote delimiter gives [HH, mm, trailing-empty]
+		if len(parts) >= 1 {
+			tzHH, err := strconv.Atoi(parts[0])
+			if err == nil {
+				tzMM := 0
+				if len(parts) >= 2 {
+					tzMM, _ = strconv.Atoi(parts[1])
+				}
+				offsetSeconds := sign * (tzHH*3600 + tzMM*60)
+				loc = time.FixedZone("", offsetSeconds)
+			}
+		}
+	}
+	return time.Date(year, time.Month(month), day, hour, minute, second, 0, loc)
+}
+
+func readInfoMetadata(f *os.File, xrefOffset int64) (title, author, creator, producer string, creationDate, modDate time.Time) {
 	infoRef, err := readTrailerInfoRef(f, xrefOffset)
 	if err != nil || infoRef == "" {
-		return "", "", "", ""
+		return "", "", "", "", time.Time{}, time.Time{}
 	}
 
 	infoObj, err := readObject(f, infoRef)
 	if err != nil {
-		return "", "", "", ""
+		return "", "", "", "", time.Time{}, time.Time{}
 	}
 
 	infoDict, err := extractDictFromObject(infoObj)
 	if err != nil {
-		return "", "", "", ""
+		return "", "", "", "", time.Time{}, time.Time{}
 	}
 
 	if obj := DictGet(infoDict, "Title"); obj != nil {
@@ -1405,7 +1476,15 @@ func readInfoMetadata(f *os.File, xrefOffset int64) (title, author, creator, pro
 		producer = derefStringValue(f, obj)
 	}
 
-	return title, author, creator, producer
+	if obj := DictGet(infoDict, "CreationDate"); obj != nil {
+		creationDate = parsePDFDateString(derefStringValue(f, obj))
+	}
+
+	if obj := DictGet(infoDict, "ModDate"); obj != nil {
+		modDate = parsePDFDateString(derefStringValue(f, obj))
+	}
+
+	return title, author, creator, producer, creationDate, modDate
 }
 
 // readXMPMetadata reads the XMP metadata stream from the PDF catalog.

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/PolarKits/polar-doc/internal/app"
 	"github.com/PolarKits/polar-doc/internal/doc"
@@ -112,6 +113,15 @@ func RunInfo(ctx context.Context, resolver app.ServiceResolver, args []string) e
 	}
 
 	if input.json {
+		var creationDate, modDate *time.Time
+		if !info.CreationDate.IsZero() {
+			t := info.CreationDate
+			creationDate = &t
+		}
+		if !info.ModDate.IsZero() {
+			t := info.ModDate
+			modDate = &t
+		}
 		return writeJSON(infoResponse{
 			Format:          info.Format,
 			Path:            info.Path,
@@ -123,6 +133,8 @@ func RunInfo(ctx context.Context, resolver app.ServiceResolver, args []string) e
 			Author:          info.Author,
 			Creator:         info.Creator,
 			Producer:        info.Producer,
+			CreationDate:    creationDate,
+			ModDate:         modDate,
 			Seals:          info.Seals,
 			Fonts:          info.Fonts,
 			MediaFiles:      info.MediaFiles,
@@ -136,6 +148,12 @@ func RunInfo(ctx context.Context, resolver app.ServiceResolver, args []string) e
 	fmt.Printf("size_bytes: %d\n", info.SizeBytes)
 	if info.DeclaredVersion != "" {
 		fmt.Printf("declared_version: %s\n", info.DeclaredVersion)
+	}
+	if !info.CreationDate.IsZero() {
+		fmt.Printf("creation_date: %s\n", info.CreationDate.Format(time.RFC3339))
+	}
+	if !info.ModDate.IsZero() {
+		fmt.Printf("mod_date: %s\n", info.ModDate.Format(time.RFC3339))
 	}
 	return nil
 }
@@ -163,6 +181,10 @@ type infoResponse struct {
 	Creator string `json:"creator,omitempty"`
 	// Producer is the document producer from metadata (PDF only).
 	Producer string `json:"producer,omitempty"`
+	// CreationDate is the document creation date from PDF InfoDict (PDF only).
+	CreationDate *time.Time `json:"creation_date,omitempty"`
+	// ModDate is the document modification date from PDF InfoDict (PDF only).
+	ModDate *time.Time `json:"mod_date,omitempty"`
 	// Seals is the list of electronic seal summaries (OFD only).
 	Seals []doc.SealSummary `json:"seals,omitempty"`
 	// Fonts is the list of font resource summaries (OFD only).
