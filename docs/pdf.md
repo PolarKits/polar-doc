@@ -21,11 +21,10 @@ It keeps PDF behavior explicit and isolated from OFD.
 - validate: 5-level structural validation (Header → XRef → Trailer → Catalog → Pages)
 - content_parser: content stream operator parsing (text blocks, string operands, hex strings, BT/ET/Tj/TJ operators, TJ array spacing analysis)
 - stream_filter: multi-filter framework (FlateDecode, ASCIIHexDecode, ASCII85Decode, LZWDecode; supports filter chains)
-- font_encoding: built-in encoding tables (WinAnsiEncoding 128-255, MacRomanEncoding 128-255, applyByteMapping for font-to-Unicode)
+- font_encoding: built-in encoding tables (WinAnsiEncoding 128-255, MacRomanEncoding 128-255, StandardEncoding 128-255, /Differences array parsing, applyByteMapping for font-to-Unicode)
 
 ### Future Responsibilities (Not Yet Implemented)
 
-- StandardEncoding (PDF 1.0 default) and custom /Differences encoding support
 - CIDFont CMap-based font encoding
 - preview rendering and thumbnail generation
 - digital signature parsing and validation
@@ -44,7 +43,7 @@ It keeps PDF behavior explicit and isolated from OFD.
 - **writer (minimal)**: CopyFile (raw byte copy), RewriteFile (normalize to single-revision)
 - **content_parser**: content stream operator parsing (text blocks, string operands, hex strings, content operators, TJ array spacing analysis)
 - **stream_filter**: multi-filter framework (FlateDecode, ASCIIHexDecode, ASCII85Decode, LZWDecode; supports filter chains)
-- **font_encoding**: built-in encoding tables (WinAnsiEncoding 128-255, MacRomanEncoding 128-255, applyByteMapping for font-to-Unicode mapping)
+- **font_encoding**: built-in encoding tables (WinAnsiEncoding 128-255, MacRomanEncoding 128-255, StandardEncoding 128-255, /Differences array parsing, applyByteMapping for font-to-Unicode mapping)
 
 ### Not Yet Implemented
 
@@ -52,7 +51,6 @@ It keeps PDF behavior explicit and isolated from OFD.
 - **preview renderer**: thumbnail generation and rendering pipeline
 - **signing**: digital signature parsing and validation
 - **repair**: bounded recovery for corrupted structures beyond current handling
-- **StandardEncoding/Differences**: PDF 1.0 default encoding and custom encoding tables
 - **CIDFont CMap**: CIDFont-based font encoding support
 
 ## Version Compatibility
@@ -85,14 +83,13 @@ Write policy: conservative.
 
 **Current Boundaries:**
 - Object streams (ObjStm): Type 2 entries resolved via resolveFromObjStm; compression is read-only
-- Text extraction: full-document extraction with content operator parsing; partial font encoding (WinAnsi/MacRoman/ToUnicode); layout analysis not implemented
+- Text extraction: full-document extraction with content operator parsing; font encoding (WinAnsi/MacRoman/StandardEncoding/ToUnicode, /Differences array); layout analysis not implemented
 - Writer: RewriteFile produces single-revision output only; incremental updates not supported
-- Font encoding: StandardEncoding and /Differences encoding not supported
+- Font encoding: CIDFont CMap not supported
 
 ## Phase-1 Non-Goals (Current Limitations)
 
 - full PDF specification coverage (complete content model, operators, graphics)
-- StandardEncoding (PDF 1.0) and custom /Differences encoding support
 - CIDFont CMap-based font encoding
 - preview rendering and thumbnail generation
 - digital signature parsing and validation

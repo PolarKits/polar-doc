@@ -2,9 +2,9 @@
 
 ## Protocol Note
 
-**Current Implementation:** This MCP server uses JSON-over-stdin/stdout for communication. It does NOT use the official MCP protocol spec. The server reads JSON request objects from stdin and writes JSON response objects to stdout.
+**Current Implementation:** This MCP server implements the JSON-RPC 2.0 protocol over stdio transport. It handles initialize, ping, tools/list, and tools/call methods. The protocol layer is in `internal/mcp/server.go` with tool handlers in `internal/mcp/handler.go`.
 
-**Planned:** Official MCP protocol support is a future capability.
+**Limitations:** Tool registration, server lifecycle, and capabilities negotiation are simplified. Write tools (preview/commit workflow) are not yet exposed via MCP.
 
 ## MCP Purpose
 

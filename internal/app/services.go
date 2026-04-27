@@ -29,7 +29,8 @@ type FormatService interface {
 
 // FirstPageInfoProvider is the capability interface for first page info extraction.
 // PDF implementation returns (*FirstPageInfoResult, nil).
-// OFD implementation returns (nil, error) since OFD does not support this capability.
+// OFD implementation returns FirstPageInfoResult with PhysicalBox from Document.xml
+// PageArea mapped to MediaBox.
 type FirstPageInfoProvider interface {
 	FirstPageInfo(ctx context.Context, d doc.Document) (*FirstPageInfoResult, error)
 }

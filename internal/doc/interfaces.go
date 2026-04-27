@@ -48,8 +48,9 @@ type InfoProvider interface {
 // are a subset of the structural rules defined in the respective standards.
 //
 // Phase-1 coverage:
-//   - PDF: header presence and format (ISO 32000-2 header rule).
-//     Does NOT cover xref integrity, trailer dictionary, or object validity.
+//   - PDF: 5-level structural validation (Header → XRef → Trailer → Catalog → Pages).
+//     Covers header format, xref integrity, trailer dictionary, catalog structure,
+//     and page tree validation.
 //   - OFD: package-level entry presence (OFD.xml, Document.xml) per GB/T 33190-2016.
 //     Does NOT cover XML schema validation, ID references, or signature verification.
 type Validator interface {
@@ -63,8 +64,10 @@ type Validator interface {
 // but the extraction rules and content ordering are format-defined.
 //
 // Phase-1 coverage:
-//   - PDF: partial first-page-oriented extraction from supported content streams.
-//     It is intentionally narrow and not a complete PDF text model.
+//   - PDF: full-document text extraction with content operator parsing
+//     (BT/ET blocks, Tj/TJ operators, TJ array spacing analysis).
+//     Font encoding: WinAnsi/MacRoman/StandardEncoding/ToUnicode with /Differences support.
+//     CIDFont CMap and layout analysis are not implemented.
 //   - OFD: implemented; traverses Document.xml page list and reads TextCode elements
 //     from each page's Content.xml per GB/T 33190-2016 page block semantics.
 //
