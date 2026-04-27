@@ -24,6 +24,9 @@ type FontInfo struct {
 	ToUnicode map[rune]string
 	// Differences is the parsed /Differences array (character code → Unicode), if available.
 	Differences map[byte]rune
+	// IsComposite indicates a Type0 (composite) font whose character codes are
+	// 2 bytes wide in content stream operands.
+	IsComposite bool
 }
 
 // resolvePageFonts resolves all fonts referenced by a page's Resources dictionary.
@@ -160,6 +163,9 @@ func parseFontDict(dict PDFDict, name string) FontInfo {
 	// Get Subtype
 	if subtype, ok := DictGetName(dict, "Subtype"); ok {
 		info.Subtype = string(subtype)
+		if info.Subtype == "Type0" {
+			info.IsComposite = true
+		}
 	}
 
 	// Get BaseFont

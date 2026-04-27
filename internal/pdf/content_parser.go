@@ -903,6 +903,18 @@ func applyFontEncoding(rawText string, fontName string, fonts map[string]FontInf
 
 	// Priority 1: Use ToUnicode CMap if available
 	if font.ToUnicode != nil {
+		if font.IsComposite {
+			// Composite fonts encode each character as a 2-byte big-endian code.
+			b := []byte(rawText)
+			var result strings.Builder
+			for i := 0; i+1 < len(b); i += 2 {
+				code := rune(b[i])<<8 | rune(b[i+1])
+				if unicodeStr, ok := font.ToUnicode[code]; ok {
+					result.WriteString(unicodeStr)
+				}
+			}
+			return result.String()
+		}
 		var result strings.Builder
 		for _, charCode := range rawText {
 			if unicodeStr, ok := font.ToUnicode[charCode]; ok {
