@@ -228,6 +228,10 @@ func TestParsePDFObject(t *testing.T) {
 		{"[3 0 R]", PDFArray{PDFRef{3, 0}}, false},
 		{"<< /Type /Page >>", PDFDict{PDFName("Type"): PDFName("Page")}, false},
 		{"[<< /Type /Catalog >> 2 0 R]", PDFArray{PDFDict{PDFName("Type"): PDFName("Catalog")}, PDFRef{2, 0}}, false},
+		{"null", PDFNull{}, false},
+		{"null ", PDFNull{}, false},
+		{"null]", PDFNull{}, false},
+		{"null)", PDFNull{}, false},
 	}
 
 	for _, tt := range tests {
@@ -280,6 +284,9 @@ func objectsEqual(a, b PDFObject) bool {
 			}
 		}
 		return true
+	case PDFNull:
+		_, ok := b.(PDFNull)
+		return ok
 	}
 	return false
 }

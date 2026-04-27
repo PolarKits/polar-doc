@@ -45,6 +45,10 @@ type PDFLiteralString string
 // PDFBool represents a PDF boolean value (true or false).
 type PDFBool bool
 
+// PDFNull represents the PDF null object (ISO 32000-2 §7.3.9).
+// It is used for null array/dictionary values and absent optional entries.
+type PDFNull struct{}
+
 // PDFDict represents a PDF dictionary object (key-value map).
 // Keys are PDFName and values are any PDFObject.
 type PDFDict map[PDFName]PDFObject
@@ -310,6 +314,11 @@ func parsePDFObject(input string) (PDFObject, string, error) {
 	case 'f':
 		if len(input) >= 5 && input[:5] == "false" {
 			return PDFBool(false), input[5:], nil
+		}
+		return nil, "", fmt.Errorf("parsePDFObject: unexpected token %q", string(input[0]))
+	case 'n':
+		if len(input) >= 4 && input[:4] == "null" {
+			return PDFNull{}, input[4:], nil
 		}
 		return nil, "", fmt.Errorf("parsePDFObject: unexpected token %q", string(input[0]))
 	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-':
