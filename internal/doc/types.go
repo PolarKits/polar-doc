@@ -82,6 +82,16 @@ type InfoResult struct {
 	// nil if the document has no electronic seals or is not OFD.
 	// For OFD: populated from parsing Signatures.xml and associated Seal.esl files.
 	Seals []SealSummary
+
+	// Fonts holds font resource metadata for OFD documents.
+	// nil if the document has no fonts or is not OFD.
+	// For OFD: populated from parsing PublicRes.xml and DocumentRes.xml.
+	Fonts []FontSummary
+
+	// MediaFiles holds multimedia resource metadata for OFD documents.
+	// nil if the document has no multimedia or is not OFD.
+	// For OFD: populated from parsing PublicRes.xml and DocumentRes.xml.
+	MediaFiles []MediaSummary
 }
 
 // SealSummary holds basic electronic seal metadata from an OFD document.
@@ -96,6 +106,26 @@ type SealSummary struct {
 	Height int64
 	// PictureFormat is the format of the embedded seal image (e.g. "PNG", empty if none).
 	PictureFormat string
+}
+
+// FontSummary holds basic font metadata from an OFD document.
+type FontSummary struct {
+	// FontID is the resource identifier from the OFD package.
+	FontID int64
+	// FamilyName is the font family name (e.g. "SimHei", "Arial").
+	FamilyName string
+	// FontName is the specific font name within the family.
+	FontName string
+}
+
+// MediaSummary holds basic multimedia metadata from an OFD document.
+type MediaSummary struct {
+	// MediaID is the resource identifier from the OFD package.
+	MediaID int64
+	// MediaType describes the type of multimedia (e.g. "Image", "Audio").
+	MediaType string
+	// Format is the file format of the media (e.g. "PNG", "JPEG", "MP3").
+	Format string
 }
 
 // ValidationReport is a structured validation output.

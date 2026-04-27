@@ -123,7 +123,9 @@ func RunInfo(ctx context.Context, resolver app.ServiceResolver, args []string) e
 			Author:          info.Author,
 			Creator:         info.Creator,
 			Producer:        info.Producer,
-			Seals:           info.Seals,
+			Seals:          info.Seals,
+			Fonts:          info.Fonts,
+			MediaFiles:      info.MediaFiles,
 		})
 	}
 
@@ -161,6 +163,10 @@ type infoResponse struct {
 	Producer string `json:"producer,omitempty"`
 	// Seals is the list of electronic seal summaries (OFD only).
 	Seals []doc.SealSummary `json:"seals,omitempty"`
+	// Fonts is the list of font resource summaries (OFD only).
+	Fonts []doc.FontSummary `json:"fonts,omitempty"`
+	// MediaFiles is the list of multimedia resource summaries (OFD only).
+	MediaFiles []doc.MediaSummary `json:"media_files,omitempty"`
 }
 
 func runInfoPage(input infoInput, resolver app.ServiceResolver) error {

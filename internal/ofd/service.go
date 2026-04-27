@@ -133,6 +133,26 @@ func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error
 
 	info.Seals = s.collectSealSummaries(ofdDoc.zipReader.File)
 
+	// Parse resource files for font and multimedia metadata.
+	if resources, err := ParseResourcesXML(ofdDoc.zipReader.File); err == nil && resources != nil {
+		info.Fonts = make([]doc.FontSummary, len(resources.Fonts))
+		for i, f := range resources.Fonts {
+			info.Fonts[i] = doc.FontSummary{
+				FontID:     f.ID,
+				FamilyName: f.FamilyName,
+				FontName:   f.FontName,
+			}
+		}
+		info.MediaFiles = make([]doc.MediaSummary, len(resources.MultiMedias))
+		for i, m := range resources.MultiMedias {
+			info.MediaFiles[i] = doc.MediaSummary{
+				MediaID: m.ID,
+				MediaType: m.Type,
+				Format:   m.Format,
+			}
+		}
+	}
+
 	return info, nil
 }
 
