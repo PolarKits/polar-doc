@@ -135,9 +135,10 @@ func RunInfo(ctx context.Context, resolver app.ServiceResolver, args []string) e
 			Producer:           info.Producer,
 			CreationDate:       creationDate,
 			ModDate:            modDate,
-			IsEncrypted:        info.IsEncrypted,
-			EncryptionAlgorithm: info.EncryptionAlgorithm,
-			Seals:             info.Seals,
+			IsEncrypted:         info.IsEncrypted,
+			EncryptionAlgorithm:  info.EncryptionAlgorithm,
+			PDFAConformance:      info.PDFAConformance,
+			Seals:              info.Seals,
 			Fonts:             info.Fonts,
 			MediaFiles:         info.MediaFiles,
 			Pages:              info.Pages,
@@ -159,6 +160,9 @@ func RunInfo(ctx context.Context, resolver app.ServiceResolver, args []string) e
 	}
 	if info.IsEncrypted {
 		fmt.Printf("encrypted: true (%s)\n", info.EncryptionAlgorithm)
+	}
+	if info.PDFAConformance != "" {
+		fmt.Printf("pdfa_conformance: %s\n", info.PDFAConformance)
 	}
 	return nil
 }
@@ -194,6 +198,8 @@ type infoResponse struct {
 	IsEncrypted bool `json:"is_encrypted,omitempty"`
 	// EncryptionAlgorithm is the encryption algorithm name when IsEncrypted is true (PDF only).
 	EncryptionAlgorithm string `json:"encryption_algorithm,omitempty"`
+	// PDFAConformance is the PDF/A conformance level string (PDF only).
+	PDFAConformance string `json:"pdfa_conformance,omitempty"`
 	// Seals is the list of electronic seal summaries (OFD only).
 	Seals []doc.SealSummary `json:"seals,omitempty"`
 	// Fonts is the list of font resource summaries (OFD only).

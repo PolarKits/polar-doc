@@ -95,6 +95,10 @@ type InfoResult struct {
 	// Values: "RC4-40", "RC4-128", "AES-128", "AES-256", "unknown". Empty when IsEncrypted is false.
 	EncryptionAlgorithm string
 
+	// PDFAConformance: PDF populates from XMP pdfaid:part and pdfaid:conformance; OFD does not populate.
+	// Empty when the document is not PDF/A or the level cannot be determined.
+	PDFAConformance string
+
 	// Seals holds electronic seal metadata for OFD documents.
 	// nil if the document has no electronic seals or is not OFD.
 	// For OFD: populated from parsing Signatures.xml and associated Seal.esl files.

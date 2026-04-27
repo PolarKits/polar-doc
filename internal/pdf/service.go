@@ -366,6 +366,14 @@ func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error
 				if info.Producer == "" {
 					info.Producer = xmpMap["producer"]
 				}
+				if part, ok := xmpMap["pdfa_part"]; ok {
+					conf := xmpMap["pdfa_conformance"]
+					if conf != "" {
+						info.PDFAConformance = "PDF/A-" + part + strings.ToUpper(conf)
+					} else {
+						info.PDFAConformance = "PDF/A-" + part
+					}
+				}
 			}
 		}
 		if count, err := ReadPageCount(pdfDoc.file); err == nil {

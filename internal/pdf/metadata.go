@@ -16,6 +16,19 @@ func parseXMPMetadata(xmpData []byte) map[string]string {
 
 	xmpStr := string(xmpData)
 
+	if idx := strings.Index(xmpStr, "pdfaid:part="); idx >= 0 {
+		val := extractQuotedValue(xmpStr[idx+len("pdfaid:part="):])
+		if val != "" {
+			result["pdfa_part"] = val
+		}
+	}
+	if idx := strings.Index(xmpStr, "pdfaid:conformance="); idx >= 0 {
+		val := extractQuotedValue(xmpStr[idx+len("pdfaid:conformance="):])
+		if val != "" {
+			result["pdfa_conformance"] = val
+		}
+	}
+
 	fields := []struct {
 		tag  string
 		name string
@@ -28,6 +41,8 @@ func parseXMPMetadata(xmpData []byte) map[string]string {
 		{"<xmp:ModifyDate>", "modification_date"},
 		{"<dc:subject>", "subject"},
 		{"<dc:description>", "description"},
+		{"<pdfaid:part>", "pdfa_part"},
+		{"<pdfaid:conformance>", "pdfa_conformance"},
 	}
 
 	for _, field := range fields {
@@ -83,4 +98,21 @@ func extractXMLValueSimple(s string) string {
 	}
 
 	return strings.TrimSpace(s)
+}
+
+func extractQuotedValue(s string) string {
+	if len(s) == 0 {
+		return ""
+	}
+	var quote byte
+	if s[0] == '\'' || s[0] == '"' {
+		quote = s[0]
+	} else {
+		return ""
+	}
+	end := 1
+	for end < len(s) && s[end] != quote {
+		end++
+	}
+	return s[1:end]
 }
