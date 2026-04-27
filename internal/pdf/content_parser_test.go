@@ -94,6 +94,54 @@ func TestParseContentStream(t *testing.T) {
 			input:   "   \n\t\r   ",
 			wantOps: 0,
 		},
+		{
+			name:    "array with hex string",
+			input:   "[<48656C6C6F> 100] TJ",
+			wantOps: 1,
+			checkOp: "TJ",
+		},
+		{
+			name:    "array with literal string",
+			input:   "[(Hello) 100 (World)] TJ",
+			wantOps: 1,
+			checkOp: "TJ",
+		},
+		{
+			name:    "array with mixed strings and numbers",
+			input:   "[(H) -100 (ello) 200 (World) 50 <416C6C>] TJ",
+			wantOps: 1,
+			checkOp: "TJ",
+		},
+		{
+			name:    "nested array with strings",
+			input:   "[[(Inner) 50] 100 (Outer)] TJ",
+			wantOps: 1,
+			checkOp: "TJ",
+		},
+		{
+			name:    "hex string as direct Tj operand",
+			input:   "<416C6C6F> Tj",
+			wantOps: 1,
+			checkOp: "Tj",
+		},
+		{
+			name:    "array with hex string spacing",
+			input:   "[<48656C6C6F> 50 <576F726C64>] TJ",
+			wantOps: 1,
+			checkOp: "TJ",
+		},
+		{
+			name:    "empty array",
+			input:   "[] TJ",
+			wantOps: 1,
+			checkOp: "TJ",
+		},
+		{
+			name:    "array with name and string",
+			input:   "[/F1 (Text) 100] TJ",
+			wantOps: 1,
+			checkOp: "TJ",
+		},
 	}
 
 	for _, tt := range tests {
