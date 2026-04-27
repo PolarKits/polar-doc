@@ -1252,6 +1252,7 @@ func readStartxref(f *os.File) (int64, error) {
 	}
 
 	afterStartxref := searchArea[idx+len("startxref"):]
+	afterStartxref = strings.ReplaceAll(afterStartxref, "\r", "\n") // normalize CR-only and CRLF line endings to LF
 	lines := strings.Split(afterStartxref, "\n")
 	var offsetStr string
 	for _, line := range lines {
