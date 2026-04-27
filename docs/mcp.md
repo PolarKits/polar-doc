@@ -46,7 +46,7 @@ Preview never mutates files.
 
 ## Implemented Tools
 
-Current MCP implementation provides **read-only tools** (3 total). No write tools are implemented.
+Current MCP implementation provides **read-only tools** (5 total). No write tools are implemented.
 
 ### pdf_first_page_info
 
@@ -152,7 +152,67 @@ Validates the structural integrity of a PDF or OFD document.
 
 **Supported formats:** PDF and OFD.
 
-**Note:** All three implemented tools are read-only. Write tools (preview/commit workflow) are not implemented in MCP.
+### document_extract
+
+Extracts text content from a PDF or OFD document.
+
+**Input:**
+```json
+{
+  "path": "/path/to/document.pdf"
+}
+```
+
+**Output (success):**
+```json
+{
+  "format": "pdf",
+  "path": "/path/to/document.pdf",
+  "text": "Extracted text content..."
+}
+```
+
+**Output (error):**
+```json
+{
+  "error": "error message"
+}
+```
+
+**Supported formats:** PDF and OFD.
+
+### document_read_page
+
+Reads the content of a specific page in a PDF or OFD document.
+
+**Input:**
+```json
+{
+  "path": "/path/to/document.pdf",
+  "page": 1
+}
+```
+
+**Output (success):**
+```json
+{
+  "format": "pdf",
+  "path": "/path/to/document.pdf",
+  "page": 1,
+  "content": "Page content as text..."
+}
+```
+
+**Output (error):**
+```json
+{
+  "error": "error message"
+}
+```
+
+**Supported formats:** PDF and OFD.
+
+**Note:** All five implemented tools are read-only. Write tools (preview/commit workflow) are not implemented in MCP.
 
 ## Compatibility Matrix
 
@@ -186,8 +246,6 @@ This is expected behavior — the XRef table is damaged and the parser correctly
 - Tool registration and capability advertisement
 
 ### Tools
-- OFD text extraction tool (not exposed via MCP; available only in CLI)
-- Text extraction tool for PDF or OFD (extract exists in CLI but not exposed via MCP)
 - Write tools (preview/commit workflow) — no write tools implemented in MCP
 - PDF preview rendering tool
 - Multi-document batch operations
