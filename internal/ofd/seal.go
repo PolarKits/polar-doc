@@ -118,75 +118,41 @@ func parseSignedInfo(decoder *xml.Decoder, sig *SignatureInfo, startEl *xml.Star
 			break
 		}
 
-		if end, ok := tok.(xml.EndElement); ok && end.Name.Local == "SignedInfo" {
-			break
+		se, ok := tok.(xml.StartElement)
+		if !ok {
+			continue
 		}
 
-		switch v := tok.(type) {
-		case xml.StartElement:
-			local := v.Name.Local
-			switch local {
-			case "Provider":
-				for _, attr := range v.Attr {
-					switch attr.Name.Local {
-					case "ProviderName":
-						sig.ProviderName = attr.Value
-					case "Version":
-						sig.ProviderVersion = attr.Value
-					case "Company":
-						sig.ProviderCompany = attr.Value
-					}
+		local := se.Name.Local
+		if local == "Provider" {
+			for _, attr := range se.Attr {
+				switch attr.Name.Local {
+				case "ProviderName":
+					sig.ProviderName = attr.Value
+				case "Version":
+					sig.ProviderVersion = attr.Value
+				case "Company":
+					sig.ProviderCompany = attr.Value
 				}
-			case "SignatureMethod":
-				var content string
-				if err := decoder.DecodeElement(&content, &v); err == nil {
-					sig.SignatureMethod = strings.TrimSpace(content)
+			}
+		} else if local == "Seal" {
+			for {
+				tok, err := decoder.Token()
+				if err != nil {
+					break
 				}
-			case "SignatureDateTime":
-				var content string
-				if err := decoder.DecodeElement(&content, &v); err == nil {
-					sig.SignatureDateTime = strings.TrimSpace(content)
+				if end, ok := tok.(xml.EndElement); ok && end.Name.Local == "Seal" {
+					break
 				}
-			case "StampAnnot":
-				for _, attr := range v.Attr {
-					switch attr.Name.Local {
-					case "ID":
-						if vv, err := strconv.ParseInt(attr.Value, 10, 64); err == nil {
-							sig.StampAnnotID = vv
-						}
-					case "PageRef":
-						if vv, err := strconv.ParseInt(attr.Value, 10, 64); err == nil {
-							sig.StampAnnotPageRef = vv
-						}
-					case "Boundary":
-						sig.StampAnnotBoundary = parseFloatArray(attr.Value)
+				if start, ok := tok.(xml.StartElement); ok && start.Name.Local == "BaseLoc" {
+					var content string
+					if err := decoder.DecodeElement(&content, &start); err == nil {
+						sig.SealBaseLoc = strings.TrimSpace(content)
 					}
-				}
-			case "Seal":
-				for {
-					tok, err := decoder.Token()
-					if err != nil {
-						break
-					}
-					if end, ok := tok.(xml.EndElement); ok && end.Name.Local == "Seal" {
-						break
-					}
-					if start, ok := tok.(xml.StartElement); ok && start.Name.Local == "BaseLoc" {
-						var content string
-						if err := decoder.DecodeElement(&content, &start); err == nil {
-							sig.SealBaseLoc = strings.TrimSpace(content)
-						}
-					}
-				}
-			case "SignedValue":
-				var content string
-				if err := decoder.DecodeElement(&content, &v); err == nil {
-					sig.SignedValuePath = strings.TrimSpace(content)
 				}
 			}
 		}
 	}
-
 	return nil
 }
 

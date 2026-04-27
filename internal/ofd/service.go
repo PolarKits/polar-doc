@@ -113,7 +113,8 @@ func (s *service) Open(_ context.Context, ref doc.DocumentRef) (doc.Document, er
 }
 
 // Info extracts metadata from an opened OFD document.
-// It retrieves format, path, size, version, and page count (if Document.xml is present).
+// It retrieves format, path, size, version, page count, and seal information
+// (if Signatures.xml and Seal.esl files are present).
 func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error) {
 	ofdDoc, ok := d.(*document)
 	if !ok {
@@ -130,7 +131,59 @@ func (s *service) Info(_ context.Context, d doc.Document) (doc.InfoResult, error
 	info.DeclaredVersion = ofdDoc.version
 	info.PageCount = ofdDoc.pageCount
 
+	info.Seals = s.collectSealSummaries(ofdDoc.zipReader.File)
+
 	return info, nil
+}
+
+// collectSealSummaries parses Signatures.xml and associated Seal.esl files
+// to build a list of SealSummary entries. Returns nil if no signatures found.
+func (s *service) collectSealSummaries(files []*zip.File) []doc.SealSummary {
+	sigs, err := ParseSignaturesXML(files)
+	if err != nil || len(sigs) == 0 {
+		return nil
+	}
+
+	var summaries []doc.SealSummary
+	for _, sig := range sigs {
+		if sig.SealBaseLoc == "" {
+			continue
+		}
+
+		summary := doc.SealSummary{ID: sig.ID}
+		loc := strings.TrimPrefix(sig.SealBaseLoc, "./")
+		loc = strings.TrimPrefix(loc, "/") // absolute path from OFD may start with "/"
+
+		for _, f := range files {
+			name := strings.TrimPrefix(f.Name, "./")
+			if name == loc {
+				rc, err := f.Open()
+				if err != nil {
+					break
+				}
+				data, err := io.ReadAll(rc)
+				rc.Close()
+				if err != nil {
+					break
+				}
+				result, parseErr := ParseSealESL(data)
+				if parseErr == nil {
+					summary.Version = result.Seal.Version
+					summary.Width = result.Seal.Width
+					summary.Height = result.Seal.Height
+					summary.PictureFormat = result.Seal.Picture.Format
+				}
+				break
+			}
+		}
+
+		summaries = append(summaries, summary)
+	}
+
+	if len(summaries) == 0 {
+		return nil
+	}
+	return summaries
 }
 
 // Validate checks the OFD package structure and returns a validation report.

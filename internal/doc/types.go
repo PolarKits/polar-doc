@@ -77,6 +77,25 @@ type InfoResult struct {
 	// Producer: PDF populates from InfoDict /Producer; OFD does not populate.
 	// Empty string means producer is not available.
 	Producer string
+
+	// Seals holds electronic seal metadata for OFD documents.
+	// nil if the document has no electronic seals or is not OFD.
+	// For OFD: populated from parsing Signatures.xml and associated Seal.esl files.
+	Seals []SealSummary
+}
+
+// SealSummary holds basic electronic seal metadata from an OFD document.
+// This is a phase-1 transport struct; cryptographic verification is not performed.
+type SealSummary struct {
+	// ID is the signature/seal identifier from the OFD package.
+	ID int64
+	// Version is the seal format version (e.g. "1.0").
+	Version string
+	// Width and Height describe the seal picture dimensions in pixels (0 if unknown).
+	Width  int64
+	Height int64
+	// PictureFormat is the format of the embedded seal image (e.g. "PNG", empty if none).
+	PictureFormat string
 }
 
 // ValidationReport is a structured validation output.

@@ -123,6 +123,7 @@ func RunInfo(ctx context.Context, resolver app.ServiceResolver, args []string) e
 			Author:          info.Author,
 			Creator:         info.Creator,
 			Producer:        info.Producer,
+			Seals:           info.Seals,
 		})
 	}
 
@@ -136,6 +137,7 @@ func RunInfo(ctx context.Context, resolver app.ServiceResolver, args []string) e
 }
 
 // infoResponse is the JSON response structure for the info command.
+// It mirrors doc.InfoResult but uses JSON tags suitable for direct serialization.
 type infoResponse struct {
 	// Format is the document format domain (PDF or OFD).
 	Format doc.Format `json:"format"`
@@ -157,6 +159,8 @@ type infoResponse struct {
 	Creator string `json:"creator,omitempty"`
 	// Producer is the document producer from metadata (PDF only).
 	Producer string `json:"producer,omitempty"`
+	// Seals is the list of electronic seal summaries (OFD only).
+	Seals []doc.SealSummary `json:"seals,omitempty"`
 }
 
 func runInfoPage(input infoInput, resolver app.ServiceResolver) error {
